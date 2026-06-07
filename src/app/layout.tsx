@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { Cairo } from "next/font/google";
+import { Cairo, Geist } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import arMessages from "../../messages/ar.json";
 import enMessages from "../../messages/en.json";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const cairo = Cairo({
   subsets: ["arabic"],
@@ -29,7 +32,7 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`${cairo.variable} font-cairo h-full antialiased`}
+      className={cn("font-cairo", "h-full", "antialiased", cairo.variable, "font-sans", geist.variable)}
     >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider locale="ar" messages={messages.ar}>

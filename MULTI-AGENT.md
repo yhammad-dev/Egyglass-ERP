@@ -7,13 +7,18 @@
 
 ## 1. Golden rules
 
-1. **Foundation first.** Phase A (Milestones 0–1) is built by ONE agent, alone,
+1.  **Foundation first.** Phase A (Milestones 0–1) is built by ONE agent, alone,
    sequentially. No parallel work until Phase A is committed and tagged `foundation-done`.
-2. **One stream = one worktree = one branch.** Never run two agents in the same working copy.
-3. **Stay in your lane.** Only edit files your stream owns (see the ownership map below).
-4. **The Prisma schema is FROZEN** after Foundation. Do not edit `prisma/schema.prisma`.
+2.  **One stream = one worktree = one branch.** Never run two agents in the same working copy.
+3.  **Stay in your lane.** Only edit files your stream owns (see the ownership map below).
+4.  **The Prisma schema is FROZEN** after Foundation. Do not edit `prisma/schema.prisma`.
    If a stream genuinely needs a schema change, STOP and request it (section 4).
-5. **Rebase often, merge small.** Pull `main` into your branch frequently; open a PR per milestone.
+5.  **Rebase often, merge small.** Pull `main` into your branch frequently; open a PR per milestone.
+6.  **⚠️ `prisma migrate dev` can reset data.** The DB is on a named Docker volume
+   (`postgres_data`) so container rebuilds won't wipe it, but running `migrate dev --name x`
+   may drop columns or restart the migration history. Prefer `prisma migrate deploy`
+   for applying existing migrations without risk. If a new migration is unavoidable,
+   ensure the database is backed up first.
 
 ---
 
