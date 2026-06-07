@@ -1,0 +1,125 @@
+{
+  "app": {
+    "name": "EgyGlass ERP",
+    "loading": "جارٍ التحميل...",
+    "error": "حدث خطأ",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "search": "بحث",
+    "filter": "تصفية",
+    "noResults": "لا توجد نتائج",
+    "back": "رجوع",
+    "actions": "إجراءات"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "loginButton": "دخول",
+    "invalidCredentials": "بيانات الدخول غير صحيحة",
+    "sessionExpired": "انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى"
+  },
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "newCustomers": "عملاء جدد",
+    "activeQuotations": "عروض أسعار نشطة",
+    "inspectionsDueToday": "معاينات اليوم",
+    "inspectionsOverdue": "معاينات متأخرة",
+    "pipelineDistribution": "توزيع المراحل"
+  },
+  "customers": {
+    "title": "العملاء",
+    "newCustomer": "عميل جديد",
+    "editCustomer": "تعديل العميل",
+    "name": "الاسم",
+    "phone": "الهاتف",
+    "altPhone": "هاتف بديل",
+    "type": "النوع",
+    "source": "المصدر",
+    "address": "العنوان",
+    "notes": "ملاحظات",
+    "stage": "المرحلة",
+    "owner": "المسؤول",
+    "individual": "فردي",
+    "engineer": "مهندس",
+    "company": "شركة",
+    "rejectReason": "سبب الرفض",
+    "isRepeat": "عميل متكرر"
+  },
+  "pipeline": {
+    "NEW": "جديد",
+    "PRICED": "تم التسعير",
+    "FOLLOW_UP": "متابعة",
+    "INSPECTION": "معاينة",
+    "EXECUTION": "تنفيذ",
+    "RE_INSPECTION_FOLLOWUP": "متابعة بعد المعاينة",
+    "REJECTED": "رفض"
+  },
+  "quotations": {
+    "title": "عروض الأسعار",
+    "newQuotation": "عرض سعر جديد",
+    "number": "الرقم",
+    "subtotal": "المجموع",
+    "discount": "الخصم",
+    "cashback": "كاش باك",
+    "vat": "ضريبة القيمة المضافة (14%)",
+    "total": "الإجمالي",
+    "validUntil": "صالح حتى",
+    "status": "الحالة",
+    "needsApproval": "بانتظار الموافقة",
+    "sendWhatsApp": "إرسال عبر واتساب"
+  },
+  "inspections": {
+    "title": "المعاينات",
+    "newInspection": "طلب معاينة جديد",
+    "location": "الموقع",
+    "insideCairo": "داخل القاهرة",
+    "outsideCairo": "خارج القاهرة",
+    "address": "العنوان",
+    "phone": "الهاتف",
+    "scheduledAt": "موعد المعاينة",
+    "dueDate": "تاريخ الاستحقاق",
+    "assignee": "المسؤول",
+    "photos": "الصور",
+    "status": "الحالة",
+    "overdue": "متأخرة"
+  },
+  "users": {
+    "title": "المستخدمين",
+    "newUser": "مستخدم جديد",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "department": "القسم",
+    "status": "الحالة",
+    "active": "نشط",
+    "suspended": "موقوف"
+  },
+  "roles": {
+    "ADMIN": "مدير النظام",
+    "SALES_MANAGER": "مدير المبيعات",
+    "SALES_REP": "مندوب مبيعات",
+    "INSPECTION_MANAGER": "مدير المعاينات",
+    "VIEWER": "مشاهد"
+  },
+  "departments": {
+    "EXECUTIVE": "الإدارة التنفيذية",
+    "SALES": "المبيعات",
+    "INSPECTIONS": "المعاينات",
+    "TECHNICAL_OFFICE": "المكتب الفني",
+    "PROJECTS": "المشاريع"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "customers": "العملاء",
+    "quotations": "عروض الأسعار",
+    "inspections": "المعاينات",
+    "users": "المستخدمين",
+    "reports": "التقارير"
+  }
+}

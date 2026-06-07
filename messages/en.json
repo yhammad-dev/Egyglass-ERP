@@ -1,0 +1,125 @@
+{
+  "app": {
+    "name": "EgyGlass ERP",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results",
+    "back": "Back",
+    "actions": "Actions"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "loginButton": "Sign In",
+    "invalidCredentials": "Invalid credentials",
+    "sessionExpired": "Session expired, please sign in again"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "newCustomers": "New Customers",
+    "activeQuotations": "Active Quotations",
+    "inspectionsDueToday": "Inspections Due Today",
+    "inspectionsOverdue": "Overdue Inspections",
+    "pipelineDistribution": "Pipeline Distribution"
+  },
+  "customers": {
+    "title": "Customers",
+    "newCustomer": "New Customer",
+    "editCustomer": "Edit Customer",
+    "name": "Name",
+    "phone": "Phone",
+    "altPhone": "Alt. Phone",
+    "type": "Type",
+    "source": "Source",
+    "address": "Address",
+    "notes": "Notes",
+    "stage": "Stage",
+    "owner": "Owner",
+    "individual": "Individual",
+    "engineer": "Engineer",
+    "company": "Company",
+    "rejectReason": "Rejection Reason",
+    "isRepeat": "Repeat Customer"
+  },
+  "pipeline": {
+    "NEW": "New",
+    "PRICED": "Priced",
+    "FOLLOW_UP": "Follow Up",
+    "INSPECTION": "Inspection",
+    "EXECUTION": "Execution",
+    "RE_INSPECTION_FOLLOWUP": "Post-Inspection Follow Up",
+    "REJECTED": "Rejected"
+  },
+  "quotations": {
+    "title": "Quotations",
+    "newQuotation": "New Quotation",
+    "number": "Number",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "cashback": "Cashback",
+    "vat": "VAT (14%)",
+    "total": "Total",
+    "validUntil": "Valid Until",
+    "status": "Status",
+    "needsApproval": "Pending Approval",
+    "sendWhatsApp": "Send via WhatsApp"
+  },
+  "inspections": {
+    "title": "Inspections",
+    "newInspection": "New Inspection Request",
+    "location": "Location",
+    "insideCairo": "Inside Cairo",
+    "outsideCairo": "Outside Cairo",
+    "address": "Address",
+    "phone": "Phone",
+    "scheduledAt": "Scheduled At",
+    "dueDate": "Due Date",
+    "assignee": "Assignee",
+    "photos": "Photos",
+    "status": "Status",
+    "overdue": "Overdue"
+  },
+  "users": {
+    "title": "Users",
+    "newUser": "New User",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "department": "Department",
+    "status": "Status",
+    "active": "Active",
+    "suspended": "Suspended"
+  },
+  "roles": {
+    "ADMIN": "Admin",
+    "SALES_MANAGER": "Sales Manager",
+    "SALES_REP": "Sales Rep",
+    "INSPECTION_MANAGER": "Inspection Manager",
+    "VIEWER": "Viewer"
+  },
+  "departments": {
+    "EXECUTIVE": "Executive",
+    "SALES": "Sales",
+    "INSPECTIONS": "Inspections",
+    "TECHNICAL_OFFICE": "Technical Office",
+    "PROJECTS": "Projects"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "customers": "Customers",
+    "quotations": "Quotations",
+    "inspections": "Inspections",
+    "users": "Users",
+    "reports": "Reports"
+  }
+}

@@ -1,0 +1,255 @@
+// EgyGlass ERP — Prisma Schema (MVP)
+// Vertical Slice: Sales CRM + Inspections
+// المصدر الوحيد للحقيقة لقاعدة البيانات. لا تعدّل الجداول إلا من هنا.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+}
+
+enum Department {
+  EXECUTIVE
+  SALES
+  INSPECTIONS
+  TECHNICAL_OFFICE
+  PROJECTS
+}
+
+enum CustomerType {
+  INDIVIDUAL // فردي
+  ENGINEER   // مهندس
+  COMPANY    // شركة
+}
+
+enum CustomerSource {
+  AD         // إعلان
+  REFERRAL   // توصية
+  WHATSAPP   // واتساب
+  EXHIBITION // معرض
+  VISIT      // زيارة
+}
+
+enum PipelineStage {
+  NEW                     // جديد
+  PRICED                  // تم التسعير
+  FOLLOW_UP               // متابعة
+  INSPECTION              // معاينة
+  EXECUTION               // تنفيذ
+  RE_INSPECTION_FOLLOWUP  // متابعة بعد المعاينة
+  REJECTED                // رفض
+}
+
+enum InteractionType {
+  CALL     // مكالمة
+  WHATSAPP // واتساب
+  VISIT    // زيارة
+  NOTE     // ملاحظة
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  PENDING_APPROVAL // خصم > 19% بانتظار موافقة المدير
+  APPROVED
+  EXPIRED
+}
+
+enum InspectionStatus {
+  REQUESTED // مطلوبة
+  SCHEDULED // مجدولة
+  DONE      // تمت
+  OVERDUE   // متأخرة (SLA)
+}
+
+enum InspectionLocation {
+  INSIDE_CAIRO  // داخل القاهرة (SLA يومين)
+  OUTSIDE_CAIRO // خارج القاهرة (SLA 3-4 أيام)
+}
+
+enum AttachmentParent {
+  CUSTOMER
+  QUOTATION
+  INSPECTION
+}
+
+// ─────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(VIEWER)
+  department   Department @default(SALES)
+  isActive     Boolean    @default(true)
+
+  // العملاء المسؤول عنهم هذا المندوب
+  assignedCustomers Customer[]      @relation("CustomerOwner")
+  interactions      Interaction[]
+  quotations        Quotation[]
+  inspections       InspectionRequest[] @relation("InspectionAssignee")
+  activityLogs      ActivityLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Customer {
+  id           String         @id @default(cuid())
+  name         String
+  phone        String
+  altPhone     String?
+  type         CustomerType   @default(INDIVIDUAL)
+  source       CustomerSource @default(VISIT)
+  address      String?
+  notes        String?
+  stage        PipelineStage  @default(NEW)
+  rejectReason String?        // إلزامي منطقياً عند الانتقال إلى REJECTED
+  isRepeat     Boolean        @default(false) // يفعّل أهلية 5% كاش باك
+
+  // المندوب المسؤول
+  ownerId String?
+  owner   User?   @relation("CustomerOwner", fields: [ownerId], references: [id])
+
+  // تغطية الغياب: المندوب اللي بيغطي مؤقتاً
+  coveredById String?
+
+  interactions Interaction[]
+  quotations   Quotation[]
+  inspections  InspectionRequest[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([ownerId])
+  @@index([stage])
+  @@index([phone])
+}
+
+model Interaction {
+  id         String          @id @default(cuid())
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id])
+  userId     String
+  user       User            @relation(fields: [userId], references: [id])
+  type       InteractionType @default(NOTE)
+  note       String
+  createdAt  DateTime        @default(now())
+
+  @@index([customerId])
+}
+
+model Quotation {
+  id         String          @id @default(cuid())
+  number     String          @unique // رقم تسلسلي للعرض
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id])
+  createdById String
+  createdBy  User            @relation(fields: [createdById], references: [id])
+  status     QuotationStatus @default(DRAFT)
+
+  // كل المبالغ بالجنيه المصري وتُحسب server-side
+  subtotal       Decimal @default(0) @db.Decimal(12, 2)
+  discountPct    Decimal @default(0) @db.Decimal(5, 2)  // حتى 19 قياسي
+  cashbackPct    Decimal @default(0) @db.Decimal(5, 2)  // 5 للمتكرر
+  discountAmount Decimal @default(0) @db.Decimal(12, 2)
+  taxPct         Decimal @default(14) @db.Decimal(5, 2) // ضريبة القيمة المضافة
+  taxAmount      Decimal @default(0) @db.Decimal(12, 2)
+  total          Decimal @default(0) @db.Decimal(12, 2)
+
+  needsApproval Boolean   @default(false) // true لو الخصم > 19
+  approvedById  String?
+  validUntil    DateTime  // تاريخ الإصدار + 3 أيام
+
+  items QuotationItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal   @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal   @default(0) @db.Decimal(12, 2)
+  lineTotal   Decimal   @default(0) @db.Decimal(12, 2)
+
+  @@index([quotationId])
+}
+
+model InspectionRequest {
+  id         String             @id @default(cuid())
+  customerId String
+  customer   Customer           @relation(fields: [customerId], references: [id])
+  location   InspectionLocation @default(INSIDE_CAIRO)
+  address    String
+  phone      String
+  notes      String?
+  status     InspectionStatus   @default(REQUESTED)
+
+  // الجدولة و SLA
+  scheduledAt DateTime?
+  dueDate     DateTime  // يُحسب تلقائياً حسب الموقع (يومين / 3-4 أيام عمل)
+  assigneeId  String?
+  assignee    User?     @relation("InspectionAssignee", fields: [assigneeId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Attachment {
+  id        String           @id @default(cuid())
+  parent    AttachmentParent // العميل / عرض السعر / المعاينة
+  parentId  String
+  fileName  String
+  filePath  String           // المسار على الـ VPS / S3
+  mimeType  String?
+  createdAt DateTime         @default(now())
+
+  @@index([parent, parentId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // مثال: "CUSTOMER_CREATED", "STAGE_CHANGED", "QUOTATION_APPROVED"
+  entity    String   // اسم الكيان
+  entityId  String
+  details   String?  // JSON: قيمة قبل/بعد (اختياري)
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+}

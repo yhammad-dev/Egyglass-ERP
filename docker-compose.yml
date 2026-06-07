@@ -1,0 +1,59 @@
+# EgyGlass ERP — Local development environment (Docker)
+# One command brings up everything: `docker compose up`
+#
+# ───────────── SAFETY / ISOLATION ─────────────
+# This stack is fully isolated from your other Docker projects:
+#   • `name:` below scopes ALL containers, networks, and volumes to this project only.
+#   • It uses NON-DEFAULT host ports (5433, 3100) so it won't clash with anything
+#     already running on the usual 5432 / 3000.
+#   • `docker compose up/down` run from THIS folder affect ONLY this project.
+#   • It never touches other projects' containers, volumes, or data.
+# Do NOT run global cleanup commands (e.g. `docker system prune`) — those are not
+# needed here and could affect other projects.
+# ──────────────────────────────────────────────
+
+name: egyglass-erp
+
+services:
+  # ── PostgreSQL database (the "warehouse" where all data lives) ──
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: egyglass
+      POSTGRES_PASSWORD: egyglass_dev_pw   # dev only — change for production
+      POSTGRES_DB: egyglass
+    ports:
+      - "5433:5432"   # host 5433 → container 5432 (avoids clashing with other Postgres)
+    volumes:
+      - egyglass_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egyglass -d egyglass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Next.js app (the "engine" that runs the code) ──
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install --ignore-scripts && node scripts/patch-next-html-context.js && ./node_modules/.bin/prisma generate && npm run dev"
+    environment:
+      # NOTE: inside the Docker network the DB host is "db" on its internal port 5432,
+      # NOT the host port 5433. This line is correct as-is.
+      DATABASE_URL: "postgresql://egyglass:egyglass_dev_pw@db:5432/egyglass?schema=public"
+      AUTH_SECRET: "dev-secret-change-me"
+      NEXTAUTH_URL: "http://localhost:3100"
+      WATCHPACK_POLLING: "true"   # makes file-watching reliable on Windows
+      NODE_ENV: development
+    ports:
+      - "3100:3000"   # open the app at http://localhost:3100
+    volumes:
+      - .:/app
+      - /app/node_modules   # keep container's node_modules separate from host
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  egyglass_db_data:   # becomes "egyglass-erp_egyglass_db_data" — namespaced, isolated
