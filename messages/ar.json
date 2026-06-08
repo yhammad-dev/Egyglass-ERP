@@ -98,7 +98,17 @@
     "department": "القسم",
     "status": "الحالة",
     "active": "نشط",
-    "suspended": "موقوف"
+    "suspended": "موقوف",
+    "deleted": "محذوف",
+    "editUser": "تعديل مستخدم",
+    "reactivate": "إعادة تفعيل",
+    "passwordHintEmpty": "(اتركه فارغاً إن لم ترد التغيير)",
+    "confirmDelete": "هل أنت متأكد من حذف المستخدم \"{name}\"؟",
+    "confirmReactivate": "هل أنت متأكد من إعادة تفعيل المستخدم \"{name}\"؟",
+    "created": "تم إنشاء المستخدم بنجاح",
+    "updated": "تم تحديث المستخدم بنجاح",
+    "deletedMsg": "تم حذف المستخدم بنجاح",
+    "reactivatedMsg": "تم إعادة تفعيل المستخدم بنجاح"
   },
   "roles": {
     "ADMIN": "مدير النظام",
@@ -113,6 +123,19 @@
     "INSPECTIONS": "المعاينات",
     "TECHNICAL_OFFICE": "المكتب الفني",
     "PROJECTS": "المشاريع"
+  },
+  "errors": {
+    "required": "الحقل مطلوب",
+    "emailInvalid": "بريد إلكتروني غير صالح",
+    "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+    "notAuthorized": "غير مصرح",
+    "emailAlreadyUsed": "البريد الإلكتروني مستخدم بالفعل",
+    "lastActiveAdmin": "لا يمكن تنفيذ العملية — يجب أن يبقى مدير نظام واحد نشط على الأقل.",
+    "createFailed": "حدث خطأ أثناء إنشاء المستخدم",
+    "updateFailed": "حدث خطأ أثناء تحديث المستخدم",
+    "deleteFailed": "حدث خطأ أثناء حذف المستخدم",
+    "reactivateFailed": "حدث خطأ أثناء إعادة تفعيل المستخدم",
+    "refreshFailed": "فشل تحديث قائمة المستخدمين"
   },
   "nav": {
     "dashboard": "لوحة التحكم",

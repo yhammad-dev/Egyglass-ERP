@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getNavItems } from "@/lib/nav";
 import { t } from "@/lib/server-translations";
+import { Toaster } from "@/components/ui/sonner";
 import Link from "next/link";
 import { ReactNode } from "react";
 
@@ -55,6 +56,8 @@ export default async function DashboardLayout({
       <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
         {children}
       </main>
+
+      <Toaster />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,6 +43,7 @@ import {
   createUserAction,
   updateUserAction,
   deleteUserAction,
+  reactivateUserAction,
   listUsersAction,
 } from "./actions";
 import type { UserRow } from "@/lib/services/users";
@@ -73,13 +74,13 @@ const DEPARTMENTS = [
 
 function buildFormSchema(requirePassword: boolean) {
   return z.object({
-    name: z.string().min(1, "الاسم مطلوب"),
-    email: z.string().email("بريد إلكتروني غير صالح"),
+    name: z.string().min(1, "errors.required"),
+    email: z.string().email("errors.emailInvalid"),
     password: requirePassword
-      ? z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل")
+      ? z.string().min(6, "errors.passwordMinLength")
       : z.string().optional(),
-    role: z.string().min(1, "الدور مطلوب"),
-    department: z.string().min(1, "القسم مطلوب"),
+    role: z.string().min(1, "errors.required"),
+    department: z.string().min(1, "errors.required"),
   });
 }
 
@@ -90,14 +91,18 @@ export function UsersClient({
 }: {
   initialUsers: UserRow[];
 }) {
+  useEffect(() => { toast.error("TEST_TOAST_ON_MOUNT"); }, []);
   const t = useTranslations();
   const [users, setUsers] = useState<UserRow[]>(initialUsers);
   const [open, setOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<UserRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const isEditing = !!editingUser;
+  const fe = (err: { message?: string } | undefined) =>
+    err?.message ? t(err.message) : undefined;
   const formSchema = buildFormSchema(!isEditing);
 
   const {
@@ -139,7 +144,7 @@ export function UsersClient({
       const fresh = await listUsersAction();
       setUsers(fresh);
     } catch {
-      toast.error("فشل تحديث قائمة المستخدمين");
+      toast.error(t("errors.refreshFailed"));
     }
   }
 
@@ -154,23 +159,23 @@ export function UsersClient({
         if (!result.success) {
           toast.error(
             typeof result.error === "string"
-              ? result.error
-              : Object.values(result.error).flat().join("، ")
+              ? t(result.error)
+              : Object.values(result.error).flat().map(k => t(k)).join("، ")
           );
           return;
         }
-        toast.success("تم تحديث المستخدم بنجاح");
+        toast.success(t("users.updated"));
       } else {
         const result = await createUserAction(formData);
         if (!result.success) {
           toast.error(
             typeof result.error === "string"
-              ? result.error
-              : Object.values(result.error).flat().join("، ")
+              ? t(result.error)
+              : Object.values(result.error).flat().map(k => t(k)).join("، ")
           );
           return;
         }
-        toast.success("تم إنشاء المستخدم بنجاح");
+        toast.success(t("users.created"));
       }
       closeDialog();
       await refreshUsers();
@@ -181,13 +186,37 @@ export function UsersClient({
 
   async function confirmDelete() {
     if (!deleteTarget) return;
+    console.log("[DEBUG confirmDelete] deleteTarget.id:", deleteTarget.id);
     const result = await deleteUserAction(deleteTarget.id);
+    console.log("[DEBUG confirmDelete] result:", JSON.stringify(result));
     if (!result.success) {
-      toast.error(result.error);
+      const resolved = t(result.error);
+      console.log("[DEBUG confirmDelete] !success -- error key:", result.error, "resolved:", resolved);
+      console.log("[DEBUG confirmDelete] ABOUT to call toast.error");
+      toast.error(resolved);
+      console.log("[DEBUG confirmDelete] AFTER toast.error call");
     } else {
-      toast.success("تم حذف المستخدم بنجاح");
+      const resolved = t("users.deletedMsg");
+      console.log("[DEBUG confirmDelete] success -- resolved:", resolved);
+      console.log("[DEBUG confirmDelete] ABOUT to call toast.success");
+      toast.success(resolved);
+      console.log("[DEBUG confirmDelete] AFTER toast.success call");
     }
+    console.log("[DEBUG confirmDelete] closing dialog and refreshing");
     setDeleteTarget(null);
+    await refreshUsers();
+    console.log("[DEBUG confirmDelete] refresh done");
+  }
+
+  async function confirmReactivate() {
+    if (!reactivateTarget) return;
+    const result = await reactivateUserAction(reactivateTarget.id);
+    if (!result.success) {
+      toast.error(t(result.error));
+    } else {
+      toast.success(t("users.reactivatedMsg"));
+    }
+    setReactivateTarget(null);
     await refreshUsers();
   }
 
@@ -208,36 +237,58 @@ export function UsersClient({
     }),
     columnHelper.accessor("isActive", {
       header: t("users.status"),
-      cell: (info) =>
-        info.getValue() ? (
+      cell: (info) => {
+        const row = info.row.original;
+        if (row.deletedAt) return <Badge variant="destructive">{t("users.deleted")}</Badge>;
+        return info.getValue() ? (
           <Badge variant="default">{t("users.active")}</Badge>
         ) : (
           <Badge variant="secondary">{t("users.suspended")}</Badge>
-        ),
+        );
+      },
     }),
     columnHelper.display({
       id: "actions",
       header: t("app.actions"),
-      cell: (info) => (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openEdit(info.row.original)}
-          >
-            {t("app.edit")}
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setDeleteTarget(info.row.original)}
-          >
-            {t("app.delete")}
-          </Button>
-        </div>
-      ),
+      cell: (info) => {
+        const row = info.row.original;
+        if (row.deletedAt) {
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReactivateTarget(row)}
+            >
+              {t("users.reactivate")}
+            </Button>
+          );
+        }
+        return (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openEdit(row)}
+            >
+              {t("app.edit")}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteTarget(row)}
+            >
+              {t("app.delete")}
+            </Button>
+          </div>
+        );
+      },
     }),
   ];
+
+  console.log("[DEBUG UsersClient] users count in state:", users.length);
+  users.forEach((u) =>
+    console.log(`[DEBUG UsersClient] id=${u.id} name=${u.name} deletedAt=${u.deletedAt}`)
+  );
 
   const table = useReactTable({
     data: users,
@@ -301,14 +352,14 @@ export function UsersClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {isEditing ? "تعديل مستخدم" : t("users.newUser")}
+              {isEditing ? t("users.editUser") : t("users.newUser")}
             </DialogTitle>
           </DialogHeader>
           <form key={editingUser?.id ?? "create"} onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="name">{t("users.name")}</Label>
               <Input id="name" {...register("name")} />
-              <FieldError message={errors.name?.message} />
+              <FieldError message={fe(errors.name)} />
             </div>
 
             <div className="space-y-1">
@@ -319,7 +370,7 @@ export function UsersClient({
                 dir="ltr"
                 {...register("email")}
               />
-              <FieldError message={errors.email?.message} />
+              <FieldError message={fe(errors.email)} />
             </div>
 
             <div className="space-y-1">
@@ -327,7 +378,7 @@ export function UsersClient({
                 {t("auth.password")}
                 {isEditing && (
                   <span className="text-xs text-gray-400 mr-2">
-                    (اتركه فارغاً إن لم ترد التغيير)
+                    {t("users.passwordHintEmpty")}
                   </span>
                 )}
               </Label>
@@ -337,7 +388,7 @@ export function UsersClient({
                 dir="ltr"
                 {...register("password")}
               />
-              <FieldError message={errors.password?.message} />
+              <FieldError message={fe(errors.password)} />
             </div>
 
             <div className="space-y-1">
@@ -357,7 +408,7 @@ export function UsersClient({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldError message={errors.role?.message} />
+              <FieldError message={fe(errors.role)} />
             </div>
 
             <div className="space-y-1">
@@ -377,7 +428,7 @@ export function UsersClient({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldError message={errors.department?.message} />
+              <FieldError message={fe(errors.department)} />
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -406,7 +457,7 @@ export function UsersClient({
             <DialogTitle>{t("app.confirm")}</DialogTitle>
           </DialogHeader>
           <p className="text-gray-600">
-            هل أنت متأكد من حذف المستخدم &ldquo;{deleteTarget?.name}&rdquo;؟
+            {t("users.confirmDelete", { name: deleteTarget?.name })}
           </p>
           <div className="flex justify-end gap-3">
             <Button
@@ -417,6 +468,32 @@ export function UsersClient({
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>
               {t("app.delete")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reactivate Confirmation Dialog */}
+      <Dialog
+        open={!!reactivateTarget}
+        onOpenChange={(open) => !open && setReactivateTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("app.confirm")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-600">
+            {t("users.confirmReactivate", { name: reactivateTarget?.name })}
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setReactivateTarget(null)}
+            >
+              {t("app.cancel")}
+            </Button>
+            <Button variant="default" onClick={confirmReactivate}>
+              {t("users.reactivate")}
             </Button>
           </div>
         </DialogContent>

@@ -13,7 +13,8 @@
     "filter": "Filter",
     "noResults": "No results",
     "back": "Back",
-    "actions": "Actions"
+    "actions": "Actions",
+    "reactivate": "Reactivate"
   },
   "auth": {
     "login": "Sign In",
@@ -98,7 +99,17 @@
     "department": "Department",
     "status": "Status",
     "active": "Active",
-    "suspended": "Suspended"
+    "suspended": "Suspended",
+    "deleted": "Deleted",
+    "editUser": "Edit User",
+    "reactivate": "Reactivate",
+    "passwordHintEmpty": "(Leave empty to keep current)",
+    "confirmDelete": "Are you sure you want to delete user \"{name}\"?",
+    "confirmReactivate": "Are you sure you want to reactivate user \"{name}\"?",
+    "created": "User created successfully",
+    "updated": "User updated successfully",
+    "deletedMsg": "User deleted successfully",
+    "reactivatedMsg": "User reactivated successfully"
   },
   "roles": {
     "ADMIN": "Admin",
@@ -113,6 +124,19 @@
     "INSPECTIONS": "Inspections",
     "TECHNICAL_OFFICE": "Technical Office",
     "PROJECTS": "Projects"
+  },
+  "errors": {
+    "required": "This field is required",
+    "emailInvalid": "Invalid email address",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "notAuthorized": "Not authorized",
+    "emailAlreadyUsed": "This email is already in use",
+    "lastActiveAdmin": "Cannot complete this operation — at least one active admin must remain.",
+    "createFailed": "An error occurred while creating the user",
+    "updateFailed": "An error occurred while updating the user",
+    "deleteFailed": "An error occurred while deleting the user",
+    "reactivateFailed": "An error occurred while reactivating the user",
+    "refreshFailed": "Failed to refresh the user list"
   },
   "nav": {
     "dashboard": "Dashboard",

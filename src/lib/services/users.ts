@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 export class LastAdminGuardError extends Error {
   constructor() {
-    super("لا يمكن تنفيذ العملية — يجب أن يبقى مدير نظام واحد نشط على الأقل.");
+    super("errors.lastActiveAdmin");
     this.name = "LastAdminGuardError";
   }
 }
@@ -16,6 +16,7 @@ export interface UserRow {
   department: string;
   isActive: boolean;
   createdAt: Date;
+  deletedAt: Date | null;
 }
 
 export interface CreateUserInput {
@@ -36,8 +37,7 @@ export interface UpdateUserInput {
 }
 
 export async function getUsers(): Promise<UserRow[]> {
-  return prisma.user.findMany({
-    where: { deletedAt: null },
+  const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -47,8 +47,14 @@ export async function getUsers(): Promise<UserRow[]> {
       department: true,
       isActive: true,
       createdAt: true,
+      deletedAt: true,
     },
   });
+  console.log("[DEBUG getUsers] count:", users.length);
+  users.forEach((u) =>
+    console.log(`[DEBUG getUsers] id=${u.id} deletedAt=${u.deletedAt}`)
+  );
+  return users;
 }
 
 export async function createUser(input: CreateUserInput, actorId: string) {

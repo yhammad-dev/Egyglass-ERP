@@ -28,20 +28,20 @@ const departmentEnum = z.enum([
 ]);
 
 const createSchema = z.object({
-  name: z.string().min(1, "الاسم مطلوب"),
-  email: z.string().email("بريد إلكتروني غير صالح"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  name: z.string().min(1, "errors.required"),
+  email: z.string().email("errors.emailInvalid"),
+  password: z.string().min(6, "errors.passwordMinLength"),
   role: roleEnum,
   department: departmentEnum,
 });
 
 const updateSchema = z.object({
   id: z.string(),
-  name: z.string().min(1, "الاسم مطلوب").optional(),
-  email: z.string().email("بريد إلكتروني غير صالح").optional(),
+  name: z.string().min(1, "errors.required").optional(),
+  email: z.string().email("errors.emailInvalid").optional(),
   password: z
     .string()
-    .min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل")
+    .min(6, "errors.passwordMinLength")
     .optional(),
   role: roleEnum.optional(),
   department: departmentEnum.optional(),
@@ -50,14 +50,14 @@ const updateSchema = z.object({
 
 export async function listUsersAction() {
   const auth = await requireRole(["ADMIN"]);
-  if (!auth.authorized) throw new Error("غير مصرح");
+  if (!auth.authorized) throw new Error("errors.notAuthorized");
 
   return getUsers();
 }
 
 export async function createUserAction(data: unknown) {
   const auth = await requireRole(["ADMIN"]);
-  if (!auth.authorized) return { success: false as const, error: "غير مصرح" };
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
 
   const parsed = createSchema.safeParse(data);
   if (!parsed.success) {
@@ -74,16 +74,16 @@ export async function createUserAction(data: unknown) {
     if (e?.code === "P2002") {
       return {
         success: false as const,
-        error: { email: ["البريد الإلكتروني مستخدم بالفعل"] },
+        error: { email: ["errors.emailAlreadyUsed"] },
       };
     }
-    return { success: false as const, error: "حدث خطأ أثناء إنشاء المستخدم" };
+    return { success: false as const, error: "errors.createFailed" };
   }
 }
 
 export async function updateUserAction(data: unknown) {
   const auth = await requireRole(["ADMIN"]);
-  if (!auth.authorized) return { success: false as const, error: "غير مصرح" };
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
 
   const parsed = updateSchema.safeParse(data);
   if (!parsed.success) {
@@ -105,16 +105,16 @@ export async function updateUserAction(data: unknown) {
     if (e?.code === "P2002") {
       return {
         success: false as const,
-        error: { email: ["البريد الإلكتروني مستخدم بالفعل"] },
+        error: { email: ["errors.emailAlreadyUsed"] },
       };
     }
-    return { success: false as const, error: "حدث خطأ أثناء تحديث المستخدم" };
+    return { success: false as const, error: "errors.updateFailed" };
   }
 }
 
 export async function deleteUserAction(id: string) {
   const auth = await requireRole(["ADMIN"]);
-  if (!auth.authorized) return { success: false as const, error: "غير مصرح" };
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
 
   try {
     await deleteUser(id, auth.userId);
@@ -123,13 +123,13 @@ export async function deleteUserAction(id: string) {
     if (e instanceof LastAdminGuardError) {
       return { success: false as const, error: e.message };
     }
-    return { success: false as const, error: "حدث خطأ أثناء حذف المستخدم" };
+    return { success: false as const, error: "errors.deleteFailed" };
   }
 }
 
 export async function reactivateUserAction(id: string) {
   const auth = await requireRole(["ADMIN"]);
-  if (!auth.authorized) return { success: false as const, error: "غير مصرح" };
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
 
   try {
     await reactivateUser(id, auth.userId);
@@ -137,7 +137,7 @@ export async function reactivateUserAction(id: string) {
   } catch {
     return {
       success: false as const,
-      error: "حدث خطأ أثناء إعادة تفعيل المستخدم",
+      error: "errors.reactivateFailed",
     };
   }
 }
