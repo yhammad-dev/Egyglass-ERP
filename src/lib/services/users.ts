@@ -50,10 +50,6 @@ export async function getUsers(): Promise<UserRow[]> {
       deletedAt: true,
     },
   });
-  console.log("[DEBUG getUsers] count:", users.length);
-  users.forEach((u) =>
-    console.log(`[DEBUG getUsers] id=${u.id} deletedAt=${u.deletedAt}`)
-  );
   return users;
 }
 

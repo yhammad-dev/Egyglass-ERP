@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getNavItems } from "@/lib/nav";
+import { signOutAction } from "@/lib/actions/auth";
 import { t } from "@/lib/server-translations";
 import { Toaster } from "@/components/ui/sonner";
 import Link from "next/link";
@@ -42,7 +43,7 @@ export default async function DashboardLayout({
         </nav>
 
         <div className="p-3 border-t border-gray-700">
-          <form action="/api/auth/signout" method="POST">
+          <form action={signOutAction}>
             <button
               type="submit"
               className="w-full text-right px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-gray-800 transition-colors"

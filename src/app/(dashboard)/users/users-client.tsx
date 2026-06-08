@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -91,7 +91,6 @@ export function UsersClient({
 }: {
   initialUsers: UserRow[];
 }) {
-  useEffect(() => { toast.error("TEST_TOAST_ON_MOUNT"); }, []);
   const t = useTranslations();
   const [users, setUsers] = useState<UserRow[]>(initialUsers);
   const [open, setOpen] = useState(false);
@@ -186,26 +185,14 @@ export function UsersClient({
 
   async function confirmDelete() {
     if (!deleteTarget) return;
-    console.log("[DEBUG confirmDelete] deleteTarget.id:", deleteTarget.id);
     const result = await deleteUserAction(deleteTarget.id);
-    console.log("[DEBUG confirmDelete] result:", JSON.stringify(result));
     if (!result.success) {
-      const resolved = t(result.error);
-      console.log("[DEBUG confirmDelete] !success -- error key:", result.error, "resolved:", resolved);
-      console.log("[DEBUG confirmDelete] ABOUT to call toast.error");
-      toast.error(resolved);
-      console.log("[DEBUG confirmDelete] AFTER toast.error call");
+      toast.error(t(result.error));
     } else {
-      const resolved = t("users.deletedMsg");
-      console.log("[DEBUG confirmDelete] success -- resolved:", resolved);
-      console.log("[DEBUG confirmDelete] ABOUT to call toast.success");
-      toast.success(resolved);
-      console.log("[DEBUG confirmDelete] AFTER toast.success call");
+      toast.success(t("users.deletedMsg"));
     }
-    console.log("[DEBUG confirmDelete] closing dialog and refreshing");
     setDeleteTarget(null);
     await refreshUsers();
-    console.log("[DEBUG confirmDelete] refresh done");
   }
 
   async function confirmReactivate() {
@@ -284,11 +271,6 @@ export function UsersClient({
       },
     }),
   ];
-
-  console.log("[DEBUG UsersClient] users count in state:", users.length);
-  users.forEach((u) =>
-    console.log(`[DEBUG UsersClient] id=${u.id} name=${u.name} deletedAt=${u.deletedAt}`)
-  );
 
   const table = useReactTable({
     data: users,
