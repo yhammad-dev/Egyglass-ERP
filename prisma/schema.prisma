@@ -91,6 +91,23 @@ enum AttachmentParent {
   QUOTATION
   INSPECTION
 }
+enum ReviewStatus {
+  PENDING_REVIEW // بانتظار المراجعة
+  APPROVED       // معتمد للمصنع
+  RETURNED       // أُرجع للمكتب الفني للتعديل
+}
+
+enum QuotationType {
+  INITIAL // مبدئي — قبل المعاينة
+  FINAL   // نهائي — بعد المعاينة
+}
+
+enum DiscountRequestStatus {
+  PENDING   // بانتظار قرار الإدارة
+  APPROVED  // موافقة كاملة
+  REJECTED  // رفض
+  ADJUSTED  // عمرو حدّد نسبة مختلفة
+}
 
 // ─────────────────────────────────────────────
 // Models
@@ -185,6 +202,16 @@ model Quotation {
   approvedById  String?
   validUntil    DateTime  // تاريخ الإصدار + 3 أيام
 
+  // حالة المراجعة (CR-02) — بوابة QC قبل التصنيع
+  reviewStatus ReviewStatus @default(PENDING_REVIEW)
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+
+  // نوع العرض والربط (CR-08) — مبدئي/نهائي
+  quotationType      QuotationType @default(INITIAL)
+  previousQuotationId String?
+
   items QuotationItem[]
 
   createdAt DateTime  @default(now())
@@ -205,6 +232,21 @@ model QuotationItem {
   lineTotal   Decimal   @default(0) @db.Decimal(12, 2)
 
   @@index([quotationId])
+}
+model DiscountRequest {
+  id            String                @id @default(cuid())
+  quotationId   String
+  requestedPct  Decimal               @db.Decimal(5, 2) // النسبة المطلوبة
+  approvedPct   Decimal?              @db.Decimal(5, 2) // النسبة المعتمدة فعليًا
+  status        DiscountRequestStatus @default(PENDING)
+  requestedById String                // مدير المبيعات
+  decidedById   String?               // عمرو أو مفوّض
+  reason        String?
+  createdAt     DateTime              @default(now())
+  decidedAt     DateTime?
+
+  @@index([quotationId])
+  @@index([status])
 }
 
 model InspectionRequest {
