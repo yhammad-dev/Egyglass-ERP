@@ -20,6 +20,7 @@ enum Role {
   SALES_MANAGER
   SALES_REP
   INSPECTION_MANAGER
+  REVIEW
   VIEWER
 }
 
@@ -81,7 +82,10 @@ enum InspectionLocation {
   INSIDE_CAIRO  // داخل القاهرة (SLA يومين)
   OUTSIDE_CAIRO // خارج القاهرة (SLA 3-4 أيام)
 }
-
+enum InspectionType {
+  PRICING   // تسعيري
+  EXECUTION // تنفيذي
+}
 enum AttachmentParent {
   CUSTOMER
   QUOTATION
@@ -212,6 +216,7 @@ model InspectionRequest {
   phone      String
   notes      String?
   status     InspectionStatus   @default(REQUESTED)
+  type       InspectionType     @default(PRICING)
 
   // الجدولة و SLA
   scheduledAt DateTime?
