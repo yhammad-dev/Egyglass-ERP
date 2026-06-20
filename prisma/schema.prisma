@@ -109,6 +109,13 @@ enum DiscountRequestStatus {
   ADJUSTED  // عمرو حدّد نسبة مختلفة
 }
 
+enum CashbackStatus {
+  PENDING   // بانتظار اكتمال التنفيذ والتحصيل
+  ELIGIBLE  // استوفى الشروط، جاهز للصرف
+  PAID      // صُرف
+  CANCELLED // أُلغي (إلغاء/نزاع/عدم اكتمال)
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -299,4 +306,54 @@ model ActivityLog {
 
   @@index([entity, entityId])
   @@index([userId])
+}
+
+model SystemSettings {
+  id                 String    @id @default("singleton")
+  discountBasePct    Decimal   @default(18) @db.Decimal(5, 2)
+  discountMaxReqPct  Decimal   @default(25) @db.Decimal(5, 2)
+  vatPct             Decimal   @default(14) @db.Decimal(5, 2)
+  quotationValidDays Int       @default(3)
+  cashbackActive     Boolean   @default(true)
+  cashbackStartDate  DateTime?
+  companyLogoUrl     String?
+  companyName        String?
+  updatedById        String?
+  updatedAt          DateTime  @updatedAt
+}
+
+model CashbackTier {
+  id        String  @id @default(cuid())
+  orderFrom Int     // من ترتيب
+  orderTo   Int?    // إلى ترتيب (فارغ = فما بعد)
+  pct       Decimal @db.Decimal(5, 2)
+  isActive  Boolean @default(true)
+}
+
+model Referral {
+  id             String         @id @default(cuid())
+  referrerId     String         // العميل المُحوِّل (الحالي)
+  newCustomerId  String         // العميل الجديد المُحوَّل
+  newQuotationId String         // عملية العميل الجديد
+  referralOrder  Int            // ترتيب هذا المُحوَّل لدى المُحوِّل (1,2,3,4,5+)
+  cashbackPct    Decimal        @db.Decimal(5, 2) // النسبة المطبّقة
+  baseAmount     Decimal        @db.Decimal(12, 2) // القيمة المحسوب عليها (الأقل)
+  cashbackAmount Decimal        @db.Decimal(12, 2) // المبلغ المستحق
+  status         CashbackStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+  paidAt         DateTime?
+
+  @@index([referrerId])
+  @@index([status])
+}
+
+model PriceListItem {
+  id          String   @id @default(cuid())
+  category    String   // زجاج، إطار، إكسسوار، خدمة
+  spec        String   // شفاف 10مم...
+  unit        String   // م²، م.ط، قطعة
+  price       Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
 }
