@@ -13,7 +13,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 |-------|--------|-------|
 | Framework | **Next.js 16** (App Router, Turbopack) | NOT 15. Check docs in `node_modules/next/dist/docs/` |
 | Auth | **Auth.js v5** (credentials) | `src/lib/auth.ts`, `src/lib/auth.config.ts` |
-| ORM | **Prisma** + PostgreSQL | Docker volume `postgres_data` on `db:5432` |
+| ORM | **Prisma** + PostgreSQL | Docker volume `egyglass_db_data` on `db:5432` |
 | DB superuser | **egyglass** (NOT postgres) | Set via `POSTGRES_USER` in docker-compose |
 | i18n | **next-intl v4** | `createNextIntlPlugin("./src/i18n/request.ts")` in `next.config.ts` |
 | UI library | **shadcn/ui v4** | Components at `src/components/ui/` (see §forms) |
@@ -21,6 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | Tables | **@tanstack/react-table** | |
 | Styling | **Tailwind v4** | RTL-first (`dir="rtl"` in root layout) |
 | Language | **Arabic** (ar) primary, English (en) secondary | |
+| Project path | **`E:\Projects\EgyGlass_ERP_New_Build`** | Local machine, NOT OneDrive |
 
 ## Forms — Single Standard Pattern (MANDATORY)
 All feature streams MUST use this exact pattern. No variations.
@@ -81,9 +82,23 @@ Rules:
 ## Docker
 - All commands run inside the `app` container: `docker compose exec app <cmd>`.
 - Build with production env: `docker compose exec -e NODE_ENV=production app npm run build`.
-- The `prisma migrate dev` command can reset data — use with care. DB is in a named volume (`postgres_data`) so rebuilds preserve data.
+- The `prisma migrate dev` command can reset data — use with care. DB is in a named volume (`egyglass_db_data`) so rebuilds preserve data.
 - Never run `docker system prune` or `docker volume prune`.
 
 ## Git
 - No secrets in commits. `.env` is gitignored — verify before every commit.
-- Foundation commit exists: `e59e72b`. Tag `foundation-done` marks end of Phase A.
+- Foundation commit exists: `d109648`. Tag `foundation-done` marks end of Phase A.
+
+## Dev environment rules
+- Project lives at `E:\Projects\EgyGlass_ERP_New_Build` (local machine — NOT under OneDrive).
+- **Turbopack-in-Docker does NOT auto-detect new route/action files.** After creating any new route file, server action, or API handler, run `docker compose restart app` before testing. The dev server itself hot-reloads edits to existing files — only *new* files need a restart.
+- Build must use production env: `docker compose exec -e NODE_ENV=production app npm run build`.
+
+## Messages & errors
+- **All user-facing text** goes through i18n (next-intl `t()`). Never hardcode Arabic or English strings in components.
+- **Namespace convention:**
+  - `users.*` — UI labels, headings, placeholders for the users feature
+  - Each feature stream uses its own namespace (e.g. `customers.*`, `quotations.*`, `inspections.*`, `dashboard.*`)
+  - `errors.*` — shared, append-only namespace for reusable error messages, permission denials, and validation feedback. Never edit another stream's keys.
+- **Server actions return error keys** (strings like `"errors.notFound"`), not translated messages. The client resolves them with `t()`.
+- ActivityLog entries use plain descriptive Arabic text inline (not i18n keys — logs are not user-facing UI).

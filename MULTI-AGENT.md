@@ -15,10 +15,14 @@
    If a stream genuinely needs a schema change, STOP and request it (section 4).
 5.  **Rebase often, merge small.** Pull `main` into your branch frequently; open a PR per milestone.
 6.  **⚠️ `prisma migrate dev` can reset data.** The DB is on a named Docker volume
-   (`postgres_data`) so container rebuilds won't wipe it, but running `migrate dev --name x`
+   (`egyglass_db_data`) so container rebuilds won't wipe it, but running `migrate dev --name x`
    may drop columns or restart the migration history. Prefer `prisma migrate deploy`
    for applying existing migrations without risk. If a new migration is unavoidable,
    ensure the database is backed up first.
+7.  **🌀 Turbopack restart.** After you create any new route file, server action, or API
+   handler inside your stream, restart the dev server with `docker compose restart app`
+   before testing. Turbopack inside Docker doesn't auto-detect new files — edits to
+   *existing* files hot-reload fine, but new files require a restart.
 
 ---
 
