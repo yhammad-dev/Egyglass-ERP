@@ -79,6 +79,22 @@ Rules:
 - Hiding a UI element is NOT security. The backend must reject non-permitted roles.
 - ActivityLog entry required on every create/update/delete.
 
+## Schema — Phase 1 (FROZEN at `schema-phase1-done`)
+The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHANGE-REQUESTS.md).
+
+**Roles (enum Role):** ADMIN, SALES_MANAGER, SALES_REP, INSPECTION_MANAGER, REVIEW, VIEWER.
+
+**Core models:** User, Customer, Interaction, Quotation, QuotationItem, InspectionRequest, Attachment, ActivityLog.
+
+**Phase 1 additions:**
+- `InspectionRequest.type` (InspectionType: PRICING | EXECUTION).
+- `Quotation` review fields (ReviewStatus: PENDING_REVIEW | APPROVED | RETURNED) + `quotationType` (QuotationType: INITIAL | FINAL) + `previousQuotationId`.
+- `DiscountRequest` model (DiscountRequestStatus: PENDING | APPROVED | REJECTED | ADJUSTED) — negotiated discount approvals.
+- `SystemSettings` (singleton) — configurable: discount limits, VAT, quotation validity, cashback toggle, company logo/name.
+- `CashbackTier` — editable tiered cashback percentages.
+- `Referral` (CashbackStatus: PENDING | ELIGIBLE | PAID | CANCELLED) — referral-based cashback per Amr's official rules.
+- `PriceListItem` — central price engine read by the technical office.
+
 ## Docker
 - All commands run inside the `app` container: `docker compose exec app <cmd>`.
 - Build with production env: `docker compose exec -e NODE_ENV=production app npm run build`.
@@ -88,6 +104,7 @@ Rules:
 ## Git
 - No secrets in commits. `.env` is gitignored — verify before every commit.
 - Foundation commit exists: `d109648`. Tag `foundation-done` marks end of Phase A.
+- Phase 1 schema applied in 3 batches. Tag `schema-phase1-done` (`79b488d`) marks the frozen Phase 1 schema. The schema is FROZEN — see SCHEMA-CHANGE-REQUESTS.md. No agent edits the schema; changes go through Youssif on main.
 
 ## Dev environment rules
 - Project lives at `E:\Projects\EgyGlass_ERP_New_Build` (local machine — NOT under OneDrive).
@@ -102,3 +119,12 @@ Rules:
   - `errors.*` — shared, append-only namespace for reusable error messages, permission denials, and validation feedback. Never edit another stream's keys.
 - **Server actions return error keys** (strings like `"errors.notFound"`), not translated messages. The client resolves them with `t()`.
 - ActivityLog entries use plain descriptive Arabic text inline (not i18n keys — logs are not user-facing UI).
+
+## RTL number & table rules (MANDATORY)
+- **Latin numerals in RTL:** Any field with Latin digits (phone, email, amounts, codes) MUST be wrapped with `dir="ltr"` to prevent reversal in the RTL layout.
+- **Numeric table columns:** The header (th) and value (td) must align together (right-aligned), with `direction:ltr` applied to the number itself only — so numbers stay under their column headers, not drifting to the far edge.
+
+## Configurable business rules (MANDATORY)
+- Any number/percentage that changes with market or company policy is NOT hardcoded. Read it from `SystemSettings` / `CashbackTier`, editable by Amr from the admin screen.
+- Applies to: cashback tiers & count, discount limits (base/max), VAT, quotation validity days, effective dates.
+- Every settings change writes to ActivityLog (who, when, old/new value) for audit.
