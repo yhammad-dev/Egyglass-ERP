@@ -1,3 +1,14 @@
+> ⚠️ **تحديث الحقيقة (Reconciliation):** هذا الملف من النطاق الأولي (6 يونيو 2026).
+> **مصادر الحقيقة المحدّثة (تتجاوز أي تعارض هنا):** AGENTS.md + SCHEMA-CHANGE-REQUESTS.md +
+> NON-COLLISION-PROTOCOL.md + docs/quotation-math.md.
+> تحديدًا تجاوز ما يلي:
+> - **Next.js 16** (وليس 15).
+> - **الـ schema مطبّق فعليًا** (CR-01→10، tag `schema-phase1-done`) — ليس "as-is".
+> - **Stream D = المراجعة + الأدمن**، والـ Dashboard يُبنى آخرًا منفصلًا.
+> - **التسعير:** خصم تفاوضي (18→25%) + كاش باك إحالة متدرّج — راجع docs/quotation-math.md.
+
+---
+
 # BUILD ROADMAP — EgyGlass ERP MVP
 
 > Ordered execution plan for OpenCode. Two phases:
@@ -20,7 +31,7 @@
 ## Milestone 0 — Project scaffold (Docker-based)
 > Environment is Docker. `docker-compose.yml`, `Dockerfile`, `.dockerignore`, `.env.example`
 > are already provided. Do not install Node/PostgreSQL on the host.
-1. Create a Next.js 15 app **in the repo root** (App Router, TypeScript, Tailwind, ESLint, `src/` dir).
+1. Create a Next.js 16 app **in the repo root** (App Router, TypeScript, Tailwind, ESLint, `src/` dir).
    The app must run inside the `app` container defined in `docker-compose.yml`.
 2. Install (these go into package.json; they install inside the container):
    `prisma @prisma/client`, `next-auth@beta`, `react-hook-form zod @hookform/resolvers`,
@@ -64,11 +75,11 @@ A6. Interactions: add follow-up (type + note), show as a dated timeline on the p
 
 ## Stream B — Quotations  (owner: agent-b)  ← most math-sensitive
 B1. Create quotation: add items (desc/qty/unit price); totals computed **server-side**.
-B2. Discount engine: up to 19% standard + auto 5% cashback for repeat + 14% VAT + final total.
-B3. Discount > 19% → status PENDING_APPROVAL + approve button for SALES_MANAGER/ADMIN.
+B2. Discount & cashback engine — implement EXACTLY per docs/quotation-math.md (negotiated discount, configurable base/max, referral cashback, VAT from settings).
+B3. Discount above base → DiscountRequest (PENDING); approver (Amr/delegate) may APPROVE/REJECT/ADJUST per quotation-math.md.
 B4. 3-day validity: auto-compute `validUntil`; mark EXPIRED after it passes.
 B5. Auto serial quotation number. "WhatsApp text" button generates copy-ready quote text (no API).
-- ✅ **DoD:** all numbers match `docs/tests/quotation-math.md`; approval & validity work.
+- ✅ **DoD:** all numbers match `docs/quotation-math.md`; approval & validity work.
 
 ## Stream C — Inspections  (owner: agent-c)
 C1. Create inspection request from a customer: location (inside/outside Cairo), address, phone, photos.

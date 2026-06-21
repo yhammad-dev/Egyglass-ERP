@@ -1,3 +1,13 @@
+> ⚠️ **تحديث الحقيقة (Reconciliation):** هذا الملف يعكس النطاق الأولي (6 يونيو 2026).
+> بعده دخلت تغييرات معتمدة من التيم وعمرو. **مصادر الحقيقة المحدّثة (تتجاوز أي تعارض هنا):**
+> - **AGENTS.md** — الأدوار، الـ schema، القواعد.
+> - **SCHEMA-CHANGE-REQUESTS.md** — كل كيانات المرحلة 1 (CR-01→10).
+> - **quotation-math.md** — منطق التسعير الصحيح (خصم تفاوضي 18→25% + كاش باك إحالة متدرّج).
+> **تحديدًا تجاوز:** دور REVIEW (قسم المراجعة)، الخصم التفاوضي بدل 19% الثابت، الكاش باك
+> كنظام إحالة (لا خصم تكرار)، الإعدادات القابلة للتهيئة، محرك الأسعار.
+
+---
+
 # MVP Spec — EgyGlass ERP
 
 **Vertical slice:** the customer journey from first lead to inspection request.
@@ -14,7 +24,7 @@ of a fully owned system.
 
 ### 1.1 User (employee)
 - Fields: name, email/login, hashed password, role, department, status (active/suspended).
-- Roles: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `INSPECTION_MANAGER`, `VIEWER`.
+- Roles: `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `INSPECTION_MANAGER`, `REVIEW`, `VIEWER`.
 - A SALES_MANAGER can assign customers to reps.
 - **Absence coverage:** a rep can cover an absent colleague's customers (they appear
   temporarily in the covering rep's list, flagged "coverage").

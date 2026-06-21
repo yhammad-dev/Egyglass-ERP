@@ -1,3 +1,13 @@
+> ⚠️ **تحديث الحقيقة (Reconciliation):** هذا الملف من النطاق الأولي (6 يونيو 2026).
+> **لتوزيع الـ streams والملكية، المصدر المحدّث هو NON-COLLISION-PROTOCOL.md + AGENTS.md.**
+> تحديدًا تجاوز ما يلي هنا:
+> - **Stream D = المراجعة + الأدمن** (REVIEW role, SystemSettings, اللوجو, الصلاحيات) — وليس Dashboard.
+> - **الـ Dashboard يُبنى آخرًا** كمكوّن منفصل يقرأ من الكل (ليس stream متوازيًا من البداية).
+> - **ترتيب الدمج:** A → C → B → D → ثم Dashboard.
+> - الـ schema مطبّق فعليًا (CR-01→10، tag `schema-phase1-done`) — راجع SCHEMA-CHANGE-REQUESTS.md.
+
+---
+
 # MULTI-AGENT.md — Parallel build coordination
 
 > Read this if you are one of several agents working on this repo at the same time.
@@ -68,7 +78,7 @@ so diffs stay clean.
 
 Do NOT edit the schema yourself. Instead:
 1. Stop the dependent work.
-2. Write the requested change to `docs/schema-change-requests.md` (entity, field, type, why).
+2. Write the requested change to `SCHEMA-CHANGE-REQUESTS.md` (entity, field, type, why).
 3. Let the human (Youssif) apply it on `main` via the Foundation flow, run the migration,
    and re-broadcast. Then all streams rebase on the new `main`.
 
