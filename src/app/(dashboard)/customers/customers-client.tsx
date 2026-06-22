@@ -14,6 +14,7 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,7 @@ export function CustomersClient({
   });
 
   const isRepeatValue = watch("isRepeat");
+  const ownerIdValue = watch("ownerId");
 
   function openCreate() {
     setEditingCustomer(null);
@@ -241,6 +243,14 @@ export function CustomersClient({
     () => [
       columnHelper.accessor("name", {
         header: t("customers.name"),
+        cell: (info) => (
+          <Link
+            href={`/customers/${info.row.original.id}`}
+            className="text-primary hover:underline font-medium"
+          >
+            {info.getValue()}
+          </Link>
+        ),
       }),
       columnHelper.accessor("phone", {
         header: t("customers.phone"),
@@ -324,7 +334,9 @@ export function CustomersClient({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder={t("customers.allTypes")} />
+              <SelectValue placeholder={t("customers.allTypes")}>
+                {typeFilter !== "all" ? t(`customers.${typeFilter.toLowerCase()}`) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("customers.allTypes")}</SelectItem>
@@ -346,7 +358,9 @@ export function CustomersClient({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder={t("customers.allSources")} />
+              <SelectValue placeholder={t("customers.allSources")}>
+                {sourceFilter !== "all" ? t(`customers.source_${sourceFilter}`) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("customers.allSources")}</SelectItem>
@@ -368,7 +382,9 @@ export function CustomersClient({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder={t("customers.allStages")} />
+              <SelectValue placeholder={t("customers.allStages")}>
+                {stageFilter !== "all" ? t(`pipeline.${stageFilter}`) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("customers.allStages")}</SelectItem>
@@ -517,7 +533,9 @@ export function CustomersClient({
                   defaultValue="INDIVIDUAL"
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {t(`customers.${(watch("type") || "INDIVIDUAL").toLowerCase()}`)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {CUSTOMER_TYPES.map((type) => (
@@ -536,7 +554,9 @@ export function CustomersClient({
                   defaultValue="VISIT"
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {t(`customers.source_${watch("source") || "VISIT"}`)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {CUSTOMER_SOURCES.map((source) => (
@@ -577,11 +597,13 @@ export function CustomersClient({
               <div className="space-y-1">
                 <Label>{t("customers.assignOwner")}</Label>
                 <Select
+                  value={ownerIdValue ?? "none"}
                   onValueChange={(v) => setValue("ownerId", v === "none" ? undefined : v)}
-                  defaultValue={editingCustomer?.ownerId ?? "none"}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="—">
+                      {salesReps.find((r) => r.id === ownerIdValue)?.name ?? "—"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">—</SelectItem>

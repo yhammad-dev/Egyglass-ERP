@@ -153,6 +153,136 @@ export async function updateCustomer(
   return toRow(customer);
 }
 
+export interface CustomerProfileData {
+  id: string;
+  name: string;
+  phone: string;
+  altPhone: string | null;
+  type: string;
+  source: string;
+  address: string | null;
+  notes: string | null;
+  stage: string;
+  rejectReason: string | null;
+  isRepeat: boolean;
+  ownerName: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  interactions: Array<{
+    id: string;
+    type: string;
+    note: string;
+    userName: string | null;
+    createdAt: Date;
+  }>;
+  quotations: Array<{
+    id: string;
+    number: string;
+    status: string;
+    total: number;
+    createdAt: Date;
+  }>;
+  inspections: Array<{
+    id: string;
+    status: string;
+    type: string;
+    location: string;
+    address: string | null;
+    scheduledAt: Date | null;
+    dueDate: Date;
+    createdAt: Date;
+  }>;
+}
+
+export async function getCustomerById(
+  id: string,
+  actorId: string,
+  role: string
+): Promise<CustomerProfileData | null> {
+  const where: Record<string, any> = { id, deletedAt: null };
+
+  if (role === "SALES_REP") {
+    where.ownerId = actorId;
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where,
+    include: {
+      owner: { select: { name: true } },
+      interactions: {
+        include: { user: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+      },
+      quotations: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          total: true,
+          createdAt: true,
+        },
+      },
+      inspections: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          type: true,
+          location: true,
+          address: true,
+          scheduledAt: true,
+          dueDate: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  if (!customer) return null;
+
+  return {
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone,
+    altPhone: customer.altPhone,
+    type: customer.type,
+    source: customer.source,
+    address: customer.address,
+    notes: customer.notes,
+    stage: customer.stage,
+    rejectReason: customer.rejectReason,
+    isRepeat: customer.isRepeat,
+    ownerName: customer.owner?.name ?? null,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    interactions: customer.interactions.map((i) => ({
+      id: i.id,
+      type: i.type,
+      note: i.note,
+      userName: i.user?.name ?? null,
+      createdAt: i.createdAt,
+    })),
+    quotations: customer.quotations.map((q) => ({
+      id: q.id,
+      number: q.number,
+      status: q.status,
+      total: Number(q.total),
+      createdAt: q.createdAt,
+    })),
+    inspections: customer.inspections.map((ins) => ({
+      id: ins.id,
+      status: ins.status,
+      type: ins.type,
+      location: ins.location,
+      address: ins.address,
+      scheduledAt: ins.scheduledAt,
+      dueDate: ins.dueDate,
+      createdAt: ins.createdAt,
+    })),
+  };
+}
+
 export async function getSalesReps(): Promise<SalesRepOption[]> {
   const users = await prisma.user.findMany({
     where: {

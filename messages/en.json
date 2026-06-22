@@ -66,7 +66,25 @@
     "searchByNameOrPhone": "Search by name or phone",
     "prevPage": "Previous",
     "nextPage": "Next",
-    "pageInfo": "Page {current} of {total}"
+    "pageInfo": "Page {current} of {total}",
+    "profile": "Profile",
+    "backToList": "Back to List",
+    "interactions": "Interactions",
+    "noInteractions": "No interactions yet",
+    "noQuotations": "No quotations yet",
+    "noInspections": "No inspections yet",
+    "createdAt": "Created At",
+    "updatedAt": "Last Updated",
+    "interaction_CALL": "Call",
+    "interaction_WHATSAPP": "WhatsApp",
+    "interaction_VISIT": "Visit",
+    "interaction_NOTE": "Note",
+    "by": "by",
+    "changeStage": "Change Stage",
+    "changeStageDesc": "Change customer stage from {stage}",
+    "rejectReason": "Rejection Reason",
+    "rejectReasonPlaceholder": "Enter rejection reason",
+    "cancel": "Cancel"
   },
   "pipeline": {
     "NEW": "New",
@@ -152,7 +170,10 @@
     "updateFailed": "An error occurred while updating the user",
     "deleteFailed": "An error occurred while deleting the user",
     "reactivateFailed": "An error occurred while reactivating the user",
-    "refreshFailed": "Failed to refresh the user list"
+    "refreshFailed": "Failed to refresh the user list",
+    "notFound": "Not found",
+    "invalidInput": "Invalid input",
+    "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected"
   },
   "nav": {
     "dashboard": "Dashboard",

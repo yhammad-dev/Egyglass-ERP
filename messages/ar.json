@@ -65,7 +65,25 @@
     "searchByNameOrPhone": "بحث بالاسم أو الهاتف",
     "prevPage": "السابق",
     "nextPage": "التالي",
-    "pageInfo": "صفحة {current} من {total}"
+    "pageInfo": "صفحة {current} من {total}",
+    "profile": "الملف الشخصي",
+    "backToList": "العودة إلى القائمة",
+    "interactions": "التفاعلات",
+    "noInteractions": "لا توجد تفاعلات بعد",
+    "noQuotations": "لا توجد عروض أسعار",
+    "noInspections": "لا توجد معاينات",
+    "createdAt": "تاريخ الإنشاء",
+    "updatedAt": "آخر تحديث",
+    "interaction_CALL": "اتصال",
+    "interaction_WHATSAPP": "واتساب",
+    "interaction_VISIT": "زيارة",
+    "interaction_NOTE": "ملاحظة",
+    "by": "بواسطة",
+    "changeStage": "تغيير المرحلة",
+    "changeStageDesc": "تغيير مرحلة العميل من {stage}",
+    "rejectReason": "سبب الرفض",
+    "rejectReasonPlaceholder": "أدخل سبب الرفض",
+    "cancel": "إلغاء"
   },
   "pipeline": {
     "NEW": "جديد",
@@ -151,7 +169,10 @@
     "updateFailed": "حدث خطأ أثناء تحديث المستخدم",
     "deleteFailed": "حدث خطأ أثناء حذف المستخدم",
     "reactivateFailed": "حدث خطأ أثناء إعادة تفعيل المستخدم",
-    "refreshFailed": "فشل تحديث قائمة المستخدمين"
+    "refreshFailed": "فشل تحديث قائمة المستخدمين",
+    "notFound": "غير موجود",
+    "invalidInput": "بيانات غير صالحة",
+    "rejectReasonRequired": "سبب الرفض مطلوب عند تغيير الحالة إلى رفض"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
