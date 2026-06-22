@@ -5,9 +5,21 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { StageChangeDialog } from "./stage-change-dialog";
-import type { CustomerProfileData } from "@/lib/services/customers";
+import { AssignOwnerDialog } from "./assign-owner-dialog";
+import { SetCoverageDialog } from "./set-coverage-dialog";
+import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
 
 type TabId = "interactions" | "quotations" | "inspections";
 
@@ -29,19 +41,51 @@ function DetailRow({ label, value, dir }: { label: string; value: string; dir?: 
 export function CustomerProfileClient({
   customer,
   currentRole,
+  currentUserId,
+  salesReps,
 }: {
   customer: CustomerProfileData;
   currentRole: string;
+  currentUserId: string;
+  salesReps: SalesRepOption[];
 }) {
   const t = useTranslations();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("interactions");
+  const [interactionType, setInteractionType] = useState("NOTE");
+  const [interactionNote, setInteractionNote] = useState("");
+  const [interactionSubmitting, setInteractionSubmitting] = useState(false);
 
-  const onStageChanged = useCallback(() => {
+  const refresh = useCallback(() => {
     router.refresh();
   }, [router]);
 
-  const canChangeStage = currentRole !== "VIEWER";
+  const isViewer = currentRole === "VIEWER";
+  const canChangeStage = !isViewer;
+  const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
+
+  async function handleAddInteraction() {
+    if (!interactionNote.trim()) return;
+    setInteractionSubmitting(true);
+
+    const { addInteraction } = await import("@/lib/actions/customers");
+
+    const result = await addInteraction({
+      customerId: customer.id,
+      type: interactionType as "CALL" | "WHATSAPP" | "VISIT" | "NOTE",
+      note: interactionNote.trim(),
+    });
+
+    setInteractionSubmitting(false);
+
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+
+    setInteractionNote("");
+    router.refresh();
+  }
 
   return (
     <div>
@@ -52,14 +96,37 @@ export function CustomerProfileClient({
             <Button variant="outline" size="sm">{t("customers.backToList")}</Button>
           </Link>
           <h1 className="text-2xl font-bold">{customer.name}</h1>
+          {customer.coveredById && (
+            <Badge variant="secondary">{t("customers.coverageBadge")}</Badge>
+          )}
         </div>
-        {canChangeStage && (
-          <StageChangeDialog
-            customerId={customer.id}
-            currentStage={customer.stage}
-            onStageChanged={onStageChanged}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {isAdminOrManager && (
+            <>
+              <AssignOwnerDialog
+                customerId={customer.id}
+                currentOwnerId={customer.ownerId}
+                currentOwnerName={customer.ownerName}
+                salesReps={salesReps}
+                onAssigned={refresh}
+              />
+              <SetCoverageDialog
+                customerId={customer.id}
+                currentCoveredById={customer.coveredById}
+                currentCoveredByName={customer.coveredByName}
+                salesReps={salesReps}
+                onCoverageUpdated={refresh}
+              />
+            </>
+          )}
+          {canChangeStage && (
+            <StageChangeDialog
+              customerId={customer.id}
+              currentStage={customer.stage}
+              onStageChanged={refresh}
+            />
+          )}
+        </div>
       </div>
 
       {/* Customer Info Card */}
@@ -75,6 +142,9 @@ export function CustomerProfileClient({
             <DetailRow label={t("customers.rejectReason")} value={customer.rejectReason} />
           )}
           <DetailRow label={t("customers.owner")} value={customer.ownerName || "—"} />
+          {customer.coveredById && customer.coveredByName && (
+            <DetailRow label={t("customers.coveredBy")} value={customer.coveredByName} />
+          )}
           <DetailRow label={t("customers.address")} value={customer.address || "—"} />
           <DetailRow
             label={t("customers.isRepeat")}
@@ -127,6 +197,50 @@ export function CustomerProfileClient({
           {/* Interactions Tab */}
           {activeTab === "interactions" && (
             <div>
+              {/* Add Interaction Form */}
+              {!isViewer && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                  <h3 className="text-sm font-semibold mb-3">{t("customers.addInteraction")}</h3>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label>{t("customers.selectType")}</Label>
+                      <Select value={interactionType} onValueChange={setInteractionType}>
+                        <SelectTrigger className="w-48">
+                          <SelectValue>
+                            {t(`customers.interaction_${interactionType}`)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(["CALL", "WHATSAPP", "VISIT", "NOTE"] as const).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {t(`customers.interaction_${type}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="interactionNote">{t("customers.interactionNote")}</Label>
+                      <Textarea
+                        id="interactionNote"
+                        placeholder={t("customers.interactionNotePlaceholder")}
+                        value={interactionNote}
+                        onChange={(e) => setInteractionNote(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleAddInteraction}
+                        disabled={interactionSubmitting || !interactionNote.trim()}
+                      >
+                        {interactionSubmitting ? t("app.loading") : t("customers.addInteraction")}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {customer.interactions.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">{t("customers.noInteractions")}</p>
               ) : (

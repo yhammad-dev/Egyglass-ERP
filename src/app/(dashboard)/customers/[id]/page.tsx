@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/rbac";
 import { redirect, notFound } from "next/navigation";
-import { getCustomerById } from "@/lib/services/customers";
+import { getCustomerById, getSalesReps } from "@/lib/services/customers";
 import { CustomerProfileClient } from "./customer-profile-client";
 
 export default async function CustomerProfilePage(
@@ -25,7 +25,14 @@ export default async function CustomerProfilePage(
   );
   if (!customer) notFound();
 
+  const salesReps = await getSalesReps();
+
   return (
-    <CustomerProfileClient customer={customer} currentRole={roleCheck.role} />
+    <CustomerProfileClient
+      customer={customer}
+      currentRole={roleCheck.role}
+      currentUserId={roleCheck.userId}
+      salesReps={salesReps}
+    />
   );
 }

@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -267,6 +268,13 @@ export function CustomersClient({
       columnHelper.accessor("stage", {
         header: t("customers.stage"),
         cell: (info) => t(`pipeline.${info.getValue()}`),
+      }),
+      columnHelper.accessor("isCoverage", {
+        header: t("customers.coverage"),
+        cell: (info) =>
+          info.getValue() ? (
+            <Badge variant="secondary">{t("customers.coverageBadge")}</Badge>
+          ) : null,
       }),
       columnHelper.accessor("ownerName", {
         header: t("customers.owner"),

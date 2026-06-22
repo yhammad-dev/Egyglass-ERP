@@ -84,7 +84,22 @@
     "changeStageDesc": "Change customer stage from {stage}",
     "rejectReason": "Rejection Reason",
     "rejectReasonPlaceholder": "Enter rejection reason",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "currentOwner": "Current Owner",
+    "selectOwner": "Select Owner",
+    "ownerAssigned": "Owner assigned successfully",
+    "setCoverage": "Set Coverage",
+    "coveredBy": "Covered by",
+    "selectCoveringRep": "Select covering rep",
+    "coverageUpdated": "Coverage updated successfully",
+    "removeCoverage": "Remove Coverage",
+    "coverageBadge": "Coverage",
+    "coverage": "Coverage",
+    "addInteraction": "Add Interaction",
+    "interactionNote": "Interaction Note",
+    "interactionNotePlaceholder": "Write a note...",
+    "selectType": "Select Type",
+    "interactionAdded": "Interaction added successfully"
   },
   "pipeline": {
     "NEW": "New",

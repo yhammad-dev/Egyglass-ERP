@@ -10,6 +10,9 @@ export interface CustomerRow {
   stage: string;
   ownerName: string | null;
   ownerId: string | null;
+  coveredById: string | null;
+  coveredByName: string | null;
+  isCoverage: boolean;
 }
 
 export interface SalesRepOption {
@@ -36,7 +39,10 @@ export async function getCustomers(
   const where: Record<string, any> = { deletedAt: null };
 
   if (role === "SALES_REP") {
-    where.ownerId = userId;
+    where.OR = [
+      { ownerId: userId },
+      { coveredById: userId },
+    ];
   }
 
   const customers = await prisma.customer.findMany({
@@ -50,9 +56,22 @@ export async function getCustomers(
       source: true,
       stage: true,
       ownerId: true,
+      coveredById: true,
       owner: { select: { name: true } },
     },
   });
+
+  const coveringIds = customers
+    .map((c) => c.coveredById)
+    .filter((id): id is string => id != null);
+  const coveringUsers =
+    coveringIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: coveringIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const coveringMap = new Map(coveringUsers.map((u) => [u.id, u.name]));
 
   return customers.map((c) => ({
     id: c.id,
@@ -62,7 +81,12 @@ export async function getCustomers(
     source: c.source,
     stage: c.stage,
     ownerId: c.ownerId,
+    coveredById: c.coveredById,
     ownerName: c.owner?.name ?? null,
+    isCoverage: c.coveredById != null,
+    coveredByName: c.coveredById
+      ? coveringMap.get(c.coveredById) ?? null
+      : null,
   }));
 }
 
@@ -75,7 +99,10 @@ function toRow(customer: any): CustomerRow {
     source: customer.source,
     stage: customer.stage,
     ownerId: customer.ownerId,
+    coveredById: customer.coveredById ?? null,
+    coveredByName: customer.coveredByName ?? null,
     ownerName: customer.owner?.name ?? null,
+    isCoverage: customer.coveredById != null,
   };
 }
 
@@ -166,6 +193,9 @@ export interface CustomerProfileData {
   rejectReason: string | null;
   isRepeat: boolean;
   ownerName: string | null;
+  ownerId: string | null;
+  coveredById: string | null;
+  coveredByName: string | null;
   createdAt: Date;
   updatedAt: Date;
   interactions: Array<{
@@ -202,7 +232,10 @@ export async function getCustomerById(
   const where: Record<string, any> = { id, deletedAt: null };
 
   if (role === "SALES_REP") {
-    where.ownerId = actorId;
+    where.OR = [
+      { ownerId: actorId },
+      { coveredById: actorId },
+    ];
   }
 
   const customer = await prisma.customer.findFirst({
@@ -241,6 +274,15 @@ export async function getCustomerById(
 
   if (!customer) return null;
 
+  let coveredByName: string | null = null;
+  if (customer.coveredById) {
+    const coveringUser = await prisma.user.findUnique({
+      where: { id: customer.coveredById },
+      select: { name: true },
+    });
+    coveredByName = coveringUser?.name ?? null;
+  }
+
   return {
     id: customer.id,
     name: customer.name,
@@ -254,6 +296,9 @@ export async function getCustomerById(
     rejectReason: customer.rejectReason,
     isRepeat: customer.isRepeat,
     ownerName: customer.owner?.name ?? null,
+    ownerId: customer.ownerId,
+    coveredById: customer.coveredById,
+    coveredByName,
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
     interactions: customer.interactions.map((i) => ({

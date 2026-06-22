@@ -83,7 +83,22 @@
     "changeStageDesc": "تغيير مرحلة العميل من {stage}",
     "rejectReason": "سبب الرفض",
     "rejectReasonPlaceholder": "أدخل سبب الرفض",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "currentOwner": "المسؤول الحالي",
+    "selectOwner": "اختر المسؤول",
+    "ownerAssigned": "تم تعيين المسؤول",
+    "setCoverage": "تعيين تغطية",
+    "coveredBy": "مغطى بواسطة",
+    "selectCoveringRep": "اختر المندوب المغطي",
+    "coverageUpdated": "تم تحديث التغطية",
+    "removeCoverage": "إلغاء التغطية",
+    "coverageBadge": "تغطية",
+    "coverage": "تغطية",
+    "addInteraction": "إضافة تفاعل",
+    "interactionNote": "ملاحظة التفاعل",
+    "interactionNotePlaceholder": "اكتب ملاحظة التفاعل...",
+    "selectType": "اختر النوع",
+    "interactionAdded": "تم إضافة التفاعل"
   },
   "pipeline": {
     "NEW": "جديد",

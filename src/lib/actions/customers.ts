@@ -70,3 +70,157 @@ export async function changeCustomerStage(
 
   return { success: true };
 }
+
+const assignSchema = z.object({
+  customerId: z.string(),
+  ownerId: z.string().nullable(),
+});
+
+export async function assignCustomer(
+  input: z.infer<typeof assignSchema>
+): Promise<{ success: true } | { error: string }> {
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER"]);
+  if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+  const parsed = assignSchema.safeParse(input);
+  if (!parsed.success) return { error: "errors.invalidInput" };
+
+  const { customerId, ownerId } = parsed.data;
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true },
+  });
+  if (!customer) return { error: "errors.notFound" };
+
+  const oldOwner = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { ownerId: true },
+  });
+
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { ownerId },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: roleCheck.userId,
+      action: "OWNER_ASSIGNED",
+      entity: "Customer",
+      entityId: customerId,
+      details: JSON.stringify({
+        from: oldOwner?.ownerId,
+        to: ownerId,
+      }),
+    },
+  });
+
+  return { success: true };
+}
+
+const coverageSchema = z.object({
+  customerId: z.string(),
+  coveredById: z.string().nullable(),
+});
+
+export async function setCustomerCoverage(
+  input: z.infer<typeof coverageSchema>
+): Promise<{ success: true } | { error: string }> {
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER"]);
+  if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+  const parsed = coverageSchema.safeParse(input);
+  if (!parsed.success) return { error: "errors.invalidInput" };
+
+  const { customerId, coveredById } = parsed.data;
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, coveredById: true },
+  });
+  if (!customer) return { error: "errors.notFound" };
+
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { coveredById },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: roleCheck.userId,
+      action: "COVERAGE_UPDATED",
+      entity: "Customer",
+      entityId: customerId,
+      details: JSON.stringify({
+        from: customer.coveredById,
+        to: coveredById,
+      }),
+    },
+  });
+
+  return { success: true };
+}
+
+const addInteractionSchema = z.object({
+  customerId: z.string(),
+  type: z.enum(["CALL", "WHATSAPP", "VISIT", "NOTE"]),
+  note: z.string().min(1, "errors.required"),
+});
+
+export async function addInteraction(
+  input: z.infer<typeof addInteractionSchema>
+): Promise<
+  | { success: true; data: { id: string; type: string; note: string; userName: string; createdAt: Date } }
+  | { error: string }
+> {
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
+  if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+  const parsed = addInteractionSchema.safeParse(input);
+  if (!parsed.success) return { error: "errors.invalidInput" };
+
+  const { customerId, type, note } = parsed.data;
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true },
+  });
+  if (!customer) return { error: "errors.notFound" };
+
+  const interaction = await prisma.interaction.create({
+    data: {
+      customerId,
+      userId: roleCheck.userId,
+      type: type as any,
+      note: note.trim(),
+    },
+    include: {
+      user: { select: { name: true } },
+    },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: roleCheck.userId,
+      action: "INTERACTION_ADDED",
+      entity: "Customer",
+      entityId: customerId,
+      details: JSON.stringify({
+        interactionId: interaction.id,
+        type: interaction.type,
+      }),
+    },
+  });
+
+  return {
+    success: true,
+    data: {
+      id: interaction.id,
+      type: interaction.type,
+      note: interaction.note,
+      userName: interaction.user.name,
+      createdAt: interaction.createdAt,
+    },
+  };
+}
