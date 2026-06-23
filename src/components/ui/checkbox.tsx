@@ -18,6 +18,7 @@ function Checkbox({
 }) {
   return (
     <button
+      type="button"
       role="checkbox"
       aria-checked={checked}
       id={id}
