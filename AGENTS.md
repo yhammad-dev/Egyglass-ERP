@@ -128,3 +128,33 @@ The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHAN
 - Any number/percentage that changes with market or company policy is NOT hardcoded. Read it from `SystemSettings` / `CashbackTier`, editable by Amr from the admin screen.
 - Applies to: cashback tiers & count, discount limits (base/max), VAT, quotation validity days, effective dates.
 - Every settings change writes to ActivityLog (who, when, old/new value) for audit.
+## Verification & Quality — MANDATORY (learned from Stream A)
+
+These rules are non-negotiable. They come from real failures. Violating them wastes the reviewer's time and breaks trust.
+
+### 1. "Build green" is NOT proof it works
+A green `next build` only means the code COMPILED. Prisma errors, `ReferenceError`s, and other runtime failures appear ONLY when the page actually loads. After building, you MUST load the affected page in the running app and confirm it returns **HTTP 200, not 500**. Report the REAL runtime result, not just the build status. Never claim "all pages respond" without actually loading them.
+
+### 2. Use ONLY fields/relations that exist in the FROZEN schema
+The schema is frozen at `schema-phase1-done`. Before using any Prisma relation or field, verify it EXISTS in `prisma/schema.prisma`. Do NOT assume a relation exists (e.g. assuming a `coveredBy` relation when only the scalar `coveredById` exists causes a runtime 500). If you genuinely need a schema change, STOP and write a Schema Change Request in `SCHEMA-CHANGE-REQUESTS.md` — never edit the schema yourself.
+
+### 3. Every `<button>` inside a form needs an explicit `type`
+A `<button>` with no `type` defaults to `type="submit"`. Inside a form this causes unintended submits (e.g. a checkbox that saves and closes the dialog on click). Any button that is NOT the save/submit button MUST have `type="button"`. This applies to custom UI components (checkbox, toggle, icon buttons) too.
+
+### 4. Define every variable before using it
+Do not reference a variable that was never declared (e.g. using `isViewer` without `const isViewer = currentRole === "VIEWER"`). This compiles in some cases but throws `ReferenceError` at runtime. Trace every identifier you use back to its declaration.
+
+### 5. Stay strictly within your stream's scope
+Build ONLY your stream's tasks. Do NOT build, suggest, or list work belonging to other streams (Quotations, Inspections, Dashboard, Settings, etc. are other streams). When your tasks are done, STOP — do not propose next modules.
+
+### 6. Review existing code before you replace it
+When editing a file that already contains working code from earlier tasks, read what is there FIRST. Do not overwrite or revert working logic while adding new code (e.g. reverting a fixed coverage flag while building a later feature). Check before you replace.
+
+### 7. Every `t()` key must exist in BOTH locale files
+Any translation key you use MUST be added to both `messages/ar.json` and `messages/en.json`. A missing key throws `MISSING_MESSAGE` at runtime. After adding any user-facing text, self-check that the key exists in both files.
+
+### 8. Enum/select triggers must show the translated label
+A closed `<Select>` must display the translated label of the selected value, not the raw enum string (e.g. show "مهندس", not "ENGINEER"). Empty `<SelectValue />` falls back to the raw value — always resolve the label explicitly.
+
+### 9. Stop at every checkpoint
+After each task, STOP and wait for explicit approval before starting the next. Do not skip ahead. Report with evidence (real build output + confirmation the page loads).
