@@ -15,6 +15,10 @@ export interface InspectionRow {
   assigneeId: string | null;
   assigneeName: string | null;
   createdAt: Date;
+  /** Fractional days until dueDate — negative means past due */
+  daysRemaining: number;
+  /** 'OVERDUE' when dueDate < now and status !== DONE; otherwise the DB status */
+  effectiveStatus: string;
 }
 
 export interface CustomerOption {
@@ -60,22 +64,29 @@ export async function getInspections(
     },
   });
 
-  return inspections.map((ins) => ({
-    id: ins.id,
-    customerId: ins.customerId,
-    customerName: ins.customer.name,
-    location: ins.location,
-    address: ins.address,
-    phone: ins.phone,
-    notes: ins.notes,
-    status: ins.status,
-    type: ins.type,
-    scheduledAt: ins.scheduledAt,
-    dueDate: ins.dueDate,
-    assigneeId: ins.assigneeId,
-    assigneeName: ins.assignee?.name ?? null,
-    createdAt: ins.createdAt,
-  }));
+  const now = new Date();
+  return inspections.map((ins) => {
+    const daysRemaining = (ins.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const effectiveStatus = ins.dueDate < now && ins.status !== "DONE" ? "OVERDUE" : ins.status;
+    return {
+      id: ins.id,
+      customerId: ins.customerId,
+      customerName: ins.customer.name,
+      location: ins.location,
+      address: ins.address,
+      phone: ins.phone,
+      notes: ins.notes,
+      status: ins.status,
+      type: ins.type,
+      scheduledAt: ins.scheduledAt,
+      dueDate: ins.dueDate,
+      assigneeId: ins.assigneeId,
+      assigneeName: ins.assignee?.name ?? null,
+      createdAt: ins.createdAt,
+      daysRemaining,
+      effectiveStatus,
+    };
+  });
 }
 
 export async function getCustomers(): Promise<CustomerOption[]> {
@@ -132,6 +143,11 @@ export async function createInspection(
     },
   });
 
+  const now = new Date();
+  const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  const effectiveStatus =
+    inspection.dueDate < now && inspection.status !== "DONE" ? "OVERDUE" : inspection.status;
+
   return {
     id: inspection.id,
     customerId: inspection.customerId,
@@ -147,5 +163,7 @@ export async function createInspection(
     assigneeId: inspection.assigneeId,
     assigneeName: inspection.assignee?.name ?? null,
     createdAt: inspection.createdAt,
+    daysRemaining,
+    effectiveStatus,
   };
 }
