@@ -39,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field-error";
 import type { InspectionRow, CustomerOption } from "@/lib/services/inspections";
 import { createInspectionAction } from "./actions";
@@ -176,7 +177,35 @@ export function InspectionsClient({
       }),
       columnHelper.accessor("status", {
         header: t("inspections.status"),
-        cell: (info) => t(`inspections.status_${info.getValue()}`),
+        cell: (info) => {
+          const { effectiveStatus, daysRemaining, status } = info.row.original;
+          if (effectiveStatus === "OVERDUE") {
+            return (
+              <Badge className="bg-red-100 text-red-700 border-red-200">
+                {t("inspections.status_OVERDUE")}
+              </Badge>
+            );
+          }
+          if (status === "DONE") {
+            return (
+              <Badge variant="secondary">
+                {t("inspections.status_DONE")}
+              </Badge>
+            );
+          }
+          if (daysRemaining >= 2) {
+            return (
+              <Badge className="bg-green-100 text-green-700 border-green-200">
+                {t(`inspections.status_${status}`)}
+              </Badge>
+            );
+          }
+          return (
+            <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+              {t(`inspections.status_${status}`)}
+            </Badge>
+          );
+        },
       }),
       columnHelper.accessor("dueDate", {
         header: t("inspections.dueDate"),
