@@ -122,7 +122,20 @@
     "validUntil": "Valid Until",
     "status": "Status",
     "needsApproval": "Pending Approval",
-    "sendWhatsApp": "Send via WhatsApp"
+    "sendWhatsApp": "Send via WhatsApp",
+    "customer": "Customer",
+    "phone": "Phone",
+    "source": "Source",
+    "technicalEngineer": "Technical Office Engineer",
+    "salesResponsible": "Sales Responsible",
+    "inspectionsResponsible": "Inspections Responsible",
+    "createdAt": "Created At",
+    "dash": "—",
+    "statusBucket_NEW": "New",
+    "statusBucket_IN_PROGRESS": "In Progress",
+    "statusBucket_ON_HOLD": "On Hold",
+    "statusBucket_COMPLETED": "Completed",
+    "statusBucket_EXPIRED": "Expired"
   },
   "inspections": {
     "title": "Inspections",

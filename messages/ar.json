@@ -121,7 +121,20 @@
     "validUntil": "صالح حتى",
     "status": "الحالة",
     "needsApproval": "بانتظار الموافقة",
-    "sendWhatsApp": "إرسال عبر واتساب"
+    "sendWhatsApp": "إرسال عبر واتساب",
+    "customer": "العميل",
+    "phone": "الهاتف",
+    "source": "المصدر",
+    "technicalEngineer": "مهندس المكتب الفني",
+    "salesResponsible": "مسؤول المبيعات",
+    "inspectionsResponsible": "مسؤول المعاينة",
+    "createdAt": "تاريخ الإنشاء",
+    "dash": "—",
+    "statusBucket_NEW": "جديد",
+    "statusBucket_IN_PROGRESS": "قيد التنفيذ",
+    "statusBucket_ON_HOLD": "معلّق",
+    "statusBucket_COMPLETED": "تمّ",
+    "statusBucket_EXPIRED": "منتهي"
   },
   "inspections": {
     "title": "المعاينات",
