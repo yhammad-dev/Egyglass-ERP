@@ -41,8 +41,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field-error";
-import type { InspectionRow, CustomerOption } from "@/lib/services/inspections";
-import { createInspectionAction } from "./actions";
+import type { InspectionRow, CustomerOption, UserOption } from "@/lib/services/inspections";
+import { createInspectionAction, scheduleInspectionAction } from "./actions";
 
 const columnHelper = createColumnHelper<InspectionRow>();
 
@@ -61,14 +61,23 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+const scheduleFormSchema = z.object({
+  scheduledAt: z.string().min(1, "errors.required"),
+  assigneeId: z.string().min(1, "errors.required"),
+});
+
+type ScheduleFormData = z.infer<typeof scheduleFormSchema>;
+
 export function InspectionsClient({
   initialInspections,
   customers,
   currentRole,
+  assignableUsers,
 }: {
   initialInspections: InspectionRow[];
   customers: CustomerOption[];
   currentRole: string;
+  assignableUsers: UserOption[];
 }) {
   const t = useTranslations();
   const [data, setData] = useState<InspectionRow[]>(initialInspections);
@@ -79,6 +88,9 @@ export function InspectionsClient({
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleRow, setScheduleRow] = useState<InspectionRow | null>(null);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
   const isViewer = currentRole === "VIEWER";
   const canCreate = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
 
@@ -104,6 +116,20 @@ export function InspectionsClient({
   const locationValue = watch("location");
   const typeValue = watch("type");
 
+  const {
+    register: regSchedule,
+    handleSubmit: handleScheduleSubmit,
+    reset: resetSchedule,
+    setValue: setScheduleValue,
+    watch: watchSchedule,
+    formState: { errors: scheduleErrors },
+  } = useForm<ScheduleFormData>({
+    resolver: zodResolver(scheduleFormSchema),
+    defaultValues: { scheduledAt: "", assigneeId: "" },
+  });
+
+  const assigneeIdValue = watchSchedule("assigneeId");
+
   function openCreate() {
     reset({
       customerId: "",
@@ -118,6 +144,38 @@ export function InspectionsClient({
 
   function closeDialog() {
     setOpen(false);
+  }
+
+  function openSchedule(row: InspectionRow) {
+    resetSchedule({ scheduledAt: "", assigneeId: "" });
+    setScheduleRow(row);
+    setScheduleOpen(true);
+  }
+
+  async function onScheduleSubmit(formData: ScheduleFormData) {
+    if (!scheduleRow) return;
+    setScheduleSubmitting(true);
+    try {
+      const result = await scheduleInspectionAction({
+        id: scheduleRow.id,
+        ...formData,
+      });
+      if (!result.success) {
+        const msg =
+          typeof result.error === "string"
+            ? t(result.error)
+            : t("errors.updateFailed");
+        toast.error(msg);
+        return;
+      }
+      setData((prev) =>
+        prev.map((r) => (r.id === result.data.id ? result.data : r))
+      );
+      toast.success(t("inspections.scheduled"));
+      setScheduleOpen(false);
+    } finally {
+      setScheduleSubmitting(false);
+    }
   }
 
   const fe = (err: { message?: string } | undefined) =>
@@ -215,6 +273,15 @@ export function InspectionsClient({
           </span>
         ),
       }),
+      columnHelper.accessor("scheduledAt", {
+        header: t("inspections.scheduledAt"),
+        cell: (info) => {
+          const v = info.getValue();
+          return v ? (
+            <span dir="ltr">{new Date(v).toLocaleDateString("en-CA")}</span>
+          ) : "—";
+        },
+      }),
       columnHelper.accessor("assigneeName", {
         header: t("inspections.assignee"),
         cell: (info) => info.getValue() ?? "—",
@@ -224,6 +291,24 @@ export function InspectionsClient({
             columnHelper.accessor("phone", {
               header: t("inspections.phone"),
               cell: (info) => <span dir="ltr">{info.getValue()}</span>,
+            }),
+            columnHelper.display({
+              id: "actions",
+              header: t("app.actions"),
+              cell: (info) => {
+                const row = info.row.original;
+                if (row.status !== "REQUESTED") return null;
+                return (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openSchedule(row)}
+                  >
+                    {t("inspections.schedule")}
+                  </Button>
+                );
+              },
             }),
           ]
         : []),
@@ -412,6 +497,64 @@ export function InspectionsClient({
           </Button>
         </div>
       </div>
+
+      {/* Schedule Dialog */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("inspections.scheduleInspection")}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={handleScheduleSubmit(onScheduleSubmit)}
+            className="space-y-4"
+          >
+            <div className="space-y-1">
+              <Label htmlFor="scheduledAt">{t("inspections.scheduledAt")}</Label>
+              <Input
+                id="scheduledAt"
+                type="date"
+                dir="ltr"
+                {...regSchedule("scheduledAt")}
+              />
+              <FieldError message={fe(scheduleErrors.scheduledAt)} />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("inspections.selectAssignee")}</Label>
+              <Select
+                onValueChange={(v) => setScheduleValue("assigneeId", v)}
+                defaultValue=""
+              >
+                <SelectTrigger>
+                  <SelectValue>
+                    {assignableUsers.find((u) => u.id === assigneeIdValue)?.name ??
+                      t("inspections.selectAssignee")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {assignableUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={fe(scheduleErrors.assigneeId)} />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setScheduleOpen(false)}
+              >
+                {t("app.cancel")}
+              </Button>
+              <Button type="submit" disabled={scheduleSubmitting}>
+                {scheduleSubmitting ? `${t("app.save")}...` : t("app.save")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>

@@ -158,7 +158,11 @@
     "notesPlaceholder": "Write notes...",
     "prevPage": "Previous",
     "nextPage": "Next",
-    "pageInfo": "Page {current} of {total}"
+    "pageInfo": "Page {current} of {total}",
+    "schedule": "Schedule",
+    "scheduleInspection": "Schedule Inspection",
+    "selectAssignee": "Select Assignee",
+    "scheduled": "Inspection scheduled successfully"
   },
   "users": {
     "title": "Users",

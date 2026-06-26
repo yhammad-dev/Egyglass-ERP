@@ -27,6 +27,11 @@ export interface CustomerOption {
   phone: string;
 }
 
+export interface UserOption {
+  id: string;
+  name: string;
+}
+
 const INSIDE_CAIRO_DAYS = 2;
 const OUTSIDE_CAIRO_DAYS = 4;
 
@@ -98,6 +103,15 @@ export async function getCustomers(): Promise<CustomerOption[]> {
   return customers;
 }
 
+export async function getAssignableUsers(): Promise<UserOption[]> {
+  const users = await prisma.user.findMany({
+    where: { isActive: true, deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  return users;
+}
+
 export interface CreateInspectionInput {
   customerId: string;
   location: string;
@@ -139,6 +153,63 @@ export async function createInspection(
         customerId: inspection.customerId,
         location: inspection.location,
         type: inspection.type,
+      }),
+    },
+  });
+
+  const now = new Date();
+  const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  const effectiveStatus =
+    inspection.dueDate < now && inspection.status !== "DONE" ? "OVERDUE" : inspection.status;
+
+  return {
+    id: inspection.id,
+    customerId: inspection.customerId,
+    customerName: inspection.customer.name,
+    location: inspection.location,
+    address: inspection.address,
+    phone: inspection.phone,
+    notes: inspection.notes,
+    status: inspection.status,
+    type: inspection.type,
+    scheduledAt: inspection.scheduledAt,
+    dueDate: inspection.dueDate,
+    assigneeId: inspection.assigneeId,
+    assigneeName: inspection.assignee?.name ?? null,
+    createdAt: inspection.createdAt,
+    daysRemaining,
+    effectiveStatus,
+  };
+}
+
+export async function scheduleInspection(
+  id: string,
+  scheduledAt: Date,
+  assigneeId: string,
+  actorId: string
+): Promise<InspectionRow> {
+  const inspection = await prisma.inspectionRequest.update({
+    where: { id },
+    data: {
+      status: "SCHEDULED" as any,
+      scheduledAt,
+      assigneeId,
+    },
+    include: {
+      customer: { select: { name: true } },
+      assignee: { select: { name: true } },
+    },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "INSPECTION_SCHEDULED",
+      entity: "InspectionRequest",
+      entityId: id,
+      details: JSON.stringify({
+        scheduledAt: scheduledAt.toISOString(),
+        assigneeId,
       }),
     },
   });

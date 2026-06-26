@@ -157,7 +157,11 @@
     "notesPlaceholder": "اكتب ملاحظات...",
     "prevPage": "السابق",
     "nextPage": "التالي",
-    "pageInfo": "صفحة {current} من {total}"
+    "pageInfo": "صفحة {current} من {total}",
+    "schedule": "جدولة",
+    "scheduleInspection": "جدولة المعاينة",
+    "selectAssignee": "اختر المسؤول",
+    "scheduled": "تم جدولة المعاينة بنجاح"
   },
   "users": {
     "title": "المستخدمين",
