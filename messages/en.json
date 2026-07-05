@@ -340,7 +340,28 @@
     "review": "Review",
     "adminPricing": "Pricing Admin",
     "installations": "Installations",
-    "executive": "Executive Dashboard"
+    "executive": "Executive Dashboard",
+    "accounting": "Accounting"
+  },
+  "accounting": {
+    "title": "Accounting",
+    "customer": "Customer",
+    "number": "Quotation Number",
+    "total": "Total",
+    "paid": "Paid",
+    "remaining": "Remaining",
+    "status": "Status",
+    "totals": "Totals",
+    "addPayment": "Add Payment",
+    "amount": "Amount",
+    "paidAt": "Payment Date",
+    "method": "Payment Method",
+    "methodPlaceholder": "Cash / Bank Transfer / Cheque...",
+    "notes": "Notes",
+    "paymentAdded": "Payment recorded successfully",
+    "status_PAID": "Fully Paid",
+    "status_PARTIAL": "Partially Paid",
+    "status_UNPAID": "Unpaid"
   },
   "executive": {
     "title": "Executive Dashboard",

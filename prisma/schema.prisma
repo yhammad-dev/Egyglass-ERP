@@ -25,6 +25,7 @@ model User {
   quotations        Quotation[]
   notifications     Notification[]
   installationOrders InstallationOrder[] @relation("InstallationTeamLead")
+  payments          Payment[]
 }
 
 model Customer {
@@ -96,6 +97,7 @@ model Quotation {
   customer            Customer        @relation(fields: [customerId], references: [id])
   items               QuotationItem[]
   manufacturingOrder  ManufacturingOrder?
+  payments            Payment[]
 
   @@index([customerId])
   @@index([status])
@@ -223,6 +225,21 @@ model InstallationOrder {
 
   @@index([status])
   @@index([teamLeadId])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  amount      Decimal  @db.Decimal(12, 2)
+  paidAt      DateTime
+  method      String
+  notes       String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([quotationId])
 }
 
 model SystemSettings {
@@ -360,6 +377,7 @@ enum Role {
   REVIEW
   PROCUREMENT
   INSTALLATIONS
+  ACCOUNTING
 }
 
 enum Department {

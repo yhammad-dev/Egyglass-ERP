@@ -445,3 +445,44 @@ enum Role {
 
 ### Reason:
 Phase 2 Stream G — installation order tracking triggered on manufacturing order reaching READY.
+
+---
+
+## SCR-005 — Payment (Accounting)
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+
+```prisma
+model Payment {
+  id          String   @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields:[quotationId], references:[id])
+  amount      Decimal  @db.Decimal(12,2)
+  paidAt      DateTime
+  method      String
+  notes       String?
+  createdById String
+  createdBy   User     @relation(fields:[createdById], references:[id])
+  createdAt   DateTime @default(now())
+}
+```
+
+### Additional change — ACCOUNTING role
+**Reason:** Stream I requires an `ADMIN/ACCOUNTING` gate for recording payments and viewing the accounting dashboard. No accounting role existed in `enum Role`. Added `ACCOUNTING` as an additive, non-breaking enum value, consistent with the `PROCUREMENT`/`INSTALLATIONS` precedent (SCR-003/SCR-004):
+```prisma
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+  REVIEW
+  PROCUREMENT
+  INSTALLATIONS
+  ACCOUNTING   // ← جديد: قسم الحسابات (Stream I)
+}
+```
+
+### Reason:
+Phase 2 Stream I — payment tracking per quotation, feeding a per-customer accounting dashboard (contract total / paid / remaining).

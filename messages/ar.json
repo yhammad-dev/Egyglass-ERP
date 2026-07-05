@@ -339,7 +339,28 @@
     "review": "المراجعة",
     "adminPricing": "إدارة الأسعار",
     "installations": "التركيبات",
-    "executive": "لوحة الإدارة التنفيذية"
+    "executive": "لوحة الإدارة التنفيذية",
+    "accounting": "الحسابات"
+  },
+  "accounting": {
+    "title": "الحسابات",
+    "customer": "العميل",
+    "number": "رقم عرض السعر",
+    "total": "الإجمالي",
+    "paid": "المدفوع",
+    "remaining": "المتبقي",
+    "status": "الحالة",
+    "totals": "الإجمالي الكلي",
+    "addPayment": "إضافة دفعة",
+    "amount": "المبلغ",
+    "paidAt": "تاريخ الدفع",
+    "method": "طريقة الدفع",
+    "methodPlaceholder": "نقدي / تحويل بنكي / شيك...",
+    "notes": "ملاحظات",
+    "paymentAdded": "تم تسجيل الدفعة بنجاح",
+    "status_PAID": "مسدد بالكامل",
+    "status_PARTIAL": "مسدد جزئياً",
+    "status_UNPAID": "غير مسدد"
   },
   "executive": {
     "title": "لوحة الإدارة التنفيذية",
