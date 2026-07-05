@@ -54,6 +54,12 @@ export const navRegistry: NavItem[] = [
     icon: "group",
     roles: ["ADMIN", "HR"],
   },
+  {
+    labelKey: "nav.projects",
+    href: "/projects",
+    icon: "folder",
+    roles: ["ADMIN", "PROJECTS"],
+  },
 ];
 
 export function getNavItems(role?: string): NavItem[] {

@@ -547,3 +547,64 @@ enum Role {
 
 ### Reason:
 Phase 2 Stream H — employee records and leave request tracking for HR department.
+
+---
+
+## SCR-007 — Project
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED — Youssif Hammad, 2026-07-06 (pre-approved)
+
+```prisma
+model Project {
+  id          String        @id @default(cuid())
+  nameAr      String
+  customerId  String
+  customer    Customer      @relation(fields:[customerId], references:[id])
+  managerId   String?
+  manager     User?         @relation(fields:[managerId], references:[id])
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  quotations  Quotation[]
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+```
+
+### Additional change — PROJECTS role
+**Reason:** Stream J requires an `ADMIN/PROJECTS` gate for managing projects and linking quotations. No PROJECTS role existed in `enum Role`. Added `PROJECTS` as an additive, non-breaking enum value, consistent with the `PROCUREMENT`/`INSTALLATIONS`/`ACCOUNTING`/`HR` precedent (SCR-003/004/005/006). Note: `Department` enum already has a `PROJECTS` value — this is a separate `Role` enum value, unambiguous since they're distinct types:
+```prisma
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+  REVIEW
+  PROCUREMENT
+  INSTALLATIONS
+  ACCOUNTING
+  HR
+  PROJECTS   // ← جديد: قسم المشروعات (Stream J)
+}
+```
+
+### Additional change — Quotation.projectId
+**Reason:** `Project.quotations Quotation[]` requires a matching scalar + relation field on `Quotation` to link it to a project (many quotations per project, optional).
+```prisma
+// على Quotation:
+//   projectId String?
+//   project   Project? @relation(fields: [projectId], references: [id])
+```
+
+### Reason:
+Phase 2 Stream J — project tracking per customer, linking one or more quotations to a project.
