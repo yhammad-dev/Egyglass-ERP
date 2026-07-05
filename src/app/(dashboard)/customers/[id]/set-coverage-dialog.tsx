@@ -38,7 +38,7 @@ export function SetCoverageDialog({
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
-  const [coveredById, setCoveredById] = useState(currentCoveredById ?? "none");
+  const [coveredById, setCoveredById] = useState<string | null>(currentCoveredById ?? null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export function SetCoverageDialog({
 
     const result = await setCustomerCoverage({
       customerId,
-      coveredById: coveredById === "none" ? null : coveredById,
+      coveredById: coveredById === "none" ? null : (coveredById ?? null),
     });
 
     setSubmitting(false);
@@ -82,10 +82,10 @@ export function SetCoverageDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>{t("customers.selectCoveringRep")}</Label>
-            <Select value={coveredById} onValueChange={setCoveredById}>
+            <Select value={coveredById ?? "none"} onValueChange={setCoveredById}>
               <SelectTrigger>
                 <SelectValue>
-                  {coveredById === "none"
+                  {coveredById === "none" || coveredById === null
                     ? "—"
                     : salesReps.find((r) => r.id === coveredById)?.name ?? "—"}
                 </SelectValue>

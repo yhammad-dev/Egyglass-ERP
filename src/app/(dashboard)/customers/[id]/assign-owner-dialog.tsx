@@ -38,7 +38,7 @@ export function AssignOwnerDialog({
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
-  const [ownerId, setOwnerId] = useState(currentOwnerId ?? "none");
+  const [ownerId, setOwnerId] = useState<string | null>(currentOwnerId ?? null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export function AssignOwnerDialog({
 
     const result = await assignCustomer({
       customerId,
-      ownerId: ownerId === "none" ? null : ownerId,
+      ownerId: ownerId === "none" ? null : (ownerId ?? null),
     });
 
     setSubmitting(false);
@@ -82,10 +82,10 @@ export function AssignOwnerDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>{t("customers.selectOwner")}</Label>
-            <Select value={ownerId} onValueChange={setOwnerId}>
+            <Select value={ownerId ?? "none"} onValueChange={setOwnerId}>
               <SelectTrigger>
                 <SelectValue>
-                  {ownerId === "none"
+                  {ownerId === "none" || ownerId === null
                     ? "—"
                     : salesReps.find((r) => r.id === ownerId)?.name ?? "—"}
                 </SelectValue>

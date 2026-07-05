@@ -337,7 +337,7 @@ export function CustomersClient({
           <Select
             value={typeFilter}
             onValueChange={(v) => {
-              setTypeFilter(v);
+              setTypeFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -361,7 +361,7 @@ export function CustomersClient({
           <Select
             value={sourceFilter}
             onValueChange={(v) => {
-              setSourceFilter(v);
+              setSourceFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -385,7 +385,7 @@ export function CustomersClient({
           <Select
             value={stageFilter}
             onValueChange={(v) => {
-              setStageFilter(v);
+              setStageFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -409,7 +409,7 @@ export function CustomersClient({
           <Select
             value={ownerFilter}
             onValueChange={(v) => {
-              setOwnerFilter(v);
+              setOwnerFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -537,7 +537,7 @@ export function CustomersClient({
               <div className="space-y-1">
                 <Label>{t("customers.type")}</Label>
                 <Select
-                  onValueChange={(v) => setValue("type", v)}
+                  onValueChange={(v) => setValue("type", v ?? "INDIVIDUAL")}
                   defaultValue="INDIVIDUAL"
                 >
                   <SelectTrigger>
@@ -558,7 +558,7 @@ export function CustomersClient({
               <div className="space-y-1">
                 <Label>{t("customers.source")}</Label>
                 <Select
-                  onValueChange={(v) => setValue("source", v)}
+                  onValueChange={(v) => setValue("source", v ?? "VISIT")}
                   defaultValue="VISIT"
                 >
                   <SelectTrigger>
@@ -606,7 +606,9 @@ export function CustomersClient({
                 <Label>{t("customers.assignOwner")}</Label>
                 <Select
                   value={ownerIdValue ?? "none"}
-                  onValueChange={(v) => setValue("ownerId", v === "none" ? undefined : v)}
+                  onValueChange={(v) =>
+                    setValue("ownerId", v === "none" || v === null ? undefined : v)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="—">

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -111,7 +111,7 @@ export function UsersClient({
     setValue,
     formState: { errors },
   } = useForm<UserFormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as Resolver<UserFormData>,
   });
 
   function openCreate() {
@@ -376,7 +376,7 @@ export function UsersClient({
             <div className="space-y-1">
               <Label>{t("users.role")}</Label>
               <Select
-                onValueChange={(v) => setValue("role", v)}
+                onValueChange={(v) => setValue("role", v ?? "")}
                 defaultValue={editingUser?.role}
               >
                 <SelectTrigger>
@@ -396,7 +396,7 @@ export function UsersClient({
             <div className="space-y-1">
               <Label>{t("users.department")}</Label>
               <Select
-                onValueChange={(v) => setValue("department", v)}
+                onValueChange={(v) => setValue("department", v ?? "")}
                 defaultValue={editingUser?.department}
               >
                 <SelectTrigger>
@@ -439,7 +439,7 @@ export function UsersClient({
             <DialogTitle>{t("app.confirm")}</DialogTitle>
           </DialogHeader>
           <p className="text-gray-600">
-            {t("users.confirmDelete", { name: deleteTarget?.name })}
+            {t("users.confirmDelete", { name: deleteTarget?.name ?? "" })}
           </p>
           <div className="flex justify-end gap-3">
             <Button
@@ -465,7 +465,7 @@ export function UsersClient({
             <DialogTitle>{t("app.confirm")}</DialogTitle>
           </DialogHeader>
           <p className="text-gray-600">
-            {t("users.confirmReactivate", { name: reactivateTarget?.name })}
+            {t("users.confirmReactivate", { name: reactivateTarget?.name ?? "" })}
           </p>
           <div className="flex justify-end gap-3">
             <Button

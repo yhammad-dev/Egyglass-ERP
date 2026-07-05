@@ -352,7 +352,7 @@ export function InspectionsClient({
           <Select
             value={statusFilter}
             onValueChange={(v) => {
-              setStatusFilter(v);
+              setStatusFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -376,7 +376,7 @@ export function InspectionsClient({
           <Select
             value={locationFilter}
             onValueChange={(v) => {
-              setLocationFilter(v);
+              setLocationFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -402,7 +402,7 @@ export function InspectionsClient({
           <Select
             value={typeFilter}
             onValueChange={(v) => {
-              setTypeFilter(v);
+              setTypeFilter(v ?? "all");
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
           >
@@ -521,7 +521,7 @@ export function InspectionsClient({
             <div className="space-y-1">
               <Label>{t("inspections.selectAssignee")}</Label>
               <Select
-                onValueChange={(v) => setScheduleValue("assigneeId", v)}
+                onValueChange={(v) => setScheduleValue("assigneeId", v ?? "")}
                 defaultValue=""
               >
                 <SelectTrigger>
@@ -571,7 +571,7 @@ export function InspectionsClient({
             <div className="space-y-1">
               <Label>{t("inspections.selectCustomer")}</Label>
               <Select
-                onValueChange={(v) => setValue("customerId", v)}
+                onValueChange={(v) => setValue("customerId", v ?? "")}
                 defaultValue=""
               >
                 <SelectTrigger>
@@ -594,7 +594,7 @@ export function InspectionsClient({
               <div className="space-y-1">
                 <Label>{t("inspections.location")}</Label>
                 <Select
-                  onValueChange={(v) => setValue("location", v)}
+                  onValueChange={(v) => setValue("location", v ?? "INSIDE_CAIRO")}
                   defaultValue="INSIDE_CAIRO"
                 >
                   <SelectTrigger>
@@ -615,7 +615,7 @@ export function InspectionsClient({
               <div className="space-y-1">
                 <Label>{t("inspections.type")}</Label>
                 <Select
-                  onValueChange={(v) => setValue("type", v)}
+                  onValueChange={(v) => setValue("type", v ?? "PRICING")}
                   defaultValue="PRICING"
                 >
                   <SelectTrigger>

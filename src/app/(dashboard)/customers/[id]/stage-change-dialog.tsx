@@ -44,7 +44,9 @@ export function StageChangeDialog({
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
-  const [newStage, setNewStage] = useState(currentStage);
+  const [newStage, setNewStage] = useState<(typeof STAGES)[number] | null>(
+    currentStage as (typeof STAGES)[number]
+  );
   const [rejectReason, setRejectReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function StageChangeDialog({
 
     const result = await changeCustomerStage({
       customerId,
-      newStage,
+      newStage: newStage ?? (currentStage as (typeof STAGES)[number]),
       rejectReason: newStage === "REJECTED" ? rejectReason : undefined,
     });
 
@@ -91,9 +93,14 @@ export function StageChangeDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="stage">{t("customers.stage")}</Label>
-            <Select value={newStage} onValueChange={setNewStage}>
+            <Select
+              value={newStage ?? currentStage}
+              onValueChange={(value) =>
+                setNewStage((value as (typeof STAGES)[number]) ?? null)
+              }
+            >
               <SelectTrigger id="stage">
-                <SelectValue>{t(`pipeline.${newStage}`)}</SelectValue>
+                <SelectValue>{t(`pipeline.${newStage ?? currentStage}`)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {STAGES.map((s) => (

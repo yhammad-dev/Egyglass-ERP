@@ -52,7 +52,7 @@ export function CustomerProfileClient({
   const t = useTranslations();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("interactions");
-  const [interactionType, setInteractionType] = useState("NOTE");
+  const [interactionType, setInteractionType] = useState<string | null>("NOTE");
   const [interactionNote, setInteractionNote] = useState("");
   const [interactionSubmitting, setInteractionSubmitting] = useState(false);
 
@@ -72,7 +72,7 @@ export function CustomerProfileClient({
 
     const result = await addInteraction({
       customerId: customer.id,
-      type: interactionType as "CALL" | "WHATSAPP" | "VISIT" | "NOTE",
+      type: (interactionType ?? "NOTE") as "CALL" | "WHATSAPP" | "VISIT" | "NOTE",
       note: interactionNote.trim(),
     });
 
@@ -204,10 +204,10 @@ export function CustomerProfileClient({
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <Label>{t("customers.selectType")}</Label>
-                      <Select value={interactionType} onValueChange={setInteractionType}>
+                      <Select value={interactionType ?? "NOTE"} onValueChange={setInteractionType}>
                         <SelectTrigger className="w-48">
                           <SelectValue>
-                            {t(`customers.interaction_${interactionType}`)}
+                            {t(`customers.interaction_${interactionType ?? "NOTE"}`)}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
