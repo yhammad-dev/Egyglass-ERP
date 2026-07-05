@@ -110,6 +110,11 @@
     "RE_INSPECTION_FOLLOWUP": "Post-Inspection Follow Up",
     "REJECTED": "Rejected"
   },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No new notifications",
+    "quotationApprovedTitle": "Quotation Approved"
+  },
   "review": {
     "title": "Quotation Review",
     "number": "Number",

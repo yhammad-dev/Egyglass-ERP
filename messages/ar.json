@@ -109,6 +109,11 @@
     "RE_INSPECTION_FOLLOWUP": "متابعة بعد المعاينة",
     "REJECTED": "رفض"
   },
+  "notifications": {
+    "title": "الإشعارات",
+    "empty": "لا توجد إشعارات جديدة",
+    "quotationApprovedTitle": "تم اعتماد عرض السعر"
+  },
   "review": {
     "title": "مراجعة عروض الأسعار",
     "number": "الرقم",

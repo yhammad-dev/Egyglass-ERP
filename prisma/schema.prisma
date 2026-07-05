@@ -23,6 +23,7 @@ model User {
   inspections       InspectionRequest[] @relation("InspectionAssignee")
   interactions      Interaction[]
   quotations        Quotation[]
+  notifications     Notification[]
 }
 
 model Customer {
@@ -173,6 +174,22 @@ model ActivityLog {
 
   @@index([entity, entityId])
   @@index([userId])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  body       String
+  type       String
+  entityId   String?
+  entityType String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
 }
 
 model SystemSettings {

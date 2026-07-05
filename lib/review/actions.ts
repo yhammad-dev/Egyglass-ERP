@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { sendNotification } from "../notifications/send";
 
 const REVIEW_ROLES = ["ADMIN", "REVIEW"];
 
@@ -99,6 +100,15 @@ export async function approveQuotationAction(input: unknown) {
       entityId: quotation.id,
       details: `تمت الموافقة على عرض السعر ${quotation.number}`,
     },
+  });
+
+  await sendNotification({
+    userId: quotation.createdById,
+    title: "notifications.quotationApprovedTitle",
+    body: `تم اعتماد عرض السعر ${quotation.number}`,
+    type: "QUOTATION_APPROVED",
+    entityId: quotation.id,
+    entityType: "Quotation",
   });
 
   return { success: true as const };

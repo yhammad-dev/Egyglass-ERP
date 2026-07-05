@@ -4,6 +4,7 @@ import { getNavItems } from "@/lib/nav";
 import { signOutAction } from "@/lib/actions/auth";
 import { t } from "@/lib/server-translations";
 import { Toaster } from "@/components/ui/sonner";
+import { NotificationsBell } from "@/components/notifications-bell";
 import Link from "next/link";
 import { ReactNode } from "react";
 
@@ -54,8 +55,11 @@ export default async function DashboardLayout({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-        {children}
+      <main className="flex-1 overflow-y-auto bg-gray-50 flex flex-col">
+        <header className="flex items-center justify-end border-b bg-white px-6 py-3 shrink-0">
+          <NotificationsBell />
+        </header>
+        <div className="flex-1 p-6">{children}</div>
       </main>
 
       <Toaster />

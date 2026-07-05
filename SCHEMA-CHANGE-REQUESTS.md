@@ -327,3 +327,28 @@ Status: PENDING_APPROVAL
 ### Reason:
 B4 calculation engine requires recipe-based pricing structure.
 Cannot proceed without schema approval.
+
+---
+
+## SCR-002 — Notification Model
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+
+```prisma
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  body       String
+  type       String
+  entityId   String?
+  entityType String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+```
+
+### Reason:
+Phase 2 Stream E — notification infrastructure for cross-role events (starting with review approval/rejection).
