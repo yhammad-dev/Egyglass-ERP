@@ -112,7 +112,21 @@
   "notifications": {
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات جديدة",
-    "quotationApprovedTitle": "تم اعتماد عرض السعر"
+    "quotationApprovedTitle": "تم اعتماد عرض السعر",
+    "newMfgOrderTitle": "أمر تصنيع جديد"
+  },
+  "manufacturing": {
+    "title": "أوامر التصنيع",
+    "number": "الرقم",
+    "customer": "العميل",
+    "status": "الحالة",
+    "expectedAt": "التاريخ المتوقع",
+    "dash": "—",
+    "statusUpdated": "تم تحديث حالة أمر التصنيع",
+    "status_PENDING": "قيد الانتظار",
+    "status_IN_PRODUCTION": "قيد التصنيع",
+    "status_READY": "جاهز",
+    "status_DELIVERED": "تم التسليم"
   },
   "review": {
     "title": "مراجعة عروض الأسعار",
@@ -302,7 +316,10 @@
     "quotations": "عروض الأسعار",
     "inspections": "المعاينات",
     "users": "المستخدمين",
-    "reports": "التقارير"
+    "reports": "التقارير",
+    "manufacturing": "أوامر التصنيع",
+    "review": "المراجعة",
+    "adminPricing": "إدارة الأسعار"
   },
   "admin": {
     "pricing": {

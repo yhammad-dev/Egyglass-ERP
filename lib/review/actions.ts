@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { sendNotification } from "../notifications/send";
+import { createManufacturingOrder } from "../manufacturing/actions";
 
 const REVIEW_ROLES = ["ADMIN", "REVIEW"];
 
@@ -110,6 +111,26 @@ export async function approveQuotationAction(input: unknown) {
     entityId: quotation.id,
     entityType: "Quotation",
   });
+
+  const mfgOrder = await createManufacturingOrder(quotation.id);
+
+  const procurementUsers = await prisma.user.findMany({
+    where: { role: "PROCUREMENT", isActive: true },
+    select: { id: true },
+  });
+
+  await Promise.all(
+    procurementUsers.map((user) =>
+      sendNotification({
+        userId: user.id,
+        title: "notifications.newMfgOrderTitle",
+        body: `أمر تصنيع جديد لعرض السعر ${quotation.number}`,
+        type: "MFG_ORDER_CREATED",
+        entityId: mfgOrder.id,
+        entityType: "ManufacturingOrder",
+      })
+    )
+  );
 
   return { success: true as const };
 }

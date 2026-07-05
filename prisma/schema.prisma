@@ -94,6 +94,7 @@ model Quotation {
   createdBy           User            @relation(fields: [createdById], references: [id])
   customer            Customer        @relation(fields: [customerId], references: [id])
   items               QuotationItem[]
+  manufacturingOrder  ManufacturingOrder?
 
   @@index([customerId])
   @@index([status])
@@ -190,6 +191,20 @@ model Notification {
 
   @@index([userId])
   @@index([userId, isRead])
+}
+
+model ManufacturingOrder {
+  id          String    @id @default(cuid())
+  quotationId String    @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  status      MfgStatus @default(PENDING)
+  assignedTo  String?
+  notes       String?
+  expectedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
 }
 
 model SystemSettings {
@@ -325,6 +340,7 @@ enum Role {
   INSPECTION_MANAGER
   VIEWER
   REVIEW
+  PROCUREMENT
 }
 
 enum Department {
@@ -406,6 +422,13 @@ enum ReviewStatus {
 enum QuotationType {
   INITIAL
   FINAL
+}
+
+enum MfgStatus {
+  PENDING
+  IN_PRODUCTION
+  READY
+  DELIVERED
 }
 
 enum DiscountRequestStatus {

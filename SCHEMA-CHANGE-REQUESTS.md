@@ -352,3 +352,48 @@ model Notification {
 
 ### Reason:
 Phase 2 Stream E — notification infrastructure for cross-role events (starting with review approval/rejection).
+
+---
+
+## SCR-003 — Manufacturing Order
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+
+```prisma
+model ManufacturingOrder {
+  id          String   @id @default(cuid())
+  quotationId String   @unique
+  quotation   Quotation @relation(fields:[quotationId], references:[id])
+  status      MfgStatus @default(PENDING)
+  assignedTo  String?
+  notes       String?
+  expectedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum MfgStatus {
+  PENDING
+  IN_PRODUCTION
+  READY
+  DELIVERED
+}
+```
+
+### Additional change — PROCUREMENT role
+**Reason:** Stream F requires an `ADMIN/PROCUREMENT` gate for manufacturing status updates and a "notify PROCUREMENT users" step on order creation. No procurement role existed in `enum Role`. Added `PROCUREMENT` as an additive, non-breaking enum value:
+```prisma
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+  REVIEW
+  PROCUREMENT   // ← جديد: قسم المشتريات/التصنيع (Stream F)
+}
+```
+
+### Reason:
+Phase 2 Stream F — manufacturing order tracking triggered on quotation review approval.

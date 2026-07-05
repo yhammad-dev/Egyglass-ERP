@@ -113,7 +113,21 @@
   "notifications": {
     "title": "Notifications",
     "empty": "No new notifications",
-    "quotationApprovedTitle": "Quotation Approved"
+    "quotationApprovedTitle": "Quotation Approved",
+    "newMfgOrderTitle": "New Manufacturing Order"
+  },
+  "manufacturing": {
+    "title": "Manufacturing Orders",
+    "number": "Number",
+    "customer": "Customer",
+    "status": "Status",
+    "expectedAt": "Expected Date",
+    "dash": "—",
+    "statusUpdated": "Manufacturing order status updated",
+    "status_PENDING": "Pending",
+    "status_IN_PRODUCTION": "In Production",
+    "status_READY": "Ready",
+    "status_DELIVERED": "Delivered"
   },
   "review": {
     "title": "Quotation Review",
@@ -303,7 +317,10 @@
     "quotations": "Quotations",
     "inspections": "Inspections",
     "users": "Users",
-    "reports": "Reports"
+    "reports": "Reports",
+    "manufacturing": "Manufacturing Orders",
+    "review": "Review",
+    "adminPricing": "Pricing Admin"
   },
   "admin": {
     "pricing": {
