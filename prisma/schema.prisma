@@ -26,6 +26,7 @@ model User {
   notifications     Notification[]
   installationOrders InstallationOrder[] @relation("InstallationTeamLead")
   payments          Payment[]
+  employee          Employee?
 }
 
 model Customer {
@@ -242,6 +243,36 @@ model Payment {
   @@index([quotationId])
 }
 
+model Employee {
+  id            String         @id @default(cuid())
+  userId        String?        @unique
+  user          User?          @relation(fields: [userId], references: [id])
+  nameAr        String
+  department    Department
+  position      String
+  hireDate      DateTime
+  salary        Decimal?       @db.Decimal(12, 2)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  leaveRequests LeaveRequest[]
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  type       String
+  startDate  DateTime
+  endDate    DateTime
+  status     LeaveStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime    @default(now())
+
+  @@index([employeeId])
+  @@index([status])
+}
+
 model SystemSettings {
   id                 String    @id @default("singleton")
   discountBasePct    Decimal   @default(18) @db.Decimal(5, 2)
@@ -378,6 +409,7 @@ enum Role {
   PROCUREMENT
   INSTALLATIONS
   ACCOUNTING
+  HR
 }
 
 enum Department {
@@ -474,6 +506,12 @@ enum InstStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum DiscountRequestStatus {

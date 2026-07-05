@@ -333,7 +333,7 @@ Cannot proceed without schema approval.
 ## SCR-002 — Notification Model
 Date: 2026-07-06
 Requested by: Youssif
-Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+Status: APPROVED — Youssif Hammad, 2026-07-06
 
 ```prisma
 model Notification {
@@ -358,7 +358,7 @@ Phase 2 Stream E — notification infrastructure for cross-role events (starting
 ## SCR-003 — Manufacturing Order
 Date: 2026-07-06
 Requested by: Youssif
-Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+Status: APPROVED — Youssif Hammad, 2026-07-06
 
 ```prisma
 model ManufacturingOrder {
@@ -403,7 +403,7 @@ Phase 2 Stream F — manufacturing order tracking triggered on quotation review 
 ## SCR-004 — Installation Order
 Date: 2026-07-06
 Requested by: Youssif
-Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+Status: APPROVED — Youssif Hammad, 2026-07-06
 
 ```prisma
 model InstallationOrder {
@@ -451,7 +451,7 @@ Phase 2 Stream G — installation order tracking triggered on manufacturing orde
 ## SCR-005 — Payment (Accounting)
 Date: 2026-07-06
 Requested by: Youssif
-Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+Status: APPROVED — Youssif Hammad, 2026-07-06
 
 ```prisma
 model Payment {
@@ -486,3 +486,64 @@ enum Role {
 
 ### Reason:
 Phase 2 Stream I — payment tracking per quotation, feeding a per-customer accounting dashboard (contract total / paid / remaining).
+
+---
+
+## SCR-006 — Employee / LeaveRequest (HR)
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED — Youssif Hammad, 2026-07-06
+
+```prisma
+model Employee {
+  id         String     @id @default(cuid())
+  userId     String?    @unique
+  user       User?      @relation(fields:[userId], references:[id])
+  nameAr     String
+  department Department
+  position   String
+  hireDate   DateTime
+  salary     Decimal?   @db.Decimal(12,2)
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields:[employeeId], references:[id])
+  type       String
+  startDate  DateTime
+  endDate    DateTime
+  status     LeaveStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime    @default(now())
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+```
+
+### Additional change — HR role
+**Reason:** Stream H requires an `ADMIN/HR` gate for managing employees and leave requests. No HR role existed in `enum Role`. Added `HR` as an additive, non-breaking enum value, consistent with the `PROCUREMENT`/`INSTALLATIONS`/`ACCOUNTING` precedent (SCR-003/004/005):
+```prisma
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+  REVIEW
+  PROCUREMENT
+  INSTALLATIONS
+  ACCOUNTING
+  HR   // ← جديد: قسم الموارد البشرية (Stream H)
+}
+```
+
+### Reason:
+Phase 2 Stream H — employee records and leave request tracking for HR department.
