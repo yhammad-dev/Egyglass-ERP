@@ -12,10 +12,13 @@ export default async function AdminPricingPage() {
     getPricingFactors(),
   ]);
 
+  const safeMaterials = materials ?? [];
+  const safePricingFactors = pricingFactors ?? [];
+
   return (
     <PricingCatalogClient
-      initialMaterials={materials}
-      initialPricingFactors={pricingFactors}
+      initialMaterials={safeMaterials}
+      initialPricingFactors={safePricingFactors}
     />
   );
 }
