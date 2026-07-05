@@ -295,3 +295,35 @@ model CashbackTier {
 ---
 
 *هذا الملف مصدر الحقيقة لتغييرات schema المرحلة 1. يُحدّث عند أي طلب تغيير جديد، ويُطبّق يدويًا فقط — لا وكيل يعدّل الـ schema (الدرس 10).*
+
+---
+
+## SCR-001 — Pricing Engine Models
+Date: 2026-07-05
+Requested by: Youssif
+Status: PENDING_APPROVAL
+
+### Required Additions:
+1. enum FactorMode { STANDARD FIXED_AFTER CUSTOM_FACTOR }
+
+2. model ProductRecipe {
+   id         String         @id @default(cuid())
+   name       String
+   configType String
+   lines      RecipeLine[]
+}
+
+3. model RecipeLine {
+   id           String      @id @default(cuid())
+   recipeId     String
+   recipe       ProductRecipe @relation(fields: [recipeId], references: [id])
+   itemId       String
+   item         PriceListItem @relation(fields: [itemId], references: [id])
+   qty          Decimal     @db.Decimal(10, 4)
+   factorMode   FactorMode  @default(STANDARD)
+   customFactor Decimal?    @db.Decimal(4, 2)
+}
+
+### Reason:
+B4 calculation engine requires recipe-based pricing structure.
+Cannot proceed without schema approval.
