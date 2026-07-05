@@ -338,7 +338,33 @@
     "manufacturing": "أوامر التصنيع",
     "review": "المراجعة",
     "adminPricing": "إدارة الأسعار",
-    "installations": "التركيبات"
+    "installations": "التركيبات",
+    "executive": "لوحة الإدارة التنفيذية"
+  },
+  "executive": {
+    "title": "لوحة الإدارة التنفيذية",
+    "kpi": {
+      "activeCustomers": "إجمالي العملاء النشطين",
+      "quotationsThisMonth": "عروض الأسعار هذا الشهر",
+      "conversionRate": "معدل التحويل",
+      "mfgInProduction": "أوامر التصنيع الجارية",
+      "installationsScheduledThisWeek": "تركيبات مجدولة هذا الأسبوع",
+      "approvedRevenue": "إجمالي الإيرادات المعتمدة"
+    },
+    "recentQuotations": "آخر 5 عروض أسعار",
+    "recentMfgOrders": "آخر 5 أوامر تصنيع",
+    "newCustomersThisWeek": "العملاء الجدد هذا الأسبوع",
+    "topProducts": "أكثر 5 منتجات مبيعاً",
+    "table": {
+      "number": "الرقم",
+      "customer": "العميل",
+      "total": "الإجمالي",
+      "date": "التاريخ",
+      "status": "الحالة",
+      "name": "الاسم",
+      "product": "المنتج",
+      "count": "العدد"
+    }
   },
   "admin": {
     "pricing": {

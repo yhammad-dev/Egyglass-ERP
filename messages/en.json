@@ -339,7 +339,33 @@
     "manufacturing": "Manufacturing Orders",
     "review": "Review",
     "adminPricing": "Pricing Admin",
-    "installations": "Installations"
+    "installations": "Installations",
+    "executive": "Executive Dashboard"
+  },
+  "executive": {
+    "title": "Executive Dashboard",
+    "kpi": {
+      "activeCustomers": "Total Active Customers",
+      "quotationsThisMonth": "Quotations This Month",
+      "conversionRate": "Conversion Rate",
+      "mfgInProduction": "Manufacturing Orders In Production",
+      "installationsScheduledThisWeek": "Installations Scheduled This Week",
+      "approvedRevenue": "Total Approved Revenue"
+    },
+    "recentQuotations": "Last 5 Quotations",
+    "recentMfgOrders": "Last 5 Manufacturing Orders",
+    "newCustomersThisWeek": "New Customers This Week",
+    "topProducts": "Top 5 Best-Selling Products",
+    "table": {
+      "number": "Number",
+      "customer": "Customer",
+      "total": "Total",
+      "date": "Date",
+      "status": "Status",
+      "name": "Name",
+      "product": "Product",
+      "count": "Count"
+    }
   },
   "admin": {
     "pricing": {
