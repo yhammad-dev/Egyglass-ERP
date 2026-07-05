@@ -4,6 +4,8 @@ import { z } from "zod";
 import { MfgStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { sendNotification } from "../notifications/send";
+import { createInstallationOrder } from "../installations/actions";
 
 const MFG_ROLES = ["ADMIN", "PROCUREMENT"];
 
@@ -77,6 +79,28 @@ export async function updateMfgStatus(input: unknown) {
       details: `تم تغيير حالة أمر التصنيع من ${order.status} إلى ${parsed.data.status}`,
     },
   });
+
+  if (parsed.data.status === "READY" && order.status !== "READY") {
+    const installationOrder = await createInstallationOrder(order.id);
+
+    const installationUsers = await prisma.user.findMany({
+      where: { role: "INSTALLATIONS", isActive: true },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      installationUsers.map((user) =>
+        sendNotification({
+          userId: user.id,
+          title: "notifications.mfgReadyTitle",
+          body: "مواد جاهزة للتركيب",
+          type: "MFG_READY_FOR_INSTALLATION",
+          entityId: installationOrder.id,
+          entityType: "InstallationOrder",
+        })
+      )
+    );
+  }
 
   return { success: true as const };
 }

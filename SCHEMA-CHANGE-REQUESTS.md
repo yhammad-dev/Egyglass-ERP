@@ -397,3 +397,51 @@ enum Role {
 
 ### Reason:
 Phase 2 Stream F — manufacturing order tracking triggered on quotation review approval.
+
+---
+
+## SCR-004 — Installation Order
+Date: 2026-07-06
+Requested by: Youssif
+Status: APPROVED (applied per explicit instruction — see AGENTS.md note)
+
+```prisma
+model InstallationOrder {
+  id                  String      @id @default(cuid())
+  manufacturingOrderId String     @unique
+  manufacturingOrder  ManufacturingOrder @relation(fields:[manufacturingOrderId], references:[id])
+  teamLeadId          String?
+  teamLead            User?       @relation(fields:[teamLeadId], references:[id])
+  scheduledAt         DateTime?
+  status              InstStatus  @default(PENDING)
+  notes               String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+enum InstStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+```
+
+### Additional change — INSTALLATIONS role
+**Reason:** Stream G requires an `ADMIN/INSTALLATIONS` gate for scheduling/status updates and a "notify INSTALLATIONS users" step when manufacturing status reaches READY. No installations role existed in `enum Role`. Added `INSTALLATIONS` as an additive, non-breaking enum value, consistent with the `PROCUREMENT` precedent in SCR-003:
+```prisma
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+  INSPECTION_MANAGER
+  VIEWER
+  REVIEW
+  PROCUREMENT
+  INSTALLATIONS   // ← جديد: قسم التركيبات (Stream G)
+}
+```
+
+### Reason:
+Phase 2 Stream G — installation order tracking triggered on manufacturing order reaching READY.

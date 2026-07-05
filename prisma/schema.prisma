@@ -24,6 +24,7 @@ model User {
   interactions      Interaction[]
   quotations        Quotation[]
   notifications     Notification[]
+  installationOrders InstallationOrder[] @relation("InstallationTeamLead")
 }
 
 model Customer {
@@ -203,8 +204,25 @@ model ManufacturingOrder {
   expectedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  installationOrder InstallationOrder?
 
   @@index([status])
+}
+
+model InstallationOrder {
+  id                    String             @id @default(cuid())
+  manufacturingOrderId  String             @unique
+  manufacturingOrder    ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id])
+  teamLeadId            String?
+  teamLead              User?              @relation("InstallationTeamLead", fields: [teamLeadId], references: [id])
+  scheduledAt           DateTime?
+  status                InstStatus         @default(PENDING)
+  notes                 String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([status])
+  @@index([teamLeadId])
 }
 
 model SystemSettings {
@@ -341,6 +359,7 @@ enum Role {
   VIEWER
   REVIEW
   PROCUREMENT
+  INSTALLATIONS
 }
 
 enum Department {
@@ -429,6 +448,14 @@ enum MfgStatus {
   IN_PRODUCTION
   READY
   DELIVERED
+}
+
+enum InstStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum DiscountRequestStatus {

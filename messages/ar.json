@@ -113,7 +113,8 @@
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات جديدة",
     "quotationApprovedTitle": "تم اعتماد عرض السعر",
-    "newMfgOrderTitle": "أمر تصنيع جديد"
+    "newMfgOrderTitle": "أمر تصنيع جديد",
+    "mfgReadyTitle": "مواد جاهزة للتركيب"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -127,6 +128,23 @@
     "status_IN_PRODUCTION": "قيد التصنيع",
     "status_READY": "جاهز",
     "status_DELIVERED": "تم التسليم"
+  },
+  "installations": {
+    "title": "التركيبات",
+    "customer": "العميل",
+    "scheduledAt": "موعد التركيب",
+    "teamLead": "قائد الفريق",
+    "status": "الحالة",
+    "dash": "—",
+    "schedule": "جدولة",
+    "selectTeamLead": "اختر قائد الفريق",
+    "scheduled": "تم جدولة التركيب",
+    "statusUpdated": "تم تحديث حالة التركيب",
+    "status_PENDING": "قيد الانتظار",
+    "status_SCHEDULED": "مجدول",
+    "status_IN_PROGRESS": "قيد التنفيذ",
+    "status_COMPLETED": "مكتمل",
+    "status_CANCELLED": "ملغي"
   },
   "review": {
     "title": "مراجعة عروض الأسعار",
@@ -319,7 +337,8 @@
     "reports": "التقارير",
     "manufacturing": "أوامر التصنيع",
     "review": "المراجعة",
-    "adminPricing": "إدارة الأسعار"
+    "adminPricing": "إدارة الأسعار",
+    "installations": "التركيبات"
   },
   "admin": {
     "pricing": {
