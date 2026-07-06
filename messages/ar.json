@@ -114,7 +114,9 @@
     "empty": "لا توجد إشعارات جديدة",
     "quotationApprovedTitle": "تم اعتماد عرض السعر",
     "newMfgOrderTitle": "أمر تصنيع جديد",
-    "mfgReadyTitle": "مواد جاهزة للتركيب"
+    "mfgReadyTitle": "مواد جاهزة للتركيب",
+    "inspectionCompletedTitle": "تم إكمال المعاينة",
+    "lowFactorApprovalTitle": "طلب موافقة على فاكتور منخفض"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -196,6 +198,7 @@
       "selectShowerType": "اختر نوع الشاور",
       "globalFactor": "المعامل العام",
       "selectGlobalFactor": "اختر المعامل العام",
+      "lowFactorRequiresApproval": "المعامل أقل من 1.5 ويتطلب موافقة الإدارة قبل المتابعة",
       "calculate": "حساب",
       "material": "الخامة",
       "qty": "الكمية",
@@ -275,7 +278,23 @@
     "schedule": "جدولة",
     "scheduleInspection": "جدولة المعاينة",
     "selectAssignee": "اختر المسؤول",
-    "scheduled": "تم جدولة المعاينة بنجاح"
+    "scheduled": "تم جدولة المعاينة بنجاح",
+    "dash": "—",
+    "detail": {
+      "updateStatus": "تحديث الحالة",
+      "statusUpdated": "تم تحديث حالة المعاينة",
+      "measurements": "المقاسات",
+      "width": "العرض",
+      "height": "الارتفاع",
+      "addMeasurements": "إضافة مقاسات",
+      "measurementsAdded": "تم تسجيل المقاسات بنجاح",
+      "attachments": "المرفقات",
+      "fileName": "اسم الملف",
+      "filePath": "رابط/مرجع الملف",
+      "filePathPlaceholder": "رابط أو مسار المرجع",
+      "addAttachment": "إضافة مرفق",
+      "attachmentAdded": "تم إضافة المرفق بنجاح"
+    }
   },
   "users": {
     "title": "المستخدمين",
@@ -344,7 +363,25 @@
     "executive": "لوحة الإدارة التنفيذية",
     "accounting": "الحسابات",
     "hr": "الموارد البشرية",
-    "projects": "المشروعات"
+    "projects": "المشروعات",
+    "audit": "سجل التدقيق"
+  },
+  "audit": {
+    "title": "سجل التدقيق",
+    "filterByUser": "تصفية حسب المستخدم",
+    "filterByEntityType": "تصفية حسب النوع",
+    "allUsers": "جميع المستخدمين",
+    "allEntityTypes": "جميع الأنواع",
+    "dateFrom": "من تاريخ",
+    "dateTo": "إلى تاريخ",
+    "user": "المستخدم",
+    "action": "الإجراء",
+    "entityType": "النوع",
+    "entityId": "المعرف",
+    "date": "التاريخ",
+    "prevPage": "السابق",
+    "nextPage": "التالي",
+    "pageInfo": "صفحة {current} من {total}"
   },
   "projects": {
     "title": "المشروعات",

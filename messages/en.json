@@ -115,7 +115,9 @@
     "empty": "No new notifications",
     "quotationApprovedTitle": "Quotation Approved",
     "newMfgOrderTitle": "New Manufacturing Order",
-    "mfgReadyTitle": "Materials Ready for Installation"
+    "mfgReadyTitle": "Materials Ready for Installation",
+    "inspectionCompletedTitle": "Inspection Completed",
+    "lowFactorApprovalTitle": "Low Factor Approval Requested"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",
@@ -197,6 +199,7 @@
       "selectShowerType": "Select shower type",
       "globalFactor": "Global Factor",
       "selectGlobalFactor": "Select global factor",
+      "lowFactorRequiresApproval": "Factor is below 1.5 and requires admin approval before proceeding",
       "calculate": "Calculate",
       "material": "Material",
       "qty": "Qty",
@@ -276,7 +279,23 @@
     "schedule": "Schedule",
     "scheduleInspection": "Schedule Inspection",
     "selectAssignee": "Select Assignee",
-    "scheduled": "Inspection scheduled successfully"
+    "scheduled": "Inspection scheduled successfully",
+    "dash": "—",
+    "detail": {
+      "updateStatus": "Update Status",
+      "statusUpdated": "Inspection status updated",
+      "measurements": "Measurements",
+      "width": "Width",
+      "height": "Height",
+      "addMeasurements": "Add Measurements",
+      "measurementsAdded": "Measurements recorded successfully",
+      "attachments": "Attachments",
+      "fileName": "File Name",
+      "filePath": "File Reference",
+      "filePathPlaceholder": "URL or reference path",
+      "addAttachment": "Add Attachment",
+      "attachmentAdded": "Attachment added successfully"
+    }
   },
   "users": {
     "title": "Users",
@@ -345,7 +364,25 @@
     "executive": "Executive Dashboard",
     "accounting": "Accounting",
     "hr": "HR",
-    "projects": "Projects"
+    "projects": "Projects",
+    "audit": "Audit Trail"
+  },
+  "audit": {
+    "title": "Audit Trail",
+    "filterByUser": "Filter by User",
+    "filterByEntityType": "Filter by Type",
+    "allUsers": "All Users",
+    "allEntityTypes": "All Types",
+    "dateFrom": "From Date",
+    "dateTo": "To Date",
+    "user": "User",
+    "action": "Action",
+    "entityType": "Type",
+    "entityId": "ID",
+    "date": "Date",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "pageInfo": "Page {current} of {total}"
   },
   "projects": {
     "title": "Projects",

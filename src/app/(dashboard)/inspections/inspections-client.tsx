@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -209,7 +210,11 @@ export function InspectionsClient({
         row.phone.includes(search);
 
       const matchesStatus =
-        statusFilter === "all" || row.status === statusFilter;
+        statusFilter === "all"
+          ? true
+          : statusFilter === "OVERDUE"
+            ? row.effectiveStatus === "OVERDUE"
+            : row.status === statusFilter;
       const matchesLocation =
         locationFilter === "all" || row.location === locationFilter;
       const matchesType =
@@ -223,7 +228,11 @@ export function InspectionsClient({
     () => [
       columnHelper.accessor("customerName", {
         header: t("inspections.customer"),
-        cell: (info) => info.getValue(),
+        cell: (info) => (
+          <Link href={`/inspections/${info.row.original.id}`} className="text-primary hover:underline">
+            {info.getValue()}
+          </Link>
+        ),
       }),
       columnHelper.accessor("location", {
         header: t("inspections.location"),

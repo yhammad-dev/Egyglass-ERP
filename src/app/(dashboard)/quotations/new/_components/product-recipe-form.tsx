@@ -119,6 +119,11 @@ export function ProductRecipeForm({
       return;
     }
 
+    if ("requiresApproval" in response) {
+      setServerError(t("quotations.shower.lowFactorRequiresApproval"));
+      return;
+    }
+
     setResult(response.data);
   }
 

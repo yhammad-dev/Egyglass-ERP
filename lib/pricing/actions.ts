@@ -5,8 +5,10 @@ import { QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { calculateRecipe } from "./calculateRecipe";
+import { sendNotification } from "../notifications/send";
 
 const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
+const LOW_FACTOR_THRESHOLD = 1.5;
 
 export async function getProductRecipes(productTypeId: string) {
   try {
@@ -107,6 +109,7 @@ export async function calculateProductPricing(
         grandTotal: number;
       };
     }
+  | { requiresApproval: true; factor: number }
   | { error: string }
 > {
   try {
@@ -133,6 +136,11 @@ export async function calculateProductPricing(
 
     if (configTypeId && !configType) return { error: "errors.notFound" };
     if (!pricingFactor) return { error: "errors.notFound" };
+
+    const factorValue = pricingFactor.value.toNumber();
+    if (factorValue < LOW_FACTOR_THRESHOLD) {
+      return { requiresApproval: true, factor: factorValue };
+    }
 
     const dimensions = {
       area: height * width,
@@ -232,6 +240,74 @@ export async function createQuotation(
   }
 }
 
+const updateQuotationSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  customerId: z.string().min(1, "errors.invalidInput"),
+  title: z.string().min(1, "errors.invalidInput"),
+  items: z.array(createQuotationItemSchema).min(1, "errors.invalidInput"),
+});
+
+export async function updateQuotation(
+  input: unknown
+): Promise<{ success: true; data: { id: string } } | { error: string }> {
+  try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+    const parsed = updateQuotationSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" };
+
+    const { id, customerId, title, items } = parsed.data;
+
+    const existing = await prisma.quotation.findUnique({ where: { id } });
+    if (!existing) return { error: "errors.notFound" };
+
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) return { error: "errors.notFound" };
+
+    const vatPct = existing.taxPct.toNumber();
+    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const taxAmount = (subtotal * vatPct) / 100;
+    const total = subtotal + taxAmount;
+
+    const quotation = await prisma.$transaction(async (tx) => {
+      await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      return tx.quotation.update({
+        where: { id },
+        data: {
+          customerId,
+          subtotal,
+          taxAmount,
+          total,
+          items: {
+            create: items.map((item) => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.quantity * item.unitPrice,
+            })),
+          },
+        },
+      });
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "UPDATE",
+        entity: "Quotation",
+        entityId: quotation.id,
+        details: `تم تحديث عرض السعر "${title}" رقم ${quotation.number}`,
+      },
+    });
+
+    return { success: true, data: { id: quotation.id } };
+  } catch (error) {
+    console.error("[updateQuotation]", error);
+    return { error: "errors.serverError" };
+  }
+}
+
 const updateQuotationStatusSchema = z.object({
   quotationId: z.string().min(1, "errors.invalidInput"),
   status: z.nativeEnum(QuotationStatus),
@@ -270,6 +346,66 @@ export async function updateQuotationStatus(
     return { success: true };
   } catch (error) {
     console.error("[updateQuotationStatus]", error);
+    return { error: "errors.serverError" };
+  }
+}
+
+const requestFactorApprovalSchema = z.object({
+  quotationId: z.string().min(1, "errors.invalidInput"),
+  factor: z.coerce.number().positive("errors.invalidInput"),
+});
+
+export async function requestFactorApproval(
+  input: unknown
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+    const parsed = requestFactorApprovalSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" };
+
+    const { quotationId, factor } = parsed.data;
+
+    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+    if (!quotation) return { error: "errors.notFound" };
+
+    await prisma.quotation.update({
+      where: { id: quotationId },
+      data: { needsApproval: true },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "REQUEST_FACTOR_APPROVAL",
+        entity: "Quotation",
+        entityId: quotationId,
+        details: `طلب موافقة على فاكتور منخفض (${factor}) لعرض السعر ${quotation.number}`,
+      },
+    });
+
+    const adminUsers = await prisma.user.findMany({
+      where: { role: "ADMIN", isActive: true },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      adminUsers.map((user) =>
+        sendNotification({
+          userId: user.id,
+          title: "notifications.lowFactorApprovalTitle",
+          body: `طلب موافقة على فاكتور منخفض (${factor}) لعرض السعر ${quotation.number}`,
+          type: "LOW_FACTOR_APPROVAL_REQUESTED",
+          entityId: quotationId,
+          entityType: "Quotation",
+        })
+      )
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error("[requestFactorApproval]", error);
     return { error: "errors.serverError" };
   }
 }
