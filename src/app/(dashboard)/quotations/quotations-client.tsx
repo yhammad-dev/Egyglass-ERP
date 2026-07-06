@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   useReactTable,
@@ -12,6 +14,7 @@ import {
 } from "@tanstack/react-table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -40,6 +43,7 @@ export function QuotationsClient({
   currentRole: string;
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const [data] = useState<QuotationRow[]>(initialQuotations);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -145,6 +149,11 @@ export function QuotationsClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t("quotations.title")}</h1>
+        {!isViewer && (
+          <Button render={<Link href="/quotations/new" />}>
+            إنشاء عرض سعر جديد
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -185,7 +194,11 @@ export function QuotationsClient({
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  onClick={() => router.push(`/quotations/${row.original.id}`)}
+                  className="cursor-pointer hover:bg-accent/50"
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="text-center">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

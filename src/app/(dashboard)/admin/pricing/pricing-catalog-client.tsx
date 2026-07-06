@@ -62,6 +62,7 @@ export function PricingCatalogClient({
     initialPricingFactors
   );
   const [editingMaterial, setEditingMaterial] = useState<MaterialRow | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [costInput, setCostInput] = useState("");
   const [costError, setCostError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +98,15 @@ export function PricingCatalogClient({
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+  const term = searchTerm.trim().toLowerCase();
+  const filteredMaterials = term
+    ? materials.filter(
+        (m) =>
+          m.code.toLowerCase().includes(term) ||
+          m.nameAr.toLowerCase().includes(term)
+      )
+    : materials;
 
   function openEditCost(material: MaterialRow) {
     setEditingMaterial(material);
@@ -195,6 +205,14 @@ export function PricingCatalogClient({
 
       <div>
         <h1 className="text-2xl font-bold mb-4">{t("admin.pricing.materialsTitle")}</h1>
+        <div className="mb-4 max-w-sm">
+          <Input
+            type="search"
+            placeholder="بحث بالكود أو الاسم"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -209,8 +227,8 @@ export function PricingCatalogClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {materials.length ? (
-                materials.map((material) => (
+              {filteredMaterials.length ? (
+                filteredMaterials.map((material) => (
                   <TableRow key={material.id}>
                     <TableCell>
                       <span dir="ltr">{material.code}</span>
