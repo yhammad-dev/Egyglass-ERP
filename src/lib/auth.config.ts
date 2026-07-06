@@ -5,19 +5,23 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
+      const { pathname } = nextUrl;
 
-      if (isOnDashboard) {
-        if (isLoggedIn) return true;
-        return false;
-      }
+      // Public paths reachable without a session. "/" only redirects to /login.
+      const isPublicPath = pathname === "/login" || pathname === "/";
 
-      if (nextUrl.pathname === "/login") {
+      if (pathname === "/login") {
         if (isLoggedIn) return Response.redirect(new URL("/dashboard", nextUrl));
         return true;
       }
 
-      return true;
+      if (isPublicPath) return true;
+
+      // Everything else (all (dashboard) route groups: /customers, /quotations,
+      // /users, /admin, /hr, /accounting, /inspections, /projects, /review,
+      // /manufacturing, /installations, /executive, /audit, /dashboard, ...)
+      // requires an authenticated session. Unauthenticated → redirect to /login.
+      return isLoggedIn;
     },
     jwt({ token, user }) {
       if (user) {

@@ -608,3 +608,24 @@ enum Role {
 
 ### Reason:
 Phase 2 Stream J — project tracking per customer, linking one or more quotations to a project.
+
+## SCR-008 — SystemSettings.factorMinimum (RR-2 remediation)
+
+**Reason:** The quotation math certification (`knowledge/certification/quotation-math-certification.md`,
+finding RR-2, HIGH revenue risk) found the low-pricing-factor approval gate was hardcoded
+(`LOW_FACTOR_THRESHOLD = 1.5` in `lib/pricing/actions.ts`) and enforced only client-side (bypassable).
+Per the spec principle that all pricing thresholds live in `SystemSettings` and never be hardcoded,
+the floor is externalized so ADMIN can configure it and the server can enforce it authoritatively.
+
+Additive, non-breaking column with a default equal to the previous hardcoded value (1.5):
+
+```prisma
+// on SystemSettings:
+factorMinimum      Decimal   @default(1.5) @db.Decimal(4, 2)
+```
+
+**Apply:** `npx prisma migrate dev --name add_factor_minimum`
+
+**Impact:** existing rows adopt the default 1.5 (behaviour-preserving). Server now reads this value in
+`calculateProductPricing` and rejects below-floor factors with `errors.factorRequiresApproval`
+(creating a `DiscountRequest` + notifying ADMIN) instead of trusting a client `needsApproval` flag.

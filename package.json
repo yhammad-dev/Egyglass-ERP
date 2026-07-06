@@ -14,7 +14,7 @@
     "@auth/prisma-adapter": "^2",
     "@base-ui/react": "^1.5.0",
     "@hookform/resolvers": "^5",
-    "@prisma/client": "^6",
+    "@prisma/client": "^6.19.3",
     "@tanstack/react-table": "^8",
     "bcryptjs": "^2",
     "class-variance-authority": "^0.7.1",
@@ -41,7 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
-    "prisma": "^6",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4",
     "typescript": "^5"

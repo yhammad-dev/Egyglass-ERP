@@ -28,6 +28,10 @@ model User {
   payments          Payment[]
   employee          Employee?
   managedProjects   Project[]           @relation("ProjectManager")
+  approvalRequests  QuotationApproval[]     @relation("ApprovalRequester")
+  approvalReviews   QuotationApproval[]     @relation("ApprovalReviewer")
+  measurements      InspectionMeasurement[] @relation("MeasurementRecorder")
+  uploadedPhotos    InspectionPhoto[]       @relation("PhotoUploader")
 }
 
 model Customer {
@@ -103,6 +107,7 @@ model Quotation {
   payments            Payment[]
   projectId           String?
   project             Project?        @relation(fields: [projectId], references: [id])
+  approval            QuotationApproval?
 
   @@index([customerId])
   @@index([status])
@@ -151,8 +156,10 @@ model InspectionRequest {
   updatedAt   DateTime           @updatedAt
   deletedAt   DateTime?
   type        InspectionType     @default(PRICING)
-  assignee    User?              @relation("InspectionAssignee", fields: [assigneeId], references: [id])
-  customer    Customer           @relation(fields: [customerId], references: [id])
+  assignee     User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])
+  customer     Customer                @relation(fields: [customerId], references: [id])
+  measurements InspectionMeasurement[]
+  photos       InspectionPhoto[]
 
   @@index([customerId])
   @@index([status])
@@ -300,6 +307,7 @@ model SystemSettings {
   id                 String    @id @default("singleton")
   discountBasePct    Decimal   @default(18) @db.Decimal(5, 2)
   discountMaxReqPct  Decimal   @default(25) @db.Decimal(5, 2)
+  factorMinimum      Decimal   @default(1.5) @db.Decimal(4, 2)
   vatPct             Decimal   @default(14) @db.Decimal(5, 2)
   quotationValidDays Int       @default(3)
   cashbackActive     Boolean   @default(true)
@@ -601,4 +609,60 @@ enum QtyRule {
   BY_LENGTH
   BY_CONFIG
   MANUAL
+}
+model QuotationApproval {
+  id            String    @id @default(cuid())
+  quotationId   String    @unique
+  quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?     @relation("ApprovalReviewer", fields: [reviewedById], references: [id])
+  factor        Decimal   @db.Decimal(10, 4)
+  reason        String?
+  decision      String?
+  rejectionNote String?
+  createdAt     DateTime  @default(now())
+  decidedAt     DateTime?
+
+  @@index([quotationId])
+  @@map("quotation_approvals")
+}
+model InspectionMeasurement {
+  id           String     @id @default(cuid())
+  inspectionId String
+  inspection   InspectionRequest @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  label        String     @db.VarChar(200)
+  value        Decimal    @db.Decimal(12, 4)
+  unit         String     @db.VarChar(50)
+  minSpec      Decimal?   @db.Decimal(12, 4)
+  maxSpec      Decimal?   @db.Decimal(12, 4)
+  result       String     @default("PENDING")
+  notes        String?    @db.Text
+  recordedById String
+  recordedBy   User       @relation("MeasurementRecorder", fields: [recordedById], references: [id])
+  recordedAt   DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([inspectionId])
+  @@map("inspection_measurements")
+}
+
+model InspectionPhoto {
+  id           String     @id @default(cuid())
+  inspectionId String
+  inspection   InspectionRequest @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  filename     String     @db.VarChar(300)
+  originalName String     @db.VarChar(300)
+  mimeType     String     @db.VarChar(100)
+  sizeBytes    Int
+  url          String     @db.VarChar(1000)
+  caption      String?    @db.VarChar(500)
+  takenAt      DateTime?
+  uploadedById String
+  uploadedBy   User       @relation("PhotoUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@index([inspectionId])
+  @@map("inspection_photos")
 }

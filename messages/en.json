@@ -200,6 +200,7 @@
       "globalFactor": "Global Factor",
       "selectGlobalFactor": "Select global factor",
       "lowFactorRequiresApproval": "Factor is below 1.5 and requires admin approval before proceeding",
+      "willSaveAsPendingApproval": "Quotation will be saved as Pending Approval",
       "calculate": "Calculate",
       "material": "Material",
       "qty": "Qty",
@@ -333,6 +334,7 @@
     "PROJECTS": "Projects"
   },
   "errors": {
+    "factorRequiresApproval": "This factor requires management approval",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",

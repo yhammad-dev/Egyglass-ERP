@@ -26,6 +26,7 @@ import {
   updateMaterialCost,
   toggleMaterialActive,
   togglePricingFactorActive,
+  updateFactorMinimum,
 } from "../../../../../lib/admin/actions";
 
 type MaterialRow = {
@@ -48,9 +49,11 @@ type PricingFactorRow = {
 export function PricingCatalogClient({
   initialMaterials,
   initialPricingFactors,
+  initialFactorMinimum,
 }: {
   initialMaterials: MaterialRow[];
   initialPricingFactors: PricingFactorRow[];
+  initialFactorMinimum: number;
 }) {
   const t = useTranslations();
 
@@ -63,6 +66,32 @@ export function PricingCatalogClient({
   const [costError, setCostError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const [factorMinimum, setFactorMinimum] = useState<number>(initialFactorMinimum);
+  const [factorMinInput, setFactorMinInput] = useState(String(initialFactorMinimum));
+  const [factorMinError, setFactorMinError] = useState<string | null>(null);
+  const [savingFactorMin, setSavingFactorMin] = useState(false);
+
+  async function handleSaveFactorMinimum() {
+    setFactorMinError(null);
+    const value = Number(factorMinInput);
+    if (Number.isNaN(value) || value <= 0) {
+      setFactorMinError(t("errors.invalidInput"));
+      return;
+    }
+
+    setSavingFactorMin(true);
+    const response = await updateFactorMinimum({ value });
+    setSavingFactorMin(false);
+
+    if ("error" in response) {
+      setFactorMinError(t(response.error ?? "errors.invalidInput"));
+      return;
+    }
+
+    setFactorMinimum(response.value);
+    toast.success("تم تحديث الحد الأدنى لعامل التسعير");
+  }
 
   const numberFormat = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -137,6 +166,33 @@ export function PricingCatalogClient({
 
   return (
     <div className="space-y-10 p-6">
+      <div>
+        <h1 className="text-2xl font-bold mb-4">إعدادات التسعير</h1>
+        <div className="rounded-md border p-4 max-w-md space-y-2">
+          <Label htmlFor="factorMinimum">الحد الأدنى لعامل التسعير</Label>
+          <p className="text-sm text-muted-foreground">
+            أي عرض سعر بعامل أقل من هذا الحد يتطلب موافقة المدير ولا يُحتسب تلقائياً.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              id="factorMinimum"
+              dir="ltr"
+              value={factorMinInput}
+              onChange={(e) => setFactorMinInput(e.target.value)}
+              className="w-32"
+            />
+            <Button onClick={handleSaveFactorMinimum} disabled={savingFactorMin}>
+              {t("admin.pricing.save")}
+            </Button>
+          </div>
+          <FieldError message={factorMinError ?? undefined} />
+          <p className="text-xs text-muted-foreground">
+            القيمة الحالية:{" "}
+            <span dir="ltr">{numberFormat.format(factorMinimum)}</span>
+          </p>
+        </div>
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold mb-4">{t("admin.pricing.materialsTitle")}</h1>
         <div className="rounded-md border">

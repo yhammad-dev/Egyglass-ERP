@@ -152,12 +152,12 @@ export function CustomersClient({
     reset({
       name: customer.name,
       phone: customer.phone,
-      altPhone: "",
+      altPhone: customer.altPhone ?? "",
       type: customer.type,
       source: customer.source,
-      address: "",
-      notes: "",
-      isRepeat: false,
+      address: customer.address ?? "",
+      notes: customer.notes ?? "",
+      isRepeat: customer.isRepeat,
       ownerId: customer.ownerId ?? undefined,
     });
     setOpen(true);

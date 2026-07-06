@@ -15,6 +15,7 @@ import {
   ProductRecipeForm,
   type ConfigTypeOption,
   type PricingFactorOption,
+  type ApprovalInfo,
 } from "./product-recipe-form";
 
 export type ProductTypeOption = { id: string; code: string; nameAr: string };
@@ -32,7 +33,7 @@ export function ProductSection({
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
   onRemove: () => void;
-  onSubtotalChange: (subtotal: number) => void;
+  onSubtotalChange: (subtotal: number, approvalInfo?: ApprovalInfo) => void;
 }) {
   const t = useTranslations();
   const [productTypeId, setProductTypeId] = useState<string>("");
@@ -98,7 +99,7 @@ export function ProductSection({
           configTypes={configTypes}
           pricingFactors={pricingFactors}
           defaultPricingFactorId={defaultPricingFactorId}
-          onResult={onSubtotalChange}
+          onResult={(subtotal, approvalInfo) => onSubtotalChange(subtotal, approvalInfo)}
         />
       )}
     </div>

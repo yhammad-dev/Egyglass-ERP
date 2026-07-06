@@ -8,7 +8,9 @@ import { calculateRecipe } from "./calculateRecipe";
 import { sendNotification } from "../notifications/send";
 
 const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
-const LOW_FACTOR_THRESHOLD = 1.5;
+// RR-2: the low-factor floor is no longer hardcoded. It is read from
+// SystemSettings.factorMinimum (SCR-008) and enforced server-side below.
+const FACTOR_MINIMUM_FALLBACK = 1.5;
 
 export async function getProductRecipes(productTypeId: string) {
   try {
@@ -108,8 +110,12 @@ export async function calculateProductPricing(
         fixedTotal: number;
         grandTotal: number;
       };
+      // Retained for backward-compatible typing of the quotation-builder consumer.
+      // RR-2: the server no longer returns these — a below-minimum factor is now
+      // rejected with { error: "errors.factorRequiresApproval" } instead.
+      requiresApproval?: true;
+      factor?: number;
     }
-  | { requiresApproval: true; factor: number }
   | { error: string }
 > {
   try {
@@ -138,8 +144,30 @@ export async function calculateProductPricing(
     if (!pricingFactor) return { error: "errors.notFound" };
 
     const factorValue = pricingFactor.value.toNumber();
-    if (factorValue < LOW_FACTOR_THRESHOLD) {
-      return { requiresApproval: true, factor: factorValue };
+
+    // RR-2: enforce the pricing-factor floor server-side (never client-trusted).
+    // Threshold comes from SystemSettings.factorMinimum, not a hardcoded constant.
+    const settings = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
+    const factorMinimum = settings?.factorMinimum.toNumber() ?? FACTOR_MINIMUM_FALLBACK;
+
+    if (factorValue < factorMinimum) {
+      // Do NOT return a calculation or a client-controllable approval flag.
+      // Notify ADMINs that a below-floor factor was attempted, then block.
+      const adminUsers = await prisma.user.findMany({
+        where: { role: "ADMIN", isActive: true },
+        select: { id: true },
+      });
+      await Promise.all(
+        adminUsers.map((user) =>
+          sendNotification({
+            userId: user.id,
+            title: "notifications.lowFactorApprovalTitle",
+            body: `محاولة تسعير بعامل منخفض (${factorValue.toFixed(2)}) أقل من الحد الأدنى (${factorMinimum.toFixed(2)})`,
+            type: "LOW_FACTOR_APPROVAL_REQUESTED",
+          })
+        )
+      );
+      return { error: "errors.factorRequiresApproval" };
     }
 
     const dimensions = {
@@ -148,11 +176,7 @@ export async function calculateProductPricing(
       configCount: configType?.anglesCount ?? 0,
     };
 
-    const result = calculateRecipe(
-      recipes,
-      dimensions,
-      pricingFactor.value.toNumber()
-    );
+    const result = calculateRecipe(recipes, dimensions, factorValue);
 
     return { success: true, data: result };
   } catch (error) {
@@ -171,6 +195,8 @@ const createQuotationSchema = z.object({
   customerId: z.string().min(1, "errors.invalidInput"),
   title: z.string().min(1, "errors.invalidInput"),
   items: z.array(createQuotationItemSchema).min(1, "errors.invalidInput"),
+  needsApproval: z.boolean().optional(),
+  pricingFactor: z.coerce.number().positive().optional(),
 });
 
 export async function createQuotation(
@@ -183,7 +209,7 @@ export async function createQuotation(
     const parsed = createQuotationSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" };
 
-    const { customerId, title, items } = parsed.data;
+    const { customerId, title, items, needsApproval, pricingFactor } = parsed.data;
 
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) return { error: "errors.notFound" };
@@ -192,6 +218,9 @@ export async function createQuotation(
     const validDays = settings?.quotationValidDays ?? 3;
     const vatPct = settings?.vatPct.toNumber() ?? 14;
 
+    // RR-2/STEP-4: totals are ALWAYS re-derived server-side from the line items and
+    // the VAT rate in SystemSettings. No client-supplied subtotal/total is accepted
+    // (the input schema does not expose those fields).
     const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const taxAmount = (subtotal * vatPct) / 100;
     const total = subtotal + taxAmount;
@@ -212,6 +241,8 @@ export async function createQuotation(
         taxAmount,
         total,
         validUntil,
+        needsApproval: needsApproval ?? false,
+        ...(needsApproval ? { status: "PENDING_APPROVAL" as const } : {}),
         items: {
           create: items.map((item) => ({
             description: item.description,
@@ -232,6 +263,35 @@ export async function createQuotation(
         details: `تم إنشاء عرض سعر "${title}" للعميل ${customer.name} برقم ${number}`,
       },
     });
+
+    if (needsApproval && pricingFactor) {
+      await prisma.quotationApproval.create({
+        data: {
+          quotationId: quotation.id,
+          requestedById: roleCheck.userId,
+          factor: pricingFactor,
+          reason: `فاكتور منخفض (${pricingFactor.toFixed(2)}) يتطلب موافقة المدير`,
+        },
+      });
+
+      const adminUsers = await prisma.user.findMany({
+        where: { role: "ADMIN", isActive: true },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        adminUsers.map((user) =>
+          sendNotification({
+            userId: user.id,
+            title: "notifications.lowFactorApprovalTitle",
+            body: `طلب موافقة على فاكتور منخفض (${pricingFactor.toFixed(2)}) لعرض السعر ${number}`,
+            type: "LOW_FACTOR_APPROVAL_REQUESTED",
+            entityId: quotation.id,
+            entityType: "Quotation",
+          })
+        )
+      );
+    }
 
     return { success: true, data: { id: quotation.id } };
   } catch (error) {

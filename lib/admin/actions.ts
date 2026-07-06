@@ -51,6 +51,62 @@ export async function getPricingFactors() {
   }
 }
 
+export async function getFactorMinimum(): Promise<number> {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return 1.5;
+
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    return settings?.factorMinimum.toNumber() ?? 1.5;
+  } catch (error) {
+    console.error("[getFactorMinimum]", error);
+    return 1.5;
+  }
+}
+
+const updateFactorMinimumSchema = z.object({
+  value: z.coerce.number().positive("errors.invalidInput"),
+});
+
+export async function updateFactorMinimum(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = updateFactorMinimumSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const existing = await prisma.systemSettings.findUnique({
+      where: { id: "singleton" },
+    });
+
+    await prisma.systemSettings.upsert({
+      where: { id: "singleton" },
+      update: { factorMinimum: parsed.data.value, updatedById: roleCheck.userId },
+      create: { id: "singleton", factorMinimum: parsed.data.value, updatedById: roleCheck.userId },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "UPDATE_FACTOR_MINIMUM",
+        entity: "SystemSettings",
+        entityId: "singleton",
+        details: `تم تغيير الحد الأدنى لعامل التسعير من ${
+          existing?.factorMinimum ?? "1.50"
+        } إلى ${parsed.data.value}`,
+      },
+    });
+
+    return { success: true as const, value: parsed.data.value };
+  } catch (error) {
+    console.error("[updateFactorMinimum]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
 const updateMaterialCostSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
   cost: z.coerce.number().nonnegative("errors.invalidInput"),

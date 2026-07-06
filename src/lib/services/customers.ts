@@ -5,9 +5,13 @@ export interface CustomerRow {
   id: string;
   name: string;
   phone: string;
+  altPhone: string | null;
   type: string;
   source: string;
   stage: string;
+  address: string | null;
+  notes: string | null;
+  isRepeat: boolean;
   ownerName: string | null;
   ownerId: string | null;
   coveredById: string | null;
@@ -52,9 +56,13 @@ export async function getCustomers(
       id: true,
       name: true,
       phone: true,
+      altPhone: true,
       type: true,
       source: true,
       stage: true,
+      address: true,
+      notes: true,
+      isRepeat: true,
       ownerId: true,
       coveredById: true,
       owner: { select: { name: true } },
@@ -77,9 +85,13 @@ export async function getCustomers(
     id: c.id,
     name: c.name,
     phone: c.phone,
+    altPhone: c.altPhone ?? null,
     type: c.type,
     source: c.source,
     stage: c.stage,
+    address: c.address ?? null,
+    notes: c.notes ?? null,
+    isRepeat: c.isRepeat,
     ownerId: c.ownerId,
     coveredById: c.coveredById,
     ownerName: c.owner?.name ?? null,
@@ -95,9 +107,13 @@ function toRow(customer: any): CustomerRow {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
+    altPhone: customer.altPhone ?? null,
     type: customer.type,
     source: customer.source,
     stage: customer.stage,
+    address: customer.address ?? null,
+    notes: customer.notes ?? null,
+    isRepeat: customer.isRepeat,
     ownerId: customer.ownerId,
     coveredById: customer.coveredById ?? null,
     coveredByName: customer.coveredByName ?? null,

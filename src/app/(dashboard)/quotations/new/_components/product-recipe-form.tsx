@@ -27,6 +27,7 @@ import {
 
 export type ConfigTypeOption = { id: string; nameAr: string };
 export type PricingFactorOption = { id: string; label: string; value: number };
+export type ApprovalInfo = { requiresApproval: true; factor: number };
 
 type RecipeLine = {
   materialId: string;
@@ -78,10 +79,11 @@ export function ProductRecipeForm({
   configTypes: ConfigTypeOption[];
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
-  onResult?: (grandTotal: number) => void;
+  onResult?: (grandTotal: number, approvalInfo?: ApprovalInfo) => void;
 }) {
   const t = useTranslations();
   const [result, setResult] = useState<CalculationResult | null>(null);
+  const [approvalInfo, setApprovalInfo] = useState<ApprovalInfo | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selections, setSelections] = useState<Record<string, string>>({});
@@ -105,6 +107,7 @@ export function ProductRecipeForm({
     setSubmitting(true);
     setServerError(null);
     setResult(null);
+    setApprovalInfo(null);
     setSelections({});
 
     const { calculateProductPricing } = await import(
@@ -119,12 +122,13 @@ export function ProductRecipeForm({
       return;
     }
 
-    if ("requiresApproval" in response) {
-      setServerError(t("quotations.shower.lowFactorRequiresApproval"));
-      return;
-    }
-
     setResult(response.data);
+
+    if (response.requiresApproval && response.factor !== undefined) {
+      setApprovalInfo({ requiresApproval: true, factor: response.factor });
+    } else {
+      setApprovalInfo(null);
+    }
   }
 
   const groupedLines = useMemo(() => {
@@ -170,9 +174,9 @@ export function ProductRecipeForm({
   const grandTotal = subtotalBeforeFixed + fixedTotal;
 
   useEffect(() => {
-    onResult?.(result ? grandTotal : 0);
+    onResult?.(result ? grandTotal : 0, approvalInfo ?? undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, grandTotal]);
+  }, [result, grandTotal, approvalInfo]);
 
   function categoryLabel(category: string) {
     const knownKey = KNOWN_CATEGORY_LABEL_KEY[category];
@@ -268,6 +272,12 @@ export function ProductRecipeForm({
         </div>
 
         {serverError && <p className="text-sm text-red-500">{serverError}</p>}
+
+        {approvalInfo && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            ⚠️ {t("quotations.shower.lowFactorRequiresApproval")} ({approvalInfo.factor.toFixed(2)}) — {t("quotations.shower.willSaveAsPendingApproval")}
+          </div>
+        )}
 
         <Button type="submit" disabled={submitting}>
           {submitting ? t("app.loading") : t("quotations.shower.calculate")}

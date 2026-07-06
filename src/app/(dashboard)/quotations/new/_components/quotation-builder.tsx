@@ -16,11 +16,11 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ProductSection, type ProductTypeOption } from "./product-section";
-import type { PricingFactorOption } from "./product-recipe-form";
+import type { PricingFactorOption, ApprovalInfo } from "./product-recipe-form";
 
 type CustomerOption = { id: string; name: string; phone: string };
 
-type Section = { key: number; subtotal: number };
+type Section = { key: number; subtotal: number; approvalInfo?: ApprovalInfo };
 
 type EditItem = { key: number; description: string; quantity: number; unitPrice: number };
 
@@ -72,8 +72,8 @@ export function QuotationBuilder({
     setSections((prev) => prev.filter((s) => s.key !== key));
   }
 
-  function updateSubtotal(key: number, subtotal: number) {
-    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, subtotal } : s)));
+  function updateSubtotal(key: number, subtotal: number, approvalInfo?: ApprovalInfo) {
+    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, subtotal, approvalInfo } : s)));
   }
 
   function addEditItem() {
@@ -132,6 +132,11 @@ export function QuotationBuilder({
       return;
     }
 
+    const anyNeedsApproval = sections.some((s) => s.approvalInfo?.requiresApproval);
+    const lowestFactor = anyNeedsApproval
+      ? Math.min(...sections.filter((s) => s.approvalInfo).map((s) => s.approvalInfo!.factor))
+      : undefined;
+
     setSubmitting(true);
     const { createQuotation } = await import("../../../../../../lib/pricing/actions");
     const response = await createQuotation({
@@ -142,6 +147,8 @@ export function QuotationBuilder({
         quantity: 1,
         unitPrice: s.subtotal,
       })),
+      needsApproval: anyNeedsApproval,
+      pricingFactor: lowestFactor,
     });
     setSubmitting(false);
 
@@ -261,7 +268,7 @@ export function QuotationBuilder({
               pricingFactors={pricingFactors}
               defaultPricingFactorId={globalFactorId || undefined}
               onRemove={() => removeSection(s.key)}
-              onSubtotalChange={(subtotal) => updateSubtotal(s.key, subtotal)}
+              onSubtotalChange={(subtotal, approvalInfo) => updateSubtotal(s.key, subtotal, approvalInfo)}
             />
           ))}
 
