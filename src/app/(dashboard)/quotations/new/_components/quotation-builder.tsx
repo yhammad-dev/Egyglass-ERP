@@ -50,6 +50,7 @@ export function QuotationBuilder({
   const [customerId, setCustomerId] = useState(initialCustomerId ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
   const [globalFactorId, setGlobalFactorId] = useState("");
+  const [discountPct, setDiscountPct] = useState("0");
   const [sections, setSections] = useState<Section[]>([]);
   const [nextKey, setNextKey] = useState(0);
   const [editItems, setEditItems] = useState<EditItem[]>(
@@ -137,6 +138,12 @@ export function QuotationBuilder({
       ? Math.min(...sections.filter((s) => s.approvalInfo).map((s) => s.approvalInfo!.factor))
       : undefined;
 
+    const discountValue = Number(discountPct);
+    if (Number.isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
+      setError(t("errors.invalidInput"));
+      return;
+    }
+
     setSubmitting(true);
     const { createQuotation } = await import("../../../../../../lib/pricing/actions");
     const response = await createQuotation({
@@ -149,6 +156,7 @@ export function QuotationBuilder({
       })),
       needsApproval: anyNeedsApproval,
       pricingFactor: lowestFactor,
+      discountPct: discountValue,
     });
     setSubmitting(false);
 
@@ -210,6 +218,22 @@ export function QuotationBuilder({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {!isEdit && (
+          <div className="space-y-1">
+            <Label htmlFor="discountPct">{t("quotations.new.discountPct")}</Label>
+            <Input
+              id="discountPct"
+              type="number"
+              dir="ltr"
+              min={0}
+              max={100}
+              step="0.01"
+              value={discountPct}
+              onChange={(e) => setDiscountPct(e.target.value)}
+            />
           </div>
         )}
       </div>
@@ -292,9 +316,27 @@ export function QuotationBuilder({
                   <span dir="ltr">{s.subtotal.toFixed(2)}</span>
                 </div>
               ))}
+            {!isEdit && Number(discountPct) > 0 && (
+              <>
+                <div className="flex justify-between gap-6">
+                  <span>{t("quotations.subtotal")}</span>
+                  <span dir="ltr">{grandTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-6">
+                  <span>
+                    {t("quotations.new.discountPct")} ({Number(discountPct) || 0}%)
+                  </span>
+                  <span dir="ltr">
+                    -{((grandTotal * (Number(discountPct) || 0)) / 100).toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between gap-6 font-semibold">
-              <span>{t("quotations.total")}</span>
-              <span dir="ltr">{grandTotal.toFixed(2)}</span>
+              <span>{isEdit ? t("quotations.total") : t("quotations.new.netBeforeVat")}</span>
+              <span dir="ltr">
+                {(grandTotal - (grandTotal * (isEdit ? 0 : Number(discountPct) || 0)) / 100).toFixed(2)}
+              </span>
             </div>
           </div>
           <Button type="button" onClick={handleSave} disabled={submitting}>

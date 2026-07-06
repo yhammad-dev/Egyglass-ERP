@@ -197,6 +197,7 @@ const createQuotationSchema = z.object({
   items: z.array(createQuotationItemSchema).min(1, "errors.invalidInput"),
   needsApproval: z.boolean().optional(),
   pricingFactor: z.coerce.number().positive().optional(),
+  discountPct: z.coerce.number().min(0, "errors.invalidInput").max(100, "errors.invalidInput").optional(),
 });
 
 export async function createQuotation(
@@ -217,13 +218,36 @@ export async function createQuotation(
     const settings = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
     const validDays = settings?.quotationValidDays ?? 3;
     const vatPct = settings?.vatPct.toNumber() ?? 14;
+    const discountBasePct = settings?.discountBasePct.toNumber() ?? 18;
+    const discountMaxReqPct = settings?.discountMaxReqPct.toNumber() ?? 25;
 
-    // RR-2/STEP-4: totals are ALWAYS re-derived server-side from the line items and
-    // the VAT rate in SystemSettings. No client-supplied subtotal/total is accepted
-    // (the input schema does not expose those fields).
+    // RR-1/STEP-4: totals are ALWAYS re-derived server-side from the line items,
+    // the negotiated discount, and the VAT rate in SystemSettings. No client-supplied
+    // subtotal/total is accepted (the input schema does not expose those fields).
     const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const taxAmount = (subtotal * vatPct) / 100;
-    const total = subtotal + taxAmount;
+    const discountPct = parsed.data.discountPct ?? 0;
+
+    // RR-1 STEP-1.4: hard cap — a discount above the configured maximum is rejected outright.
+    if (discountPct > discountMaxReqPct) {
+      return { error: "errors.discountExceedsMax" };
+    }
+
+    // RR-1 STEP-1.2/1.3: discount → net → VAT on net (NOT on subtotal).
+    const discountAmount = (subtotal * discountPct) / 100;
+    const netAfterDiscount = subtotal - discountAmount;
+    const taxAmount = (netAfterDiscount * vatPct) / 100;
+    const total = netAfterDiscount + taxAmount;
+
+    // A discount above the base cap requires management approval.
+    const discountNeedsApproval = discountPct > discountBasePct;
+    const requiresApproval = (needsApproval ?? false) || discountNeedsApproval;
+
+    // RR-1 STEP-1.5 (cashback): referral cashback is a SEPARATE post-execution
+    // disbursement (see docs/quotation-math.md) and cannot be computed correctly at
+    // quote time — the Customer model has no referrer linkage to populate
+    // Referral.referrerId. cashbackPct is persisted as 0 here; the referral/cashback
+    // engine remains a follow-up requiring a schema change (out of this task's scope).
+    const cashbackPct = 0;
 
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + validDays);
@@ -237,12 +261,15 @@ export async function createQuotation(
         customerId,
         createdById: roleCheck.userId,
         subtotal,
+        discountPct,
+        discountAmount,
+        cashbackPct,
         taxPct: vatPct,
         taxAmount,
         total,
         validUntil,
-        needsApproval: needsApproval ?? false,
-        ...(needsApproval ? { status: "PENDING_APPROVAL" as const } : {}),
+        needsApproval: requiresApproval,
+        ...(requiresApproval ? { status: "PENDING_APPROVAL" as const } : {}),
         items: {
           create: items.map((item) => ({
             description: item.description,
@@ -286,6 +313,37 @@ export async function createQuotation(
             title: "notifications.lowFactorApprovalTitle",
             body: `طلب موافقة على فاكتور منخفض (${pricingFactor.toFixed(2)}) لعرض السعر ${number}`,
             type: "LOW_FACTOR_APPROVAL_REQUESTED",
+            entityId: quotation.id,
+            entityType: "Quotation",
+          })
+        )
+      );
+    }
+
+    // RR-1 STEP-1.4: a discount above the base cap opens a DiscountRequest (PENDING)
+    // and notifies ADMINs for a decision.
+    if (discountNeedsApproval) {
+      await prisma.discountRequest.create({
+        data: {
+          quotationId: quotation.id,
+          requestedById: roleCheck.userId,
+          requestedPct: discountPct,
+          reason: `خصم ${discountPct}% يتجاوز الحد الأساسي (${discountBasePct}%)`,
+        },
+      });
+
+      const discountAdmins = await prisma.user.findMany({
+        where: { role: "ADMIN", isActive: true },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        discountAdmins.map((user) =>
+          sendNotification({
+            userId: user.id,
+            title: "notifications.lowFactorApprovalTitle",
+            body: `طلب موافقة على خصم ${discountPct}% لعرض السعر ${number}`,
+            type: "DISCOUNT_APPROVAL_REQUESTED",
             entityId: quotation.id,
             entityType: "Quotation",
           })

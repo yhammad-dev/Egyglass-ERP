@@ -226,7 +226,9 @@
       "addProduct": "Add product",
       "removeProduct": "Remove",
       "save": "Save quotation",
-      "saved": "Quotation saved successfully"
+      "saved": "Quotation saved successfully",
+      "discountPct": "Discount %",
+      "netBeforeVat": "Net (before VAT)"
     },
     "detail": {
       "product": "Product",
@@ -335,6 +337,7 @@
   },
   "errors": {
     "factorRequiresApproval": "This factor requires management approval",
+    "discountExceedsMax": "Discount exceeds the maximum allowed",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",

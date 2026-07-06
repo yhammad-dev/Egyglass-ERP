@@ -21,6 +21,9 @@ export async function getAccountingDashboard() {
     });
 
     return quotations.map((q) => {
+      // RR-1 STEP-4: contract value is quotation.total, which is now the
+      // post-discount, post-VAT figure computed server-side in createQuotation
+      // (never the raw subtotal).
       const totalContract = q.total.toNumber();
       const totalPaid = q.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0);
       const remaining = totalContract - totalPaid;

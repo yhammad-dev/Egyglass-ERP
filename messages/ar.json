@@ -225,7 +225,9 @@
       "addProduct": "إضافة منتج",
       "removeProduct": "إزالة",
       "save": "حفظ عرض السعر",
-      "saved": "تم حفظ عرض السعر بنجاح"
+      "saved": "تم حفظ عرض السعر بنجاح",
+      "discountPct": "نسبة الخصم %",
+      "netBeforeVat": "الصافي (قبل الضريبة)"
     },
     "detail": {
       "product": "المنتج",
@@ -334,6 +336,7 @@
   },
   "errors": {
     "factorRequiresApproval": "هذا الفاكتور يحتاج موافقة الإدارة",
+    "discountExceedsMax": "الخصم يتجاوز الحد الأقصى المسموح به",
     "required": "الحقل مطلوب",
     "emailInvalid": "بريد إلكتروني غير صالح",
     "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
