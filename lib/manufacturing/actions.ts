@@ -10,42 +10,52 @@ import { createInstallationOrder } from "../installations/actions";
 const MFG_ROLES = ["ADMIN", "PROCUREMENT"];
 
 export async function getMfgOrders() {
-  const roleCheck = await requireRole(MFG_ROLES);
-  if (!roleCheck.authorized) return [];
+  try {
+    const roleCheck = await requireRole(MFG_ROLES);
+    if (!roleCheck.authorized) return [];
 
-  const orders = await prisma.manufacturingOrder.findMany({
-    include: {
-      quotation: {
-        select: {
-          id: true,
-          number: true,
-          customer: { select: { id: true, name: true } },
+    const orders = await prisma.manufacturingOrder.findMany({
+      include: {
+        quotation: {
+          select: {
+            id: true,
+            number: true,
+            customer: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    });
 
-  return orders.map((order) => ({
-    id: order.id,
-    quotationId: order.quotationId,
-    number: order.quotation.number,
-    customerName: order.quotation.customer.name,
-    status: order.status,
-    expectedAt: order.expectedAt ? order.expectedAt.toISOString() : null,
-    createdAt: order.createdAt.toISOString(),
-  }));
+    return orders.map((order) => ({
+      id: order.id,
+      quotationId: order.quotationId,
+      number: order.quotation.number,
+      customerName: order.quotation.customer.name,
+      status: order.status,
+      expectedAt: order.expectedAt ? order.expectedAt.toISOString() : null,
+      createdAt: order.createdAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("[getMfgOrders]", error);
+    return [];
+  }
 }
 
 export async function createManufacturingOrder(quotationId: string) {
-  const existing = await prisma.manufacturingOrder.findUnique({
-    where: { quotationId },
-  });
-  if (existing) return existing;
+  try {
+    const existing = await prisma.manufacturingOrder.findUnique({
+      where: { quotationId },
+    });
+    if (existing) return existing;
 
-  return prisma.manufacturingOrder.create({
-    data: { quotationId },
-  });
+    return await prisma.manufacturingOrder.create({
+      data: { quotationId },
+    });
+  } catch (error) {
+    console.error("[createManufacturingOrder]", error);
+    throw error;
+  }
 }
 
 const updateStatusSchema = z.object({
@@ -54,53 +64,58 @@ const updateStatusSchema = z.object({
 });
 
 export async function updateMfgStatus(input: unknown) {
-  const roleCheck = await requireRole(MFG_ROLES);
-  if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+  try {
+    const roleCheck = await requireRole(MFG_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
-  const parsed = updateStatusSchema.safeParse(input);
-  if (!parsed.success) return { error: "errors.invalidInput" as const };
+    const parsed = updateStatusSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
 
-  const order = await prisma.manufacturingOrder.findUnique({
-    where: { id: parsed.data.id },
-  });
-  if (!order) return { error: "errors.notFound" as const };
+    const order = await prisma.manufacturingOrder.findUnique({
+      where: { id: parsed.data.id },
+    });
+    if (!order) return { error: "errors.notFound" as const };
 
-  await prisma.manufacturingOrder.update({
-    where: { id: parsed.data.id },
-    data: { status: parsed.data.status },
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      userId: roleCheck.userId,
-      action: "UPDATE_STATUS",
-      entity: "ManufacturingOrder",
-      entityId: order.id,
-      details: `تم تغيير حالة أمر التصنيع من ${order.status} إلى ${parsed.data.status}`,
-    },
-  });
-
-  if (parsed.data.status === "READY" && order.status !== "READY") {
-    const installationOrder = await createInstallationOrder(order.id);
-
-    const installationUsers = await prisma.user.findMany({
-      where: { role: "INSTALLATIONS", isActive: true },
-      select: { id: true },
+    await prisma.manufacturingOrder.update({
+      where: { id: parsed.data.id },
+      data: { status: parsed.data.status },
     });
 
-    await Promise.all(
-      installationUsers.map((user) =>
-        sendNotification({
-          userId: user.id,
-          title: "notifications.mfgReadyTitle",
-          body: "مواد جاهزة للتركيب",
-          type: "MFG_READY_FOR_INSTALLATION",
-          entityId: installationOrder.id,
-          entityType: "InstallationOrder",
-        })
-      )
-    );
-  }
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "UPDATE_STATUS",
+        entity: "ManufacturingOrder",
+        entityId: order.id,
+        details: `تم تغيير حالة أمر التصنيع من ${order.status} إلى ${parsed.data.status}`,
+      },
+    });
 
-  return { success: true as const };
+    if (parsed.data.status === "READY" && order.status !== "READY") {
+      const installationOrder = await createInstallationOrder(order.id);
+
+      const installationUsers = await prisma.user.findMany({
+        where: { role: "INSTALLATIONS", isActive: true },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        installationUsers.map((user) =>
+          sendNotification({
+            userId: user.id,
+            title: "notifications.mfgReadyTitle",
+            body: "مواد جاهزة للتركيب",
+            type: "MFG_READY_FOR_INSTALLATION",
+            entityId: installationOrder.id,
+            entityType: "InstallationOrder",
+          })
+        )
+      );
+    }
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[updateMfgStatus]", error);
+    return { error: "errors.serverError" as const };
+  }
 }

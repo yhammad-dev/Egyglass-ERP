@@ -1,0 +1,39 @@
+# EgyGlass ERP — Production environment (Docker)
+# Secrets are NOT hardcoded here — they are read from the environment
+# (populate a real `.env.production` file, never commit it; see .env.production.example).
+
+name: egyglass-erp
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: egyglass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: egyglass
+    volumes:
+      - egyglass_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egyglass -d egyglass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci --ignore-scripts && node scripts/patch-next-html-context.js && ./node_modules/.bin/prisma generate && npm run build && npm run start"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NODE_ENV: production
+    ports:
+      - "3100:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  egyglass_db_data:

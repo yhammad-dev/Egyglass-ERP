@@ -327,7 +327,9 @@
     "refreshFailed": "Failed to refresh the user list",
     "notFound": "Not found",
     "invalidInput": "Invalid input",
-    "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected"
+    "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected",
+    "serverError": "A server error occurred, please try again",
+    "rateLimited": "Too many requests, please try again later"
   },
   "nav": {
     "dashboard": "Dashboard",

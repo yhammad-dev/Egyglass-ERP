@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { rateLimit } from "../../../../lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!rateLimit(request)) {
+    return NextResponse.json({ error: "errors.rateLimited" }, { status: 429 });
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "errors.notAuthorized" }, { status: 401 });
@@ -22,6 +27,10 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest) {
+  if (!rateLimit(request)) {
+    return NextResponse.json({ error: "errors.rateLimited" }, { status: 429 });
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "errors.notAuthorized" }, { status: 401 });

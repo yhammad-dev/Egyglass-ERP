@@ -17,14 +17,18 @@ export async function sendNotification({
   entityId,
   entityType,
 }: NotificationInput): Promise<void> {
-  await prisma.notification.create({
-    data: {
-      userId,
-      title,
-      body,
-      type,
-      entityId,
-      entityType,
-    },
-  });
+  try {
+    await prisma.notification.create({
+      data: {
+        userId,
+        title,
+        body,
+        type,
+        entityId,
+        entityType,
+      },
+    });
+  } catch (error) {
+    console.error("[sendNotification]", error);
+  }
 }
