@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { requireRole } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 import { getUsers } from "@/lib/services/users";

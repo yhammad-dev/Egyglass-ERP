@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { StageChangeDialog } from "./stage-change-dialog";
 import { AssignOwnerDialog } from "./assign-owner-dialog";
 import { SetCoverageDialog } from "./set-coverage-dialog";
+import { RequestInspectionDialog } from "./request-inspection-dialog";
 import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
 
 type TabId = "interactions" | "quotations" | "inspections";
@@ -63,6 +64,11 @@ export function CustomerProfileClient({
   const isViewer = currentRole === "VIEWER";
   const canChangeStage = !isViewer;
   const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
+  const canCreateInspection = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+  const canCreateQuotation =
+    currentRole === "ADMIN" ||
+    currentRole === "SALES_MANAGER" ||
+    currentRole === "SALES_REP";
 
   async function handleAddInteraction() {
     if (!interactionNote.trim()) return;
@@ -125,6 +131,24 @@ export function CustomerProfileClient({
               currentStage={customer.stage}
               onStageChanged={refresh}
             />
+          )}
+          {canCreateInspection && (
+            <RequestInspectionDialog
+              customerId={customer.id}
+              customerPhone={customer.phone}
+              customerAddress={customer.address}
+              onCreated={refresh}
+            />
+          )}
+          {canCreateQuotation && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/quotations/new?customerId=${customer.id}`)}
+            >
+              طلب تسعير
+            </Button>
           )}
         </div>
       </div>
@@ -284,7 +308,7 @@ export function CustomerProfileClient({
                     <div key={q.id} className="flex items-center justify-between py-2 border-b last:border-0">
                       <div>
                         <p className="text-sm font-medium">{q.number}</p>
-                        <p className="text-xs text-gray-500">{t(`quotations.status`)}: {q.status}</p>
+                        <p className="text-xs text-gray-500">{t(`quotations.statuses.${q.status}`)}</p>
                       </div>
                       <p className="text-sm font-medium" dir="ltr">{Number(q.total).toFixed(2)}</p>
                     </div>

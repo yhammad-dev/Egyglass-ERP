@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { getReviewQuotationDetail } from "../../../../../lib/review/actions";

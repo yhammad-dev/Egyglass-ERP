@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 
 export interface InspectionRow {
   id: string;
@@ -157,6 +158,18 @@ export async function createInspection(
     },
   });
 
+  try {
+    await notifyRole("INSPECTION_MANAGER", {
+      title: "notifications.newInspectionTitle",
+      body: `تم إنشاء طلب معاينة جديد للعميل ${inspection.customer.name}`,
+      type: "INSPECTION_CREATED",
+      entityId: inspection.id,
+      entityType: "InspectionRequest",
+    });
+  } catch {
+    // notification failure must not block the operation
+  }
+
   const now = new Date();
   const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   const effectiveStatus =
@@ -213,6 +226,19 @@ export async function scheduleInspection(
       }),
     },
   });
+
+  try {
+    await sendNotification({
+      userId: assigneeId,
+      title: "notifications.inspectionScheduledTitle",
+      body: `تم جدولة معاينة للعميل ${inspection.customer.name}`,
+      type: "INSPECTION_SCHEDULED",
+      entityId: id,
+      entityType: "InspectionRequest",
+    });
+  } catch {
+    // notification failure must not block the operation
+  }
 
   const now = new Date();
   const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);

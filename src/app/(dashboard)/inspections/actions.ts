@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createInspection, scheduleInspection } from "@/lib/services/inspections";
-import { sendNotification } from "../../../../lib/notifications/send";
+import { sendNotification } from "@/lib/notifications/send";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);

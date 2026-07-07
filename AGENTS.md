@@ -158,3 +158,46 @@ A closed `<Select>` must display the translated label of the selected value, not
 
 ### 9. Stop at every checkpoint
 After each task, STOP and wait for explicit approval before starting the next. Do not skip ahead. Report with evidence (real build output + confirmation the page loads).
+
+
+### SCR-010 — Technical Office Domain (applied 2026-07-07, tag: schema-tec-scr010)
+
+Three additive models on the frozen schema. Migration 20260707125459_tec_scr010.
+
+**Models:**
+- `QuotationRequest` (quotation_requests) — TEC job card. Three DISTINCT named
+  User relations: engineer (TecEngineer), salesOwner (TecSalesOwner),
+  inspectionOwner (TecInspectionOwner). 1:1 to Quotation (quotationId @unique)
+  and to InspectionRequest (inspectionRequestId @unique — one inspection → one
+  TEC job). technicalRoute is a DEDICATED field (PROJECTS/SOCIAL_MEDIA), NOT
+  derived from CustomerSource.
+- `Drawing` (drawings) — categorized files, two-state approval
+  (approvedById/approvedAt). Cascade from parent job.
+- `ExtraItem` (extra_items) — post-quotation cost items, routes to PROCUREMENT.
+
+**New enums:** TecJobStatus, TechnicalRoute, DrawingCategory, DrawingFileType,
+ExtraItemType.
+
+**New Role values (Option C — Separation of Duties):**
+- `TECHNICAL_OFFICE` — TEC engineers: create QuotationRequests, upload
+  Drawings, add ExtraItems, re-price quotations.
+- `TEC_APPROVER` — drawing approval ONLY (TEC-13). Distinct from `REVIEW`
+  (Inspection Manager, PRC-11).
+
+**MANDATORY RBAC RULE (enforce server-side in Phase 4):**
+An engineer (TECHNICAL_OFFICE) may NOT approve their own drawings. The
+approve action MUST check session.role == TEC_APPROVER server-side.
+TEC_APPROVER does NOT inherit TECHNICAL_OFFICE privileges — roles are
+distinct; grant both explicitly in User.role if one person needs both.
+Roles are ABSTRACT — no named individuals in schema (Nouran/Amr assigned
+in User table).
+
+**onDelete policy (data-loss protection):**
+- Restrict: Customer, Quotation (block delete while TEC job exists);
+  Drawing.uploadedBy, ExtraItem.createdBy, ExtraItem.manufacturingOrder
+  (audit/cost integrity).
+- SetNull: all User owner FKs on QuotationRequest, Drawing.approvedBy,
+  QuotationRequest.inspectionRequest (job survives deactivation).
+- Cascade: Drawing → QuotationRequest (drawings die with parent job).
+- User lifecycle is DEACTIVATE-not-delete (isActive=false + deletedAt).
+  Restrict FKs never block a legitimate deactivation.

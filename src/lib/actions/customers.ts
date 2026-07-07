@@ -2,6 +2,8 @@
 
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { notifyRole, notifyDepartment } from "@/lib/notifications/send";
+import { createInspection } from "@/lib/services/inspections";
 import { z } from "zod";
 
 const stageChangeSchema = z.object({
@@ -35,7 +37,7 @@ export async function changeCustomerStage(
 
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    select: { id: true, ownerId: true, stage: true },
+    select: { id: true, ownerId: true, stage: true, name: true, address: true, phone: true },
   });
 
   if (!customer) return { error: "errors.notFound" };
@@ -67,6 +69,49 @@ export async function changeCustomerStage(
       }),
     },
   });
+
+  try {
+    if (newStage === "INSPECTION") {
+      const existingInspection = await prisma.inspectionRequest.findFirst({
+        where: {
+          customerId,
+          deletedAt: null,
+          status: { in: ["REQUESTED", "SCHEDULED"] },
+        },
+      });
+
+      if (!existingInspection) {
+        await createInspection(
+          {
+            customerId,
+            location: "INSIDE_CAIRO",
+            address: customer.address || "",
+            phone: customer.phone,
+            type: "PRICING",
+          },
+          roleCheck.userId
+        );
+      }
+
+      await notifyRole("INSPECTION_MANAGER", {
+        title: "notifications.stageInspectionTitle",
+        body: `تم نقل العميل ${customer.name} إلى مرحلة المعاينة`,
+        type: "STAGE_CHANGED",
+        entityId: customerId,
+        entityType: "Customer",
+      });
+    } else if (newStage === "PRICED") {
+      await notifyDepartment("TECHNICAL_OFFICE", {
+        title: "notifications.stagePricedTitle",
+        body: `تم نقل العميل ${customer.name} إلى مرحلة التسعير`,
+        type: "STAGE_CHANGED",
+        entityId: customerId,
+        entityType: "Customer",
+      });
+    }
+  } catch {
+    // notification failure must not block the operation
+  }
 
   return { success: true };
 }

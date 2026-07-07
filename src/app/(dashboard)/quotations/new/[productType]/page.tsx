@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { redirect, notFound } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";

@@ -1,12 +1,17 @@
+export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getPricingFactors, getProductTypes } from "../../../../../lib/pricing/actions";
 import { QuotationBuilder } from "./_components/quotation-builder";
 
-export default async function NewQuotationPage() {
+export default async function NewQuotationPage(props: {
+  searchParams: Promise<{ customerId?: string }>;
+}) {
   const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
   if (!roleCheck.authorized) redirect("/dashboard");
+
+  const { customerId } = await props.searchParams;
 
   const [customers, productTypes, pricingFactors] = await Promise.all([
     prisma.customer.findMany({
@@ -27,6 +32,7 @@ export default async function NewQuotationPage() {
         label: f.label,
         value: f.value.toNumber(),
       }))}
+      initialCustomerId={customerId}
     />
   );
 }

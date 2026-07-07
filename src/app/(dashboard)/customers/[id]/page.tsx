@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { requireRole } from "@/lib/rbac";
 import { redirect, notFound } from "next/navigation";
 import { getCustomerById, getSalesReps } from "@/lib/services/customers";
