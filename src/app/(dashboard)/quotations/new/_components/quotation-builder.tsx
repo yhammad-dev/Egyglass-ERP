@@ -33,6 +33,7 @@ export function QuotationBuilder({
   initialCustomerId,
   initialTitle,
   initialItems,
+  discountBasePct = 18,
 }: {
   customers: CustomerOption[];
   productTypes: ProductTypeOption[];
@@ -42,6 +43,7 @@ export function QuotationBuilder({
   initialCustomerId?: string;
   initialTitle?: string;
   initialItems?: { description: string; quantity: number; unitPrice: number }[];
+  discountBasePct?: number;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -51,6 +53,7 @@ export function QuotationBuilder({
   const [title, setTitle] = useState(initialTitle ?? "");
   const [globalFactorId, setGlobalFactorId] = useState("");
   const [discountPct, setDiscountPct] = useState("0");
+  const [discountReason, setDiscountReason] = useState("");
   const [sections, setSections] = useState<Section[]>([]);
   const [nextKey, setNextKey] = useState(0);
   const [editItems, setEditItems] = useState<EditItem[]>(
@@ -144,6 +147,11 @@ export function QuotationBuilder({
       return;
     }
 
+    if (discountValue > discountBasePct && !discountReason.trim()) {
+      setError(t("discount.reasonRequired"));
+      return;
+    }
+
     setSubmitting(true);
     const { createQuotation } = await import("../../../../../../lib/pricing/actions");
     const response = await createQuotation({
@@ -232,8 +240,26 @@ export function QuotationBuilder({
               max={100}
               step="0.01"
               value={discountPct}
-              onChange={(e) => setDiscountPct(e.target.value)}
+              onChange={(e) => { setDiscountPct(e.target.value); setDiscountReason(""); }}
             />
+          </div>
+        )}
+
+        {!isEdit && Number(discountPct) > discountBasePct && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="discountReason">
+              {t("discount.reasonLabel")}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="discountReason"
+              value={discountReason}
+              onChange={(e) => setDiscountReason(e.target.value)}
+              placeholder={t("discount.reasonPlaceholder")}
+            />
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {t("discount.aboveBaseHint", { base: discountBasePct })}
+            </p>
           </div>
         )}
       </div>

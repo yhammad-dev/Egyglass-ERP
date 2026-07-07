@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getPricingFactors, getProductTypes } from "../../../../../lib/pricing/actions";
@@ -13,14 +14,26 @@ export default async function NewQuotationPage(props: {
 
   const { customerId } = await props.searchParams;
 
-  const [customers, productTypes, pricingFactors] = await Promise.all([
+  const customerWhere: Prisma.CustomerWhereInput = { deletedAt: null };
+  if (roleCheck.role === "SALES_REP") {
+    customerWhere.OR = [
+      { ownerId: roleCheck.userId },
+      { coveredById: roleCheck.userId },
+    ];
+  }
+
+  const [customers, productTypes, pricingFactors, settings] = await Promise.all([
     prisma.customer.findMany({
-      where: { deletedAt: null },
+      where: customerWhere,
       select: { id: true, name: true, phone: true },
       orderBy: { name: "asc" },
     }),
     getProductTypes(),
     getPricingFactors(),
+    prisma.systemSettings.findUnique({
+      where: { id: "singleton" },
+      select: { discountBasePct: true },
+    }),
   ]);
 
   return (
@@ -33,6 +46,7 @@ export default async function NewQuotationPage(props: {
         value: f.value.toNumber(),
       }))}
       initialCustomerId={customerId}
+      discountBasePct={settings?.discountBasePct.toNumber() ?? 18}
     />
   );
 }

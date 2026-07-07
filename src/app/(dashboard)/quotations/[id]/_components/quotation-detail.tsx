@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, lazy, Suspense } from "react";
+import { DiscountApprovalPanel } from "./discount-approval-panel";
 const DocumentUpload = lazy(() =>
   import("@/components/document-upload").then((m) => ({ default: m.DocumentUpload }))
 );
@@ -43,6 +44,13 @@ const STATUS_OPTIONS: QuotationStatus[] = [
   "EXPIRED",
 ];
 
+type DiscountRequestData = {
+  id: string;
+  requestedPct: number;
+  reason: string | null;
+  createdAt: string;
+};
+
 type QuotationDetailData = {
   id: string;
   number: string;
@@ -61,9 +69,13 @@ type QuotationDetailData = {
 export function QuotationDetail({
   quotation,
   currentRole,
+  discountRequest,
+  discountMaxReqPct,
 }: {
   quotation: QuotationDetailData;
   currentRole: string;
+  discountRequest?: DiscountRequestData | null;
+  discountMaxReqPct?: number;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -84,6 +96,16 @@ export function QuotationDetail({
     month: "2-digit",
     day: "2-digit",
   });
+
+  function buildWhatsAppLink() {
+    const rawPhone = quotation.customer.phone.replace(/[\s+\-()]/g, "").replace(/^0+/, "");
+    const phone = `20${rawPhone}`;
+    const formattedTotal = numberFormat.format(quotation.total);
+    const text = encodeURIComponent(
+      `مرحباً ${quotation.customer.name}، يسعدنا إرسال عرض السعر رقم ${quotation.number} بإجمالي ${formattedTotal} جنيه. للاطلاع على التفاصيل تواصلوا معنا.`
+    );
+    return `https://wa.me/${phone}?text=${text}`;
+  }
 
   async function handleStatusChange() {
     setError(null);
@@ -131,6 +153,14 @@ export function QuotationDetail({
           >
             🖨️ طباعة / PDF
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(buildWhatsAppLink(), "_blank")}
+          >
+            💬 {t("quotations.sendWhatsApp")}
+          </Button>
           {canEdit && status === "APPROVED" && (
             <Button
               type="button"
@@ -152,6 +182,14 @@ export function QuotationDetail({
           )}
         </div>
       </div>
+
+      {quotation.status === "PENDING_APPROVAL" && discountRequest && (
+        <DiscountApprovalPanel
+          discountRequest={discountRequest}
+          currentRole={currentRole}
+          discountMaxReqPct={discountMaxReqPct ?? 25}
+        />
+      )}
 
       <div className="rounded-md border">
         <Table>

@@ -87,8 +87,17 @@
     "by": "بواسطة",
     "changeStage": "تغيير المرحلة",
     "changeStageDesc": "تغيير مرحلة العميل من {stage}",
-    "rejectReason": "سبب الرفض",
     "rejectReasonPlaceholder": "أدخل سبب الرفض",
+    "rejectReasonLabel": "سبب الرجوع",
+    "rejectReasonDetail": "تفاصيل إضافية (اختياري)",
+    "rejectReasonDetailRequired": "التفاصيل مطلوبة عند اختيار 'أخرى'",
+    "reason_PRICE_HIGH": "السعر مرتفع",
+    "reason_LONG_DURATION": "المدة طويلة",
+    "reason_FOUND_ALTERNATIVE": "وجد بديل",
+    "reason_NO_NEED": "لا يحتاج حالياً",
+    "reason_POSTPONED": "مؤجّل",
+    "reason_OTHER": "أخرى",
+    "lastModifiedBy": "آخر تعديل بواسطة",
     "cancel": "إلغاء",
     "currentOwner": "المسؤول الحالي",
     "selectOwner": "اختر المسؤول",
@@ -106,7 +115,13 @@
     "selectType": "اختر النوع",
     "interactionAdded": "تم إضافة التفاعل",
     "requestInspection": "طلب معاينة",
-    "requestInspectionDesc": "إنشاء طلب معاينة جديد لهذا العميل"
+    "requestInspectionDesc": "إنشاء طلب معاينة جديد لهذا العميل",
+    "vipBadge": "VIP",
+    "setVip": "تصنيف VIP",
+    "removeVip": "إلغاء VIP",
+    "tabs": {
+      "postInstall": "ما بعد التركيب"
+    }
   },
   "pipeline": {
     "NEW": "جديد",
@@ -190,6 +205,7 @@
     "status": "الحالة",
     "needsApproval": "بانتظار الموافقة",
     "sendWhatsApp": "إرسال عبر واتساب",
+    "whatsappText": "مرحباً {customerName}، يسعدنا إرسال عرض السعر رقم {quotationNumber} بإجمالي {total} جنيه. للاطلاع على التفاصيل تواصلوا معنا.",
     "customer": "العميل",
     "phone": "الهاتف",
     "source": "المصدر",
@@ -374,6 +390,38 @@
     "serverError": "حدث خطأ في الخادم، يرجى المحاولة مرة أخرى",
     "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا"
   },
+  "discount": {
+    "approvalRequestedTitle": "طلب موافقة على خصم",
+    "reasonLabel": "سبب طلب الخصم",
+    "reasonPlaceholder": "وضّح مبرر منح هذا الخصم...",
+    "reasonRequired": "سبب الطلب مطلوب عند تجاوز الحد الأساسي للخصم",
+    "aboveBaseHint": "هذا الخصم يتجاوز الحد الأساسي ({base}%) وسيحتاج موافقة المدير",
+    "panel": {
+      "title": "طلب خصم معلّق — بانتظار الموافقة",
+      "requestedPct": "النسبة المطلوبة",
+      "reason": "السبب",
+      "requestedAt": "تاريخ الطلب",
+      "adjustedPct": "نسبة معدّلة (اختياري)",
+      "rejectNote": "سبب الرفض",
+      "rejectNotePlaceholder": "أدخل سبب الرفض...",
+      "approve": "موافقة",
+      "adjust": "موافقة بتعديل",
+      "reject": "رفض",
+      "confirmAdjust": "تأكيد التعديل",
+      "confirmReject": "تأكيد الرفض",
+      "awaitingApproval": "طلب الخصم قيد المراجعة من المدير المختص",
+      "noPermission": "لا تملك صلاحية البت في هذا الخصم — يتطلب موافقة الإدارة العليا",
+      "success": "تم تنفيذ القرار بنجاح"
+    }
+  },
+  "cashback": {
+    "linked": "تم ربط الكاش باك بنجاح",
+    "skipped": {
+      "inactive": "الكاش باك غير مفعّل في إعدادات النظام",
+      "notRepeat": "العميل ليس عميلاً متكرراً",
+      "noTier": "لا توجد شريحة كاش باك مناسبة لهذا الطلب"
+    }
+  },
   "nav": {
     "dashboard": "لوحة التحكم",
     "customers": "العملاء",
@@ -553,5 +601,24 @@
       "unit_PIECE": "قطعة",
       "unit_SET": "طقم"
     }
+  },
+  "postInstall": {
+    "title": "تقييم ما بعد التركيب",
+    "rating": "التقييم",
+    "ratingRequired": "يرجى اختيار تقييم",
+    "notes": "ملاحظات",
+    "notesPlaceholder": "أي ملاحظات عامة",
+    "issues": "مشاكل",
+    "issuesPlaceholder": "وصف أي مشاكل حدثت",
+    "addReview": "إضافة تقييم",
+    "noReviews": "لا توجد تقييمات بعد",
+    "createdBy": "أنشأه",
+    "status_PENDING": "قيد الانتظار",
+    "status_CONTACTED": "تم التواصل",
+    "status_RESOLVED": "تم الحل",
+    "status_CLOSED": "مغلق",
+    "changeStatus": "تغيير الحالة",
+    "reviewAdded": "تم إضافة التقييم",
+    "statusUpdated": "تم تحديث الحالة"
   }
 }

@@ -17,14 +17,24 @@ export default async function QuotationDetailPage(props: {
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
-  const quotation = await prisma.quotation.findUnique({
-    where: { id },
-    include: {
-      customer: { select: { id: true, name: true, phone: true } },
-      createdBy: { select: { id: true, name: true } },
-      items: true,
-    },
-  });
+  const [quotation, discountRequest, settings] = await Promise.all([
+    prisma.quotation.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        createdBy: { select: { id: true, name: true } },
+        items: true,
+      },
+    }),
+    prisma.discountRequest.findFirst({
+      where: { quotationId: id, status: "PENDING" },
+      select: { id: true, requestedPct: true, reason: true, createdAt: true },
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "singleton" },
+      select: { discountMaxReqPct: true },
+    }),
+  ]);
 
   if (!quotation) notFound();
 
@@ -51,6 +61,17 @@ export default async function QuotationDetailPage(props: {
         })),
       }}
       currentRole={roleCheck.role}
+      discountRequest={
+        discountRequest
+          ? {
+              id: discountRequest.id,
+              requestedPct: discountRequest.requestedPct.toNumber(),
+              reason: discountRequest.reason,
+              createdAt: discountRequest.createdAt.toISOString(),
+            }
+          : null
+      }
+      discountMaxReqPct={settings?.discountMaxReqPct.toNumber() ?? 25}
     />
   );
 }

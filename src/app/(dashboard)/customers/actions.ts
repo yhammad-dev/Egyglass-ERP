@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
-import { createCustomer, updateCustomer } from "@/lib/services/customers";
+import { createCustomer, updateCustomer, setCustomerVip } from "@/lib/services/customers";
 
 const customerTypeEnum = z.enum(["INDIVIDUAL", "ENGINEER", "COMPANY"]);
 const customerSourceEnum = z.enum(["AD", "REFERRAL", "WHATSAPP", "EXHIBITION", "VISIT"]);
@@ -81,6 +81,17 @@ export async function updateCustomerAction(data: unknown) {
   try {
     const customer = await updateCustomer(id, input, auth.userId);
     return { success: true as const, data: customer };
+  } catch {
+    return { success: false as const, error: "errors.updateFailed" };
+  }
+}
+
+export async function setCustomerVipAction(customerId: string, isVip: boolean) {
+  const auth = await requireRole(["ADMIN", "SALES_MANAGER"]);
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
+  try {
+    await setCustomerVip(customerId, isVip, auth.userId);
+    return { success: true as const };
   } catch {
     return { success: false as const, error: "errors.updateFailed" };
   }

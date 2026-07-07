@@ -20,11 +20,13 @@ import { StageChangeDialog } from "./stage-change-dialog";
 import { AssignOwnerDialog } from "./assign-owner-dialog";
 import { SetCoverageDialog } from "./set-coverage-dialog";
 import { RequestInspectionDialog } from "./request-inspection-dialog";
+import { PostInstallTab } from "./_components/post-install-tab";
 import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
+import type { PostInstallReviewRow } from "@/lib/actions/post-install";
 
-type TabId = "interactions" | "quotations" | "inspections";
+type TabId = "interactions" | "quotations" | "inspections" | "postInstall";
 
-const TABS: { id: TabId; labelKey: string }[] = [
+const BASE_TABS: { id: TabId; labelKey: string }[] = [
   { id: "interactions", labelKey: "customers.interactions" },
   { id: "quotations", labelKey: "quotations.title" },
   { id: "inspections", labelKey: "inspections.title" },
@@ -44,14 +46,27 @@ export function CustomerProfileClient({
   currentRole,
   currentUserId,
   salesReps,
+  postInstallReviews = [],
 }: {
   customer: CustomerProfileData;
   currentRole: string;
   currentUserId: string;
   salesReps: SalesRepOption[];
+  postInstallReviews?: PostInstallReviewRow[];
 }) {
   const t = useTranslations();
   const router = useRouter();
+
+  const showPostInstall =
+    customer.stage === "EXECUTION" || postInstallReviews.length > 0;
+
+  const TABS = showPostInstall
+    ? [
+        ...BASE_TABS,
+        { id: "postInstall" as TabId, labelKey: "customers.tabs.postInstall" },
+      ]
+    : BASE_TABS;
+
   const [activeTab, setActiveTab] = useState<TabId>("interactions");
   const [interactionType, setInteractionType] = useState<string | null>("NOTE");
   const [interactionNote, setInteractionNote] = useState("");
@@ -182,6 +197,12 @@ export function CustomerProfileClient({
             label={t("customers.updatedAt")}
             value={new Date(customer.updatedAt).toLocaleDateString("ar-EG")}
           />
+          {(customer.ownerName || customer.coveredByName) && (
+            <DetailRow
+              label={t("customers.lastModifiedBy")}
+              value={customer.ownerName || customer.coveredByName || "—"}
+            />
+          )}
         </div>
         {customer.notes && (
           <div className="mt-4 pt-4 border-t">
@@ -286,7 +307,7 @@ export function CustomerProfileClient({
                       <div className="flex-1 min-w-0">
                         <p className="text-sm whitespace-pre-wrap">{interaction.note}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {interaction.userName && `${interaction.userName} — `}
+                          {interaction.userName && `${t("customers.by")} ${interaction.userName} — `}
                           {new Date(interaction.createdAt).toLocaleString("ar-EG")}
                         </p>
                       </div>
@@ -316,6 +337,15 @@ export function CustomerProfileClient({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Post-Install Tab */}
+          {activeTab === "postInstall" && (
+            <PostInstallTab
+              reviews={postInstallReviews}
+              customerId={customer.id}
+              currentRole={currentRole}
+            />
           )}
 
           {/* Inspections Tab (stub) */}

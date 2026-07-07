@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { notFound, redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getPricingFactors, getProductTypes } from "../../../../../../lib/pricing/actions";
@@ -13,13 +14,21 @@ export default async function EditQuotationPage(props: {
   const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
+  const customerWhere: Prisma.CustomerWhereInput = { deletedAt: null };
+  if (roleCheck.role === "SALES_REP") {
+    customerWhere.OR = [
+      { ownerId: roleCheck.userId },
+      { coveredById: roleCheck.userId },
+    ];
+  }
+
   const [quotation, customers, productTypes, pricingFactors] = await Promise.all([
     prisma.quotation.findUnique({
       where: { id },
       include: { items: true },
     }),
     prisma.customer.findMany({
-      where: { deletedAt: null },
+      where: customerWhere,
       select: { id: true, name: true, phone: true },
       orderBy: { name: "asc" },
     }),

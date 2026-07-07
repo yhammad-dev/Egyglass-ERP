@@ -33,6 +33,17 @@ const STAGES = [
   "REJECTED",
 ] as const;
 
+const REJECT_REASONS = [
+  "PRICE_HIGH",
+  "LONG_DURATION",
+  "FOUND_ALTERNATIVE",
+  "NO_NEED",
+  "POSTPONED",
+  "OTHER",
+] as const;
+
+type RejectReason = (typeof REJECT_REASONS)[number];
+
 export function StageChangeDialog({
   customerId,
   currentStage,
@@ -47,23 +58,45 @@ export function StageChangeDialog({
   const [newStage, setNewStage] = useState<(typeof STAGES)[number] | null>(
     currentStage as (typeof STAGES)[number]
   );
-  const [rejectReason, setRejectReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState<RejectReason | "">("");
+  const [freeText, setFreeText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function buildRejectReason(): string {
+    const label = selectedReason
+      ? t(`customers.reason_${selectedReason}`)
+      : "";
+    const text = freeText.trim();
+    if (label && text) return `${label}: ${text}`;
+    if (label) return label;
+    return text;
+  }
+
   async function handleSubmit() {
     if (newStage === currentStage) return;
-    setSubmitting(true);
     setError(null);
 
-    const { changeCustomerStage } = await import(
-      "@/lib/actions/customers"
-    );
+    if (newStage === "REJECTED") {
+      if (!selectedReason) {
+        setError(t("customers.rejectReasonLabel") + " " + t("errors.required"));
+        return;
+      }
+      if (selectedReason === "OTHER" && !freeText.trim()) {
+        setError(t("customers.rejectReasonDetailRequired"));
+        return;
+      }
+    }
+
+    setSubmitting(true);
+
+    const { changeCustomerStage } = await import("@/lib/actions/customers");
 
     const result = await changeCustomerStage({
       customerId,
       newStage: newStage ?? (currentStage as (typeof STAGES)[number]),
-      rejectReason: newStage === "REJECTED" ? rejectReason : undefined,
+      rejectReason:
+        newStage === "REJECTED" ? buildRejectReason() : undefined,
     });
 
     setSubmitting(false);
@@ -77,8 +110,17 @@ export function StageChangeDialog({
     onStageChanged();
   }
 
+  function handleOpenChange(val: boolean) {
+    setOpen(val);
+    if (!val) {
+      setSelectedReason("");
+      setFreeText("");
+      setError(null);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         {t("customers.changeStage")}
       </DialogTrigger>
@@ -91,13 +133,17 @@ export function StageChangeDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Stage selector */}
           <div className="space-y-2">
             <Label htmlFor="stage">{t("customers.stage")}</Label>
             <Select
               value={newStage ?? currentStage}
-              onValueChange={(value) =>
-                setNewStage((value as (typeof STAGES)[number]) ?? null)
-              }
+              onValueChange={(value) => {
+                setNewStage((value as (typeof STAGES)[number]) ?? null);
+                setSelectedReason("");
+                setFreeText("");
+                setError(null);
+              }}
             >
               <SelectTrigger id="stage">
                 <SelectValue>{t(`pipeline.${newStage ?? currentStage}`)}</SelectValue>
@@ -112,16 +158,52 @@ export function StageChangeDialog({
             </Select>
           </div>
 
+          {/* Rejection reason controls */}
           {newStage === "REJECTED" && (
-            <div className="space-y-2">
-              <Label htmlFor="rejectReason">{t("customers.rejectReason")}</Label>
-              <Input
-                id="rejectReason"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder={t("customers.rejectReasonPlaceholder")}
-              />
-            </div>
+            <>
+              {/* (أ) Drop-down أسباب محددة */}
+              <div className="space-y-2">
+                <Label htmlFor="rejectReasonSelect">
+                  {t("customers.rejectReasonLabel")}
+                  <span className="text-red-500 mr-1">*</span>
+                </Label>
+                <Select
+                  value={selectedReason}
+                  onValueChange={(v) => setSelectedReason(v as RejectReason)}
+                >
+                  <SelectTrigger id="rejectReasonSelect">
+                    <SelectValue>
+                      {selectedReason
+                        ? t(`customers.reason_${selectedReason}`)
+                        : t("customers.rejectReasonLabel")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REJECT_REASONS.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {t(`customers.reason_${r}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* (ب) نص حر — دائماً ظاهر، إجباري فقط عند OTHER */}
+              <div className="space-y-2">
+                <Label htmlFor="rejectFreeText">
+                  {t("customers.rejectReasonDetail")}
+                  {selectedReason === "OTHER" && (
+                    <span className="text-red-500 mr-1">*</span>
+                  )}
+                </Label>
+                <Input
+                  id="rejectFreeText"
+                  value={freeText}
+                  onChange={(e) => setFreeText(e.target.value)}
+                  placeholder={t("customers.rejectReasonPlaceholder")}
+                />
+              </div>
+            </>
           )}
         </div>
 
@@ -131,7 +213,11 @@ export function StageChangeDialog({
           <DialogClose render={<Button variant="outline" />}>
             {t("customers.cancel")}
           </DialogClose>
-          <Button onClick={handleSubmit} disabled={submitting || newStage === currentStage}>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || newStage === currentStage}
+          >
             {submitting ? t("app.loading") : t("app.save")}
           </Button>
         </DialogFooter>

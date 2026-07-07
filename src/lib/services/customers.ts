@@ -12,6 +12,7 @@ export interface CustomerRow {
   address: string | null;
   notes: string | null;
   isRepeat: boolean;
+  isVip: boolean;
   ownerName: string | null;
   ownerId: string | null;
   coveredById: string | null;
@@ -63,6 +64,7 @@ export async function getCustomers(
       address: true,
       notes: true,
       isRepeat: true,
+      isVip: true,
       ownerId: true,
       coveredById: true,
       owner: { select: { name: true } },
@@ -92,6 +94,7 @@ export async function getCustomers(
     address: c.address ?? null,
     notes: c.notes ?? null,
     isRepeat: c.isRepeat,
+    isVip: c.isVip,
     ownerId: c.ownerId,
     coveredById: c.coveredById,
     ownerName: c.owner?.name ?? null,
@@ -114,6 +117,7 @@ function toRow(customer: any): CustomerRow {
     address: customer.address ?? null,
     notes: customer.notes ?? null,
     isRepeat: customer.isRepeat,
+    isVip: customer.isVip ?? false,
     ownerId: customer.ownerId,
     coveredById: customer.coveredById ?? null,
     coveredByName: customer.coveredByName ?? null,
@@ -208,6 +212,7 @@ export interface CustomerProfileData {
   stage: string;
   rejectReason: string | null;
   isRepeat: boolean;
+  isVip: boolean;
   ownerName: string | null;
   ownerId: string | null;
   coveredById: string | null;
@@ -311,6 +316,7 @@ export async function getCustomerById(
     stage: customer.stage,
     rejectReason: customer.rejectReason,
     isRepeat: customer.isRepeat,
+    isVip: customer.isVip,
     ownerName: customer.owner?.name ?? null,
     ownerId: customer.ownerId,
     coveredById: customer.coveredById,
@@ -342,6 +348,26 @@ export async function getCustomerById(
       createdAt: ins.createdAt,
     })),
   };
+}
+
+export async function setCustomerVip(
+  customerId: string,
+  isVip: boolean,
+  actorId: string
+): Promise<void> {
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { isVip },
+  });
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "CUSTOMER_VIP_UPDATED",
+      entity: "Customer",
+      entityId: customerId,
+      details: JSON.stringify({ isVip }),
+    },
+  });
 }
 
 export async function getSalesReps(): Promise<SalesRepOption[]> {

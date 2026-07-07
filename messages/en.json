@@ -88,8 +88,17 @@
     "by": "by",
     "changeStage": "Change Stage",
     "changeStageDesc": "Change customer stage from {stage}",
-    "rejectReason": "Rejection Reason",
     "rejectReasonPlaceholder": "Enter rejection reason",
+    "rejectReasonLabel": "Rejection Reason",
+    "rejectReasonDetail": "Additional details (optional)",
+    "rejectReasonDetailRequired": "Details required when selecting 'Other'",
+    "reason_PRICE_HIGH": "Price too high",
+    "reason_LONG_DURATION": "Duration too long",
+    "reason_FOUND_ALTERNATIVE": "Found alternative",
+    "reason_NO_NEED": "No need currently",
+    "reason_POSTPONED": "Postponed",
+    "reason_OTHER": "Other",
+    "lastModifiedBy": "Last modified by",
     "cancel": "Cancel",
     "currentOwner": "Current Owner",
     "selectOwner": "Select Owner",
@@ -107,7 +116,13 @@
     "selectType": "Select Type",
     "interactionAdded": "Interaction added successfully",
     "requestInspection": "Request Inspection",
-    "requestInspectionDesc": "Create a new inspection request for this customer"
+    "requestInspectionDesc": "Create a new inspection request for this customer",
+    "vipBadge": "VIP",
+    "setVip": "Mark as VIP",
+    "removeVip": "Remove VIP",
+    "tabs": {
+      "postInstall": "Post-Install"
+    }
   },
   "pipeline": {
     "NEW": "New",
@@ -191,6 +206,7 @@
     "status": "Status",
     "needsApproval": "Pending Approval",
     "sendWhatsApp": "Send via WhatsApp",
+    "whatsappText": "Hello {customerName}, we are pleased to send you quotation number {quotationNumber} with a total of {total} EGP. Please contact us for more details.",
     "customer": "Customer",
     "phone": "Phone",
     "source": "Source",
@@ -375,6 +391,38 @@
     "serverError": "A server error occurred, please try again",
     "rateLimited": "Too many requests, please try again later"
   },
+  "discount": {
+    "approvalRequestedTitle": "Discount Approval Request",
+    "reasonLabel": "Discount Request Reason",
+    "reasonPlaceholder": "Explain the justification for this discount...",
+    "reasonRequired": "A reason is required when the discount exceeds the base threshold",
+    "aboveBaseHint": "This discount exceeds the base threshold ({base}%) and will require manager approval",
+    "panel": {
+      "title": "Pending Discount Request — Awaiting Approval",
+      "requestedPct": "Requested Rate",
+      "reason": "Reason",
+      "requestedAt": "Requested At",
+      "adjustedPct": "Adjusted Rate (optional)",
+      "rejectNote": "Rejection Reason",
+      "rejectNotePlaceholder": "Enter rejection reason...",
+      "approve": "Approve",
+      "adjust": "Approve with Adjustment",
+      "reject": "Reject",
+      "confirmAdjust": "Confirm Adjustment",
+      "confirmReject": "Confirm Rejection",
+      "awaitingApproval": "Discount request is under review by the relevant manager",
+      "noPermission": "You do not have authority to decide on this discount — requires senior management approval",
+      "success": "Decision executed successfully"
+    }
+  },
+  "cashback": {
+    "linked": "Cashback linked successfully",
+    "skipped": {
+      "inactive": "Cashback is not active in system settings",
+      "notRepeat": "Customer is not a repeat customer",
+      "noTier": "No matching cashback tier found for this order"
+    }
+  },
   "nav": {
     "dashboard": "Dashboard",
     "customers": "Customers",
@@ -554,5 +602,24 @@
       "unit_PIECE": "Piece",
       "unit_SET": "Set"
     }
+  },
+  "postInstall": {
+    "title": "Post-Install Review",
+    "rating": "Rating",
+    "ratingRequired": "Please select a rating",
+    "notes": "Notes",
+    "notesPlaceholder": "Any general notes",
+    "issues": "Issues",
+    "issuesPlaceholder": "Describe any issues that occurred",
+    "addReview": "Add Review",
+    "noReviews": "No reviews yet",
+    "createdBy": "Created by",
+    "status_PENDING": "Pending",
+    "status_CONTACTED": "Contacted",
+    "status_RESOLVED": "Resolved",
+    "status_CLOSED": "Closed",
+    "changeStatus": "Change Status",
+    "reviewAdded": "Review added",
+    "statusUpdated": "Status updated"
   }
 }

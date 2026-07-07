@@ -40,6 +40,7 @@ model User {
   uploadedDrawings         Drawing[]           @relation("DrawingUploader")
   approvedDrawings         Drawing[]           @relation("DrawingApprover")
   createdExtraItems        ExtraItem[]         @relation("ExtraItemCreator")
+postInstallReviews PostInstallReview[] @relation("PostInstallReviewCreator")
 }
 
 model Customer {
@@ -54,6 +55,7 @@ model Customer {
   stage        PipelineStage       @default(NEW)
   rejectReason String?
   isRepeat     Boolean             @default(false)
+  isVip        Boolean             @default(false)
   ownerId      String?
   coveredById  String?
   createdAt    DateTime            @default(now())
@@ -66,10 +68,39 @@ model Customer {
   projects     Project[]
   contracts             Contract[]
   quotationRequests     QuotationRequest[]
+  postInstallReviews    PostInstallReview[]
 
   @@index([ownerId])
   @@index([stage])
   @@index([phone])
+}
+
+model PostInstallReview {
+  id          String            @id @default(cuid())
+  customerId  String
+  contractId  String?
+  rating      Int
+  notes       String?
+  issues      String?
+  status      PostInstallStatus @default(PENDING)
+  createdById String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  customer  Customer  @relation(fields: [customerId], references: [id])
+  createdBy User      @relation("PostInstallReviewCreator", fields: [createdById], references: [id])
+  contract  Contract? @relation(fields: [contractId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@map("post_install_reviews")
+}
+
+enum PostInstallStatus {
+  PENDING
+  CONTACTED
+  RESOLVED
+  CLOSED
 }
 
 model Interaction {
@@ -692,9 +723,11 @@ model Contract {
   createdById String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
   customer    Customer  @relation(fields: [customerId], references: [id])
   quotation   Quotation @relation(fields: [quotationId], references: [id])
   createdBy   User      @relation(fields: [createdById], references: [id])
+  postInstallReviews PostInstallReview[]
 
   @@index([customerId])
   @@map("contracts")

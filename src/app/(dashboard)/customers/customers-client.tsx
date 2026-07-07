@@ -47,6 +47,7 @@ import type { CustomerRow, SalesRepOption } from "@/lib/services/customers";
 import {
   createCustomerAction,
   updateCustomerAction,
+  setCustomerVipAction,
 } from "./actions";
 
 const columnHelper = createColumnHelper<CustomerRow>();
@@ -245,12 +246,19 @@ export function CustomersClient({
       columnHelper.accessor("name", {
         header: t("customers.name"),
         cell: (info) => (
-          <Link
-            href={`/customers/${info.row.original.id}`}
-            className="text-primary hover:underline font-medium"
-          >
-            {info.getValue()}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/customers/${info.row.original.id}`}
+              className="text-primary hover:underline font-medium"
+            >
+              {info.getValue()}
+            </Link>
+            {info.row.original.isVip && (
+              <Badge variant="default" className="text-xs px-1.5 py-0">
+                {t("customers.vipBadge")}
+              </Badge>
+            )}
+          </div>
         ),
       }),
       columnHelper.accessor("phone", {
@@ -286,13 +294,37 @@ export function CustomersClient({
               id: "actions",
               header: t("app.actions"),
               cell: (info) => (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEdit(info.row.original)}
-                >
-                  {t("app.edit")}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(info.row.original)}
+                  >
+                    {t("app.edit")}
+                  </Button>
+                  {isAdminOrManager && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const row = info.row.original;
+                        const result = await setCustomerVipAction(row.id, !row.isVip);
+                        if (result.success) {
+                          setData((prev) =>
+                            prev.map((c) =>
+                              c.id === row.id ? { ...c, isVip: !row.isVip } : c
+                            )
+                          );
+                        }
+                      }}
+                    >
+                      {info.row.original.isVip
+                        ? t("customers.removeVip")
+                        : t("customers.setVip")}
+                    </Button>
+                  )}
+                </div>
               ),
             }),
           ]
