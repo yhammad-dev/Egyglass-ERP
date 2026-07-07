@@ -32,6 +32,8 @@ model User {
   approvalReviews   QuotationApproval[]     @relation("ApprovalReviewer")
   measurements      InspectionMeasurement[] @relation("MeasurementRecorder")
   uploadedPhotos    InspectionPhoto[]       @relation("PhotoUploader")
+  uploadedDocuments Document[]
+  contracts         Contract[]
 }
 
 model Customer {
@@ -56,6 +58,7 @@ model Customer {
   interactions Interaction[]
   quotations   Quotation[]
   projects     Project[]
+  contracts    Contract[]
 
   @@index([ownerId])
   @@index([stage])
@@ -108,6 +111,7 @@ model Quotation {
   projectId           String?
   project             Project?        @relation(fields: [projectId], references: [id])
   approval            QuotationApproval?
+  contract            Contract?
 
   @@index([customerId])
   @@index([status])
@@ -471,6 +475,7 @@ enum PipelineStage {
   PRICED
   FOLLOW_UP
   INSPECTION
+  CONTRACT
   EXECUTION
   RE_INSPECTION_FOLLOWUP
   REJECTED
@@ -646,6 +651,41 @@ model InspectionMeasurement {
 
   @@index([inspectionId])
   @@map("inspection_measurements")
+}
+
+model Document {
+  id           String    @id @default(cuid())
+  entityType   String    @db.VarChar(50)
+  entityId     String
+  filename     String    @db.VarChar(300)
+  originalName String    @db.VarChar(300)
+  mimeType     String    @db.VarChar(100)
+  sizeBytes    Int
+  url          String    @db.VarChar(1000)
+  label        String?   @db.VarChar(200)
+  uploadedById String
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+model Contract {
+  id          String    @id @default(cuid())
+  customerId  String
+  quotationId String    @unique
+  signedAt    DateTime?
+  notes       String?   @db.Text
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+
+  @@index([customerId])
+  @@map("contracts")
 }
 
 model InspectionPhoto {

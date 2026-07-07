@@ -3,6 +3,9 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { randomUUID } from "crypto";
 
 const ADMIN_ROLES = ["ADMIN"];
 
@@ -182,6 +185,85 @@ export async function toggleMaterialActive(input: unknown) {
     return { success: true as const, isActive: updated.isActive };
   } catch (error) {
     console.error("[toggleMaterialActive]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// Public read — no role check needed (used on print pages)
+export async function getCompanySettings() {
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "singleton" },
+      select: { companyName: true, companyLogoUrl: true },
+    });
+    return {
+      companyName: settings?.companyName ?? "EgyGlass",
+      companyLogoUrl: settings?.companyLogoUrl ?? null,
+    };
+  } catch {
+    return { companyName: "EgyGlass", companyLogoUrl: null };
+  }
+}
+
+export async function updateCompanyName(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = z.object({ name: z.string().min(1).max(100) }).safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    await prisma.systemSettings.upsert({
+      where: { id: "singleton" },
+      update: { companyName: parsed.data.name, updatedById: roleCheck.userId },
+      create: { id: "singleton", companyName: parsed.data.name, updatedById: roleCheck.userId },
+    });
+
+    return { success: true as const };
+  } catch {
+    return { error: "errors.serverError" as const };
+  }
+}
+
+export async function uploadCompanyLogo(formData: FormData) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const file = formData.get("logo") as File;
+    if (!file || file.size === 0) return { error: "errors.invalidInput" as const };
+    if (file.size > 2 * 1024 * 1024) return { error: "الملف يتجاوز 2 ميغابايت" as const };
+    if (!file.type.startsWith("image/")) return { error: "يجب أن يكون الملف صورة" as const };
+
+    const uploadDir = join(process.cwd(), "public", "uploads", "company");
+    await mkdir(uploadDir, { recursive: true });
+
+    const ext = file.name.split(".").pop() ?? "png";
+    const filename = `logo-${randomUUID()}.${ext}`;
+    const bytes = await file.arrayBuffer();
+    await writeFile(join(uploadDir, filename), Buffer.from(bytes));
+
+    const url = `/uploads/company/${filename}`;
+
+    await prisma.systemSettings.upsert({
+      where: { id: "singleton" },
+      update: { companyLogoUrl: url, updatedById: roleCheck.userId },
+      create: { id: "singleton", companyLogoUrl: url, updatedById: roleCheck.userId },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "UPDATE_LOGO",
+        entity: "SystemSettings",
+        entityId: "singleton",
+        details: "تم تحديث لوجو الشركة",
+      },
+    });
+
+    return { success: true as const, url };
+  } catch (error) {
+    console.error("[uploadCompanyLogo]", error);
     return { error: "errors.serverError" as const };
   }
 }

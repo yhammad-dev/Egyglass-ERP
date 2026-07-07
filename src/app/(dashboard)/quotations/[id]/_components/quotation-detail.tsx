@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+const DocumentUpload = lazy(() =>
+  import("@/components/document-upload").then((m) => ({ default: m.DocumentUpload }))
+);
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -120,6 +123,24 @@ export function QuotationDetail({
           <Badge variant={STATUS_VARIANT[status]}>
             {t(`quotations.detail.status_${status}`)}
           </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/quotations/${quotation.id}/print`, "_blank")}
+          >
+            🖨️ طباعة / PDF
+          </Button>
+          {canEdit && status === "APPROVED" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/quotations/${quotation.id}/contract`)}
+            >
+              📝 إنشاء عقد
+            </Button>
+          )}
           {canEdit && (
             <Button
               type="button"
@@ -176,6 +197,14 @@ export function QuotationDetail({
           <span>{t("quotations.total")}</span>
           <span dir="ltr">{numberFormat.format(quotation.total)}</span>
         </div>
+      </div>
+
+      {/* Documents */}
+      <div className="space-y-3 border rounded-md p-4">
+        <h2 className="text-sm font-semibold">المستندات المرفقة</h2>
+        <Suspense fallback={<p className="text-xs text-gray-400">جاري التحميل...</p>}>
+          <DocumentUpload entityType="quotation" entityId={quotation.id} />
+        </Suspense>
       </div>
 
       {canEdit && (

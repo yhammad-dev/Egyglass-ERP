@@ -30,7 +30,13 @@
     "activeQuotations": "عروض أسعار نشطة",
     "inspectionsDueToday": "معاينات اليوم",
     "inspectionsOverdue": "معاينات متأخرة",
-    "pipelineDistribution": "توزيع المراحل"
+    "pipelineDistribution": "توزيع المراحل",
+    "activeCustomers": "عملاء نشطون",
+    "quotationsThisMonth": "عروض أسعار هذا الشهر",
+    "conversionRate": "معدل التحويل",
+    "pendingInspections": "معاينات معلقة",
+    "mfgInProduction": "أوامر تصنيع قيد التنفيذ",
+    "totalRevenue": "إجمالي الإيرادات"
   },
   "customers": {
     "title": "العملاء",
@@ -98,13 +104,16 @@
     "interactionNote": "ملاحظة التفاعل",
     "interactionNotePlaceholder": "اكتب ملاحظة التفاعل...",
     "selectType": "اختر النوع",
-    "interactionAdded": "تم إضافة التفاعل"
+    "interactionAdded": "تم إضافة التفاعل",
+    "requestInspection": "طلب معاينة",
+    "requestInspectionDesc": "إنشاء طلب معاينة جديد لهذا العميل"
   },
   "pipeline": {
     "NEW": "جديد",
     "PRICED": "تم التسعير",
     "FOLLOW_UP": "متابعة",
     "INSPECTION": "معاينة",
+    "CONTRACT": "تعاقد",
     "EXECUTION": "تنفيذ",
     "RE_INSPECTION_FOLLOWUP": "متابعة بعد المعاينة",
     "REJECTED": "رفض"
@@ -116,7 +125,11 @@
     "newMfgOrderTitle": "أمر تصنيع جديد",
     "mfgReadyTitle": "مواد جاهزة للتركيب",
     "inspectionCompletedTitle": "تم إكمال المعاينة",
-    "lowFactorApprovalTitle": "طلب موافقة على فاكتور منخفض"
+    "lowFactorApprovalTitle": "طلب موافقة على فاكتور منخفض",
+    "newInspectionTitle": "طلب معاينة جديد",
+    "inspectionScheduledTitle": "تم جدولة معاينة",
+    "stageInspectionTitle": "نقل إلى مرحلة المعاينة",
+    "stagePricedTitle": "نقل إلى مرحلة التسعير"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -190,6 +203,13 @@
     "statusBucket_ON_HOLD": "معلّق",
     "statusBucket_COMPLETED": "تمّ",
     "statusBucket_EXPIRED": "منتهي",
+    "statuses": {
+      "DRAFT": "مسودة",
+      "SENT": "تم الإرسال",
+      "PENDING_APPROVAL": "بانتظار الموافقة",
+      "APPROVED": "معتمد",
+      "EXPIRED": "منتهي"
+    },
     "shower": {
       "title": "شاور جديد",
       "height": "الارتفاع (م)",

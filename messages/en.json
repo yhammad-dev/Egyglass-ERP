@@ -31,7 +31,13 @@
     "activeQuotations": "Active Quotations",
     "inspectionsDueToday": "Inspections Due Today",
     "inspectionsOverdue": "Overdue Inspections",
-    "pipelineDistribution": "Pipeline Distribution"
+    "pipelineDistribution": "Pipeline Distribution",
+    "activeCustomers": "Active Customers",
+    "quotationsThisMonth": "Quotations This Month",
+    "conversionRate": "Conversion Rate",
+    "pendingInspections": "Pending Inspections",
+    "mfgInProduction": "Manufacturing In Progress",
+    "totalRevenue": "Total Revenue"
   },
   "customers": {
     "title": "Customers",
@@ -99,13 +105,16 @@
     "interactionNote": "Interaction Note",
     "interactionNotePlaceholder": "Write a note...",
     "selectType": "Select Type",
-    "interactionAdded": "Interaction added successfully"
+    "interactionAdded": "Interaction added successfully",
+    "requestInspection": "Request Inspection",
+    "requestInspectionDesc": "Create a new inspection request for this customer"
   },
   "pipeline": {
     "NEW": "New",
     "PRICED": "Priced",
     "FOLLOW_UP": "Follow Up",
     "INSPECTION": "Inspection",
+    "CONTRACT": "Contract",
     "EXECUTION": "Execution",
     "RE_INSPECTION_FOLLOWUP": "Post-Inspection Follow Up",
     "REJECTED": "Rejected"
@@ -117,7 +126,11 @@
     "newMfgOrderTitle": "New Manufacturing Order",
     "mfgReadyTitle": "Materials Ready for Installation",
     "inspectionCompletedTitle": "Inspection Completed",
-    "lowFactorApprovalTitle": "Low Factor Approval Requested"
+    "lowFactorApprovalTitle": "Low Factor Approval Requested",
+    "newInspectionTitle": "New Inspection Request",
+    "inspectionScheduledTitle": "Inspection Scheduled",
+    "stageInspectionTitle": "Moved to Inspection Stage",
+    "stagePricedTitle": "Moved to Pricing Stage"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",
@@ -191,6 +204,13 @@
     "statusBucket_ON_HOLD": "On Hold",
     "statusBucket_COMPLETED": "Completed",
     "statusBucket_EXPIRED": "Expired",
+    "statuses": {
+      "DRAFT": "Draft",
+      "SENT": "Sent",
+      "PENDING_APPROVAL": "Pending Approval",
+      "APPROVED": "Approved",
+      "EXPIRED": "Expired"
+    },
     "shower": {
       "title": "New Shower",
       "height": "Height (m)",
