@@ -198,7 +198,8 @@ model InspectionRequest {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   deletedAt   DateTime?
-  type        InspectionType     @default(PRICING)
+  type          InspectionType     @default(PRICING)
+  siteReadiness Boolean?           // null=لم يُحدَّد، true=جاهز، false=غير جاهز
   assignee     User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])
   customer     Customer                @relation(fields: [customerId], references: [id])
   measurements     InspectionMeasurement[]

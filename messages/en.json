@@ -334,7 +334,12 @@
       "filePathPlaceholder": "URL or reference path",
       "addAttachment": "Add Attachment",
       "attachmentAdded": "Attachment added successfully"
-    }
+    },
+    "siteReadiness": "Site Readiness",
+    "siteReady": "Site Ready",
+    "siteNotReady": "Site Not Ready",
+    "siteReadinessUnknown": "Not Determined",
+    "siteReadinessUpdated": "Site readiness updated"
   },
   "users": {
     "title": "Users",

@@ -15,5 +15,5 @@ export default async function InspectionDetailPage(props: {
   const inspection = await getInspectionDetail(id);
   if (!inspection) notFound();
 
-  return <InspectionDetailClient inspection={inspection} />;
+  return <InspectionDetailClient inspection={inspection} currentRole={roleCheck.role} />;
 }

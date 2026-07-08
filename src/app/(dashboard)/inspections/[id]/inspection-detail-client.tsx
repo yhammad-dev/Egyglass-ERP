@@ -19,6 +19,7 @@ import {
   addMeasurements,
   addInspectionAttachment,
   updateInspectionStatus,
+  updateSiteReadiness,
 } from "../actions";
 
 type InspectionStatus = "REQUESTED" | "SCHEDULED" | "DONE" | "OVERDUE";
@@ -34,6 +35,7 @@ type InspectionDetail = {
   notes: string | null;
   status: InspectionStatus;
   type: string;
+  siteReadiness: boolean | null;
   scheduledAt: string | null;
   dueDate: string;
   assignee: { id: string; name: string } | null;
@@ -47,11 +49,32 @@ type InspectionDetail = {
 
 export function InspectionDetailClient({
   inspection: initialInspection,
+  currentRole = "",
 }: {
   inspection: InspectionDetail;
+  currentRole?: string;
 }) {
   const t = useTranslations();
   const [inspection, setInspection] = useState(initialInspection);
+  const [siteReadiness, setSiteReadiness] = useState<boolean | null>(
+    initialInspection.siteReadiness ?? null
+  );
+  const [updatingSiteReadiness, setUpdatingSiteReadiness] = useState(false);
+
+  const canEditSiteReadiness =
+    currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+
+  async function handleSiteReadiness(value: boolean | null) {
+    setUpdatingSiteReadiness(true);
+    const result = await updateSiteReadiness({ id: inspection.id, siteReadiness: value });
+    setUpdatingSiteReadiness(false);
+    if ("error" in result) {
+      toast.error(t(result.error ?? "errors.updateFailed"));
+      return;
+    }
+    setSiteReadiness(value);
+    toast.success(t("inspections.siteReadinessUpdated"));
+  }
 
   const [widthInput, setWidthInput] = useState("");
   const [heightInput, setHeightInput] = useState("");
@@ -226,6 +249,49 @@ export function InspectionDetailClient({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2 max-w-xs">
+        <Label>{t("inspections.siteReadiness")}</Label>
+        {canEditSiteReadiness ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={siteReadiness === true ? "default" : "outline"}
+              size="sm"
+              disabled={updatingSiteReadiness}
+              onClick={() => handleSiteReadiness(true)}
+            >
+              ✅ {t("inspections.siteReady")}
+            </Button>
+            <Button
+              type="button"
+              variant={siteReadiness === false ? "default" : "outline"}
+              size="sm"
+              disabled={updatingSiteReadiness}
+              onClick={() => handleSiteReadiness(false)}
+            >
+              ❌ {t("inspections.siteNotReady")}
+            </Button>
+            <Button
+              type="button"
+              variant={siteReadiness === null ? "default" : "outline"}
+              size="sm"
+              disabled={updatingSiteReadiness}
+              onClick={() => handleSiteReadiness(null)}
+            >
+              — {t("inspections.siteReadinessUnknown")}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm">
+            {siteReadiness === true
+              ? t("inspections.siteReady")
+              : siteReadiness === false
+              ? t("inspections.siteNotReady")
+              : t("inspections.siteReadinessUnknown")}
+          </p>
+        )}
       </div>
 
       <div className="space-y-3 max-w-xl border-t pt-6">

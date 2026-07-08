@@ -107,6 +107,7 @@ export async function getInspectionDetail(id: string) {
       notes: inspection.notes,
       status: inspection.status,
       type: inspection.type,
+      siteReadiness: inspection.siteReadiness ?? null,
       scheduledAt: inspection.scheduledAt ? inspection.scheduledAt.toISOString() : null,
       dueDate: inspection.dueDate.toISOString(),
       assignee: inspection.assignee,
@@ -281,6 +282,56 @@ export async function updateInspectionStatus(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[updateInspectionStatus]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+const siteReadinessSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  siteReadiness: z.boolean().nullable(),
+});
+
+export async function updateSiteReadiness(input: unknown) {
+  try {
+    const auth = await requireRole(["ADMIN", "INSPECTION_MANAGER"]);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = siteReadinessSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { id, siteReadiness } = parsed.data;
+
+    const inspection = await prisma.inspectionRequest.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    await prisma.inspectionRequest.update({
+      where: { id },
+      data: { siteReadiness },
+    });
+
+    const details =
+      siteReadiness === true
+        ? "الموقع جاهز"
+        : siteReadiness === false
+        ? "الموقع غير جاهز"
+        : "تم إلغاء تحديد جاهزية الموقع";
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "SITE_READINESS_UPDATED",
+        entity: "InspectionRequest",
+        entityId: id,
+        details,
+      },
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[updateSiteReadiness]", error);
     return { error: "errors.serverError" as const };
   }
 }

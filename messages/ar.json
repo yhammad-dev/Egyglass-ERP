@@ -333,7 +333,12 @@
       "filePathPlaceholder": "رابط أو مسار المرجع",
       "addAttachment": "إضافة مرفق",
       "attachmentAdded": "تم إضافة المرفق بنجاح"
-    }
+    },
+    "siteReadiness": "جاهزية الموقع",
+    "siteReady": "الموقع جاهز",
+    "siteNotReady": "الموقع غير جاهز",
+    "siteReadinessUnknown": "لم يُحدَّد",
+    "siteReadinessUpdated": "تم تحديث جاهزية الموقع"
   },
   "users": {
     "title": "المستخدمين",
