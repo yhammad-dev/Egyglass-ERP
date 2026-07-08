@@ -149,7 +149,8 @@
     "newInspectionTitle": "New Inspection Request",
     "inspectionScheduledTitle": "Inspection Scheduled",
     "stageInspectionTitle": "Moved to Inspection Stage",
-    "stagePricedTitle": "Moved to Pricing Stage"
+    "stagePricedTitle": "Moved to Pricing Stage",
+    "quotationReadyTitle": "Quotation Ready"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",

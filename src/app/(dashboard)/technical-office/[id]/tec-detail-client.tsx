@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { TecJobDetail, DrawingRow } from "@/lib/services/tec";
+import { TEC_STATUS_COLORS } from "@/lib/status-colors";
 import {
   updateJobNotesAction,
   uploadDrawingAction,
@@ -32,12 +33,6 @@ type DrawingCategory =
   | "EXECUTION_DRAWINGS"
   | "APPROVALS";
 
-const STATUS_VARIANT: Record<TecJobStatus, string> = {
-  NEW: "secondary",
-  IN_PROGRESS: "default",
-  ON_HOLD: "outline",
-  DONE: "success",
-};
 
 const CATEGORIES: DrawingCategory[] = [
   "DRAWINGS",
@@ -199,7 +194,7 @@ export function TecDetailClient({
               {initialJob.code}
             </h1>
             <Badge
-              variant={(STATUS_VARIANT[initialJob.status as TecJobStatus] as any) ?? "secondary"}
+              className={TEC_STATUS_COLORS[initialJob.status] ?? "bg-gray-100 text-gray-700 border-gray-200"}
             >
               {t(`tec.status_${initialJob.status}`)}
             </Badge>

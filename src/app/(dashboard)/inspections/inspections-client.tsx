@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field-error";
+import { INSPECTION_STATUS_COLORS } from "@/lib/status-colors";
 import type { InspectionRow, CustomerOption, UserOption } from "@/lib/services/inspections";
 import { createInspectionAction, scheduleInspectionAction } from "./actions";
 
@@ -245,31 +246,13 @@ export function InspectionsClient({
       columnHelper.accessor("status", {
         header: t("inspections.status"),
         cell: (info) => {
-          const { effectiveStatus, daysRemaining, status } = info.row.original;
-          if (effectiveStatus === "OVERDUE") {
-            return (
-              <Badge className="bg-red-100 text-red-700 border-red-200">
-                {t("inspections.status_OVERDUE")}
-              </Badge>
-            );
-          }
-          if (status === "DONE") {
-            return (
-              <Badge variant="secondary">
-                {t("inspections.status_DONE")}
-              </Badge>
-            );
-          }
-          if (daysRemaining >= 2) {
-            return (
-              <Badge className="bg-green-100 text-green-700 border-green-200">
-                {t(`inspections.status_${status}`)}
-              </Badge>
-            );
-          }
+          const { effectiveStatus, status } = info.row.original;
+          const key = effectiveStatus === "OVERDUE" ? "OVERDUE" : status;
           return (
-            <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-              {t(`inspections.status_${status}`)}
+            <Badge
+              className={INSPECTION_STATUS_COLORS[key] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+            >
+              {t(`inspections.status_${key}`)}
             </Badge>
           );
         },

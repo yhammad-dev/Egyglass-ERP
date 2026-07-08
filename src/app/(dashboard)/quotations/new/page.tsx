@@ -9,8 +9,8 @@ import { QuotationBuilder } from "./_components/quotation-builder";
 export default async function NewQuotationPage(props: {
   searchParams: Promise<{ customerId?: string }>;
 }) {
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
-  if (!roleCheck.authorized) redirect("/dashboard");
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "REVIEW"]);
+  if (!roleCheck.authorized) redirect("/customers");
 
   const { customerId } = await props.searchParams;
 

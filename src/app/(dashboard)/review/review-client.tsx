@@ -11,6 +11,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { REVIEW_STATUS_COLORS } from "@/lib/status-colors";
 
 type ReviewQuotationRow = {
   id: string;
@@ -19,6 +21,7 @@ type ReviewQuotationRow = {
   total: number;
   createdByName: string;
   createdAt: string;
+  reviewStatus?: string;
 };
 
 export function ReviewClient({
@@ -53,6 +56,7 @@ export function ReviewClient({
               <TableHead>{t("review.total")}</TableHead>
               <TableHead>{t("review.createdBy")}</TableHead>
               <TableHead>{t("review.date")}</TableHead>
+              <TableHead>{t("app.status")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -73,6 +77,15 @@ export function ReviewClient({
                   <TableCell>{row.createdByName}</TableCell>
                   <TableCell>
                     {dateFormat.format(new Date(row.createdAt))}
+                  </TableCell>
+                  <TableCell>
+                    {row.reviewStatus && (
+                      <Badge
+                        className={REVIEW_STATUS_COLORS[row.reviewStatus] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+                      >
+                        {t(`review.status_${row.reviewStatus}`)}
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

@@ -49,6 +49,7 @@ import {
   updateCustomerAction,
   setCustomerVipAction,
 } from "./actions";
+import { PIPELINE_STAGE_COLORS } from "@/lib/status-colors";
 
 const columnHelper = createColumnHelper<CustomerRow>();
 
@@ -65,6 +66,7 @@ const PIPELINE_STAGES = [
   "PRICED",
   "FOLLOW_UP",
   "INSPECTION",
+  "CONTRACT",
   "EXECUTION",
   "RE_INSPECTION_FOLLOWUP",
   "REJECTED",
@@ -275,7 +277,16 @@ export function CustomersClient({
       }),
       columnHelper.accessor("stage", {
         header: t("customers.stage"),
-        cell: (info) => t(`pipeline.${info.getValue()}`),
+        cell: (info) => {
+          const stage = info.getValue();
+          return (
+            <Badge
+              className={PIPELINE_STAGE_COLORS[stage] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+            >
+              {t(`pipeline.${stage}`)}
+            </Badge>
+          );
+        },
       }),
       columnHelper.accessor("isCoverage", {
         header: t("customers.coverage"),

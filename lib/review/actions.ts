@@ -123,6 +123,22 @@ export async function approveQuotationAction(input: unknown) {
       entityType: "Quotation",
     });
 
+    const quotationWithCustomer = await prisma.quotation.findUnique({
+      where: { id: parsed.data.id },
+      include: { customer: { select: { ownerId: true } } },
+    });
+
+    if (quotationWithCustomer?.customer?.ownerId) {
+      await sendNotification({
+        userId: quotationWithCustomer.customer.ownerId,
+        title: "notifications.quotationReadyTitle",
+        body: `عرض السعر ${quotation.number} جاهز للعميل`,
+        type: "QUOTATION_READY",
+        entityId: quotation.id,
+        entityType: "Quotation",
+      });
+    }
+
     const mfgOrder = await createManufacturingOrder(quotation.id);
 
     const procurementUsers = await prisma.user.findMany({

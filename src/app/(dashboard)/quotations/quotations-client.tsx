@@ -24,16 +24,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { QuotationRow } from "@/lib/services/quotations";
+import { QUOTATION_STATUS_COLORS } from "@/lib/status-colors";
 
 const columnHelper = createColumnHelper<QuotationRow>();
 
-const STATUS_BUCKET_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  NEW: "secondary",
-  IN_PROGRESS: "default",
-  ON_HOLD: "outline",
-  COMPLETED: "default",
-  EXPIRED: "destructive",
-};
 
 export function QuotationsClient({
   initialQuotations,
@@ -91,7 +85,9 @@ export function QuotationsClient({
         cell: (info) => {
           const bucket = info.getValue();
           return (
-            <Badge variant={STATUS_BUCKET_VARIANT[bucket] ?? "secondary"}>
+            <Badge
+              className={QUOTATION_STATUS_COLORS[bucket] ?? "bg-gray-100 text-gray-700 border-gray-200"}
+            >
               {t(`quotations.statusBucket_${bucket}`)}
             </Badge>
           );

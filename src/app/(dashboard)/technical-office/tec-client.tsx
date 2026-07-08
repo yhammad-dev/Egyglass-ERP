@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { TecJobRow, EngineerOption } from "@/lib/services/tec";
+import { TEC_STATUS_COLORS } from "@/lib/status-colors";
 import { updateTecJobStatusAction, assignEngineerAction } from "./actions";
 
 type TecJobStatus = "NEW" | "IN_PROGRESS" | "ON_HOLD" | "DONE";
@@ -31,12 +32,6 @@ type TechnicalRoute = "PROJECTS" | "SOCIAL_MEDIA";
 
 const STATUS_OPTIONS: TecJobStatus[] = ["NEW", "IN_PROGRESS", "ON_HOLD", "DONE"];
 
-const STATUS_VARIANT: Record<TecJobStatus, string> = {
-  NEW: "secondary",
-  IN_PROGRESS: "default",
-  ON_HOLD: "outline",
-  DONE: "success",
-};
 
 const TABS: { id: TechnicalRoute; labelKey: string }[] = [
   { id: "PROJECTS", labelKey: "tec.projects" },
@@ -221,9 +216,7 @@ export function TecClient({
                   <TableCell>{job.engineerName ?? "—"}</TableCell>
                   <TableCell>
                     <Badge
-                      variant={
-                        (STATUS_VARIANT[job.status as TecJobStatus] as any) ?? "secondary"
-                      }
+                      className={TEC_STATUS_COLORS[job.status] ?? "bg-gray-100 text-gray-700 border-gray-200"}
                     >
                       {t(`tec.status_${job.status}`)}
                     </Badge>
