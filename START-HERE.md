@@ -56,7 +56,7 @@
 > `prisma/schema.prisma` in full. The environment is Docker (compose file provided) — run all
 > commands inside the app container. Execute **Phase A only (Milestone 0 and Milestone 1)**
 > from the roadmap. Do not start Phase B. After each milestone, run
-> `docker compose exec -e NODE_ENV=production app npm run build` and report the result before continuing. When Phase A
+> `docker compose exec app npm run build` (no `-e NODE_ENV=...` needed — root cause fixed in docker-compose.yml) and report the result before continuing. When Phase A
 > is done, commit and tag it `foundation-done`.
 
 ⚠️ **مهم:** متشغّلش أكتر من وكيل في المرحلة دي — لازم الأساس يخلص الأول.

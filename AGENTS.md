@@ -97,7 +97,7 @@ The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHAN
 
 ## Docker
 - All commands run inside the `app` container: `docker compose exec app <cmd>`.
-- Build with production env: `docker compose exec -e NODE_ENV=production app npm run build`.
+- Build: `docker compose exec app npm run build` (NODE_ENV is no longer forced — removed from docker-compose.yml; Next.js sets it automatically per command).
 - The `prisma migrate dev` command can reset data — use with care. DB is in a named volume (`egyglass_db_data`) so rebuilds preserve data.
 - Never run `docker system prune` or `docker volume prune`.
 
@@ -109,7 +109,7 @@ The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHAN
 ## Dev environment rules
 - Project lives at `E:\Projects\EgyGlass_ERP_New_Build` (local machine — NOT under OneDrive).
 - **Turbopack-in-Docker does NOT auto-detect new route/action files.** After creating any new route file, server action, or API handler, run `docker compose restart app` before testing. The dev server itself hot-reloads edits to existing files — only *new* files need a restart.
-- Build must use production env: `docker compose exec -e NODE_ENV=production app npm run build`.
+- Build: `docker compose exec app npm run build` — no `-e NODE_ENV=...` needed; root cause (forced NODE_ENV in docker-compose.yml) is fixed.
 
 ## Messages & errors
 - **All user-facing text** goes through i18n (next-intl `t()`). Never hardcode Arabic or English strings in components.

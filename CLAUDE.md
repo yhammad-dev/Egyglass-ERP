@@ -12,7 +12,7 @@
 - **الدور البشري:** يوسف = المعتمد الوحيد للـ schema والـ migrations والقرارات. الوكيل ينفّذ، يوسف يراجع ويعتمد.
 - **Stack:** Next.js **15.3.4** (App Router, Turbopack) · Prisma **6.19.3** · PostgreSQL 16 · Auth.js v5 · shadcn/ui v4 · Tailwind v4 (RTL) · next-intl v4 · react-hook-form + Zod · TanStack Table · Docker Compose.
   - ⚠️ الواقع = **Next 15.3.4** (ليس 16). لا تُرقِّ Prisma إلى 7 أثناء هذه المرحلة.
-  - ⚠️ **تحذير `NODE_ENV` غير القياسي وقت build** لا يزال يظهر (جذر الدرس 5) → يسبب رسائل custom Document / missing `<Html>`. **يجب إصلاحه قبل UAT** (`NODE_ENV=production` وقت build).
+  - ✅ **تحذير `NODE_ENV` غير القياسي محلول** (جذر الدرس 5) — حُذف `NODE_ENV: development` من `docker-compose.yml`؛ الآن `docker compose exec app npm run build` نظيف تلقائيًا بلا `-e`.
 - **المنافذ:** التطبيق `3100` · قاعدة البيانات `5433` (داخل Docker: `db:5432`) · Named volume: `egyglass_db_data`.
 - **Repo:** `yhammad-dev/Egyglass-ERP` (master) · git worktrees لعزل الـ streams.
 
