@@ -14,7 +14,11 @@
     "noResults": "No results",
     "back": "Back",
     "actions": "Actions",
-    "reactivate": "Reactivate"
+    "reactivate": "Reactivate",
+    "status": "Status",
+    "updatedAt": "Updated At",
+    "saved": "Saved",
+    "me": "Me"
   },
   "auth": {
     "login": "Sign In",
@@ -394,7 +398,8 @@
     "invalidInput": "Invalid input",
     "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected",
     "serverError": "A server error occurred, please try again",
-    "rateLimited": "Too many requests, please try again later"
+    "rateLimited": "Too many requests, please try again later",
+    "cannotApproveSelf": "Cannot approve your own drawing"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
@@ -443,7 +448,8 @@
     "accounting": "Accounting",
     "hr": "HR",
     "projects": "Projects",
-    "audit": "Audit Trail"
+    "audit": "Audit Trail",
+    "technicalOffice": "Technical Office"
   },
   "audit": {
     "title": "Audit Trail",
@@ -626,5 +632,54 @@
     "changeStatus": "Change Status",
     "reviewAdded": "Review added",
     "statusUpdated": "Status updated"
+  },
+  "tec": {
+    "title": "Technical Office",
+    "projects": "Projects",
+    "socialMedia": "Social Media",
+    "code": "Code",
+    "engineer": "Engineer",
+    "drawings": "Drawings",
+    "allStatuses": "All Statuses",
+    "search": "Search...",
+    "assignEngineer": "Assign Engineer",
+    "changeStatus": "Change Status",
+    "details": "Details",
+    "status_NEW": "New",
+    "status_IN_PROGRESS": "In Progress",
+    "status_ON_HOLD": "On Hold",
+    "status_DONE": "Done",
+    "jobDoneTitle": "Technical Job Completed",
+    "assignedTitle": "You've been assigned a job",
+    "noJobs": "No jobs found",
+    "jobDetail": "Job Details",
+    "route": "Route",
+    "salesOwner": "Sales Owner",
+    "inspectionOwner": "Inspection Owner",
+    "notes": "Notes",
+    "saveNotes": "Save Notes",
+    "notesSaved": "Notes saved",
+    "drawingsSection": "Drawings & Documents",
+    "uploadDrawing": "Upload Drawing",
+    "category": "Category",
+    "fileType": "File Type",
+    "label": "Label",
+    "revision": "Revision",
+    "download": "Download",
+    "uploadedBy": "Uploaded by",
+    "approvedBy": "Approved by",
+    "approveDrawing": "Approve",
+    "drawingApproved": "Drawing approved",
+    "drawingUploaded": "Drawing uploaded",
+    "drawingApprovedTitle": "Drawing Approved",
+    "cannotApproveSelf": "Cannot approve your own drawing",
+    "cat_DRAWINGS": "Drawings",
+    "cat_STRUCTURAL_CALC": "Structural Calc",
+    "cat_DATA_SHEET": "Data Sheet",
+    "cat_EXECUTION_DRAWINGS": "Execution Drawings",
+    "cat_APPROVALS": "Approvals",
+    "noDrawings": "No drawings in this category",
+    "selectFile": "Select file",
+    "back": "Back"
   }
 }

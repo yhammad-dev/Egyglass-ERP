@@ -1,0 +1,194 @@
+warning: in the working copy of 'prisma/schema.prisma', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/prisma/schema.prisma b/prisma/schema.prisma[m
+[1mindex a02de78..15f04c5 100644[m
+[1m--- a/prisma/schema.prisma[m
+[1m+++ b/prisma/schema.prisma[m
+[36m@@ -32,8 +32,14 @@[m [mmodel User {[m
+   approvalReviews   QuotationApproval[]     @relation("ApprovalReviewer")[m
+   measurements      InspectionMeasurement[] @relation("MeasurementRecorder")[m
+   uploadedPhotos    InspectionPhoto[]       @relation("PhotoUploader")[m
+[31m-  uploadedDocuments Document[][m
+[31m-  contracts         Contract[][m
+[32m+[m[32m  uploadedDocuments        Document[][m
+[32m+[m[32m  contracts                Contract[][m
+[32m+[m[32m  tecJobsAsEngineer        QuotationRequest[]  @relation("TecEngineer")[m
+[32m+[m[32m  tecJobsAsSalesOwner      QuotationRequest[]  @relation("TecSalesOwner")[m
+[32m+[m[32m  tecJobsAsInspectionOwner QuotationRequest[]  @relation("TecInspectionOwner")[m
+[32m+[m[32m  uploadedDrawings         Drawing[]           @relation("DrawingUploader")[m
+[32m+[m[32m  approvedDrawings         Drawing[]           @relation("DrawingApprover")[m
+[32m+[m[32m  createdExtraItems        ExtraItem[]         @relation("ExtraItemCreator")[m
+ }[m
+ [m
+ model Customer {[m
+[36m@@ -58,7 +64,8 @@[m [mmodel Customer {[m
+   interactions Interaction[][m
+   quotations   Quotation[][m
+   projects     Project[][m
+[31m-  contracts    Contract[][m
+[32m+[m[32m  contracts             Contract[][m
+[32m+[m[32m  quotationRequests     QuotationRequest[][m
+ [m
+   @@index([ownerId])[m
+   @@index([stage])[m
+[36m@@ -112,6 +119,7 @@[m [mmodel Quotation {[m
+   project             Project?        @relation(fields: [projectId], references: [id])[m
+   approval            QuotationApproval?[m
+   contract            Contract?[m
+[32m+[m[32m  quotationRequest    QuotationRequest?[m
+ [m
+   @@index([customerId])[m
+   @@index([status])[m
+[36m@@ -162,8 +170,9 @@[m [mmodel InspectionRequest {[m
+   type        InspectionType     @default(PRICING)[m
+   assignee     User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])[m
+   customer     Customer                @relation(fields: [customerId], references: [id])[m
+[31m-  measurements InspectionMeasurement[][m
+[31m-  photos       InspectionPhoto[][m
+[32m+[m[32m  measurements     InspectionMeasurement[][m
+[32m+[m[32m  photos           InspectionPhoto[][m
+[32m+[m[32m  quotationRequest QuotationRequest?[m
+ [m
+   @@index([customerId])[m
+   @@index([status])[m
+[36m@@ -223,6 +232,7 @@[m [mmodel ManufacturingOrder {[m
+   createdAt   DateTime  @default(now())[m
+   updatedAt   DateTime  @updatedAt[m
+   installationOrder InstallationOrder?[m
+[32m+[m[32m  extraItems        ExtraItem[][m
+ [m
+   @@index([status])[m
+ }[m
+[36m@@ -446,6 +456,8 @@[m [menum Role {[m
+   ACCOUNTING[m
+   HR[m
+   PROJECTS[m
+[32m+[m[32m  TECHNICAL_OFFICE[m
+[32m+[m[32m  TEC_APPROVER[m
+ }[m
+ [m
+ enum Department {[m
+[36m@@ -706,3 +718,124 @@[m [mmodel InspectionPhoto {[m
+   @@index([inspectionId])[m
+   @@map("inspection_photos")[m
+ }[m
+[32m+[m
+[32m+[m[32m// ─────────────────────────────────────────────────────────────────────────────[m
+[32m+[m[32m// SCR-010 — Technical Office additions (applied 2026-07-07)[m
+[32m+[m[32m// ─────────────────────────────────────────────────────────────────────────────[m
+[32m+[m
+[32m+[m[32mmodel QuotationRequest {[m
+[32m+[m[32m  id                  String         @id @default(cuid())[m
+[32m+[m[32m  code                String         @unique @db.VarChar(50)[m
+[32m+[m[32m  status              TecJobStatus   @default(NEW)[m
+[32m+[m[32m  technicalRoute      TechnicalRoute @default(PROJECTS)[m
+[32m+[m[32m  summary             String?        @db.Text[m
+[32m+[m[32m  notes               String?        @db.Text[m
+[32m+[m[32m  customerId          String[m
+[32m+[m[32m  quotationId         String         @unique[m
+[32m+[m[32m  inspectionRequestId String? @unique[m
+[32m+[m[32m  engineerId          String?[m
+[32m+[m[32m  salesOwnerId        String?[m
+[32m+[m[32m  inspectionOwnerId   String?[m
+[32m+[m[32m  createdAt           DateTime       @default(now())[m
+[32m+[m[32m  updatedAt           DateTime       @updatedAt[m
+[32m+[m[32m  deletedAt           DateTime?[m
+[32m+[m
+[32m+[m[32m  customer          Customer           @relation(fields: [customerId],          references: [id], onDelete: Restrict)[m
+[32m+[m[32m  quotation         Quotation          @relation(fields: [quotationId],         references: [id], onDelete: Restrict)[m
+[32m+[m[32m  inspectionRequest InspectionRequest? @relation(fields: [inspectionRequestId], references: [id], onDelete: SetNull)[m
+[32m+[m[32m  engineer          User?              @relation("TecEngineer",        fields: [engineerId],        references: [id], onDelete: SetNull)[m
+[32m+[m[32m  salesOwner        User?              @relation("TecSalesOwner",      fields: [salesOwnerId],      references: [id], onDelete: SetNull)[m
+[32m+[m[32m  inspectionOwner   User?              @relation("TecInspectionOwner", fields: [inspectionOwnerId], references: [id], onDelete: SetNull)[m
+[32m+[m[32m  drawings          Drawing[][m
+[32m+[m
+[32m+[m[32m  @@index([status])[m
+[32m+[m[32m  @@index([technicalRoute])[m
+[32m+[m[32m  @@index([status, technicalRoute])[m
+[32m+[m[32m  @@index([customerId])[m
+[32m+[m[32m  @@index([engineerId])[m
+[32m+[m[32m  @@index([inspectionRequestId])[m
+[32m+[m[32m  @@map("quotation_requests")[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mmodel Drawing {[m
+[32m+[m[32m  id                 String          @id @default(cuid())[m
+[32m+[m[32m  category           DrawingCategory[m
+[32m+[m[32m  fileType           DrawingFileType[m
+[32m+[m[32m  filename           String          @db.VarChar(300)[m
+[32m+[m[32m  originalName       String          @db.VarChar(300)[m
+[32m+[m[32m  mimeType           String          @db.VarChar(100)[m
+[32m+[m[32m  url                String          @db.VarChar(1000)[m
+[32m+[m[32m  sizeBytes          Int[m
+[32m+[m[32m  label              String?         @db.VarChar(200)[m
+[32m+[m[32m  notes              String?         @db.Text[m
+[32m+[m[32m  revision           String?         @db.VarChar(20)[m
+[32m+[m[32m  quotationRequestId String[m
+[32m+[m[32m  uploadedById       String[m
+[32m+[m[32m  approvedById       String?[m
+[32m+[m[32m  approvedAt         DateTime?[m
+[32m+[m[32m  createdAt          DateTime        @default(now())[m
+[32m+[m[32m  updatedAt          DateTime        @updatedAt[m
+[32m+[m
+[32m+[m[32m  quotationRequest QuotationRequest @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)[m
+[32m+[m[32m  uploadedBy       User             @relation("DrawingUploader", fields: [uploadedById], references: [id], onDelete: Restrict)[m
+[32m+[m[32m  approvedBy       User?            @relation("DrawingApprover", fields: [approvedById], references: [id], onDelete: SetNull)[m
+[32m+[m
+[32m+[m[32m  @@index([quotationRequestId])[m
+[32m+[m[32m  @@index([quotationRequestId, category])[m
+[32m+[m[32m  @@index([approvedById])[m
+[32m+[m[32m  @@map("drawings")[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mmodel ExtraItem {[m
+[32m+[m[32m  id                   String        @id @default(cuid())[m
+[32m+[m[32m  type                 ExtraItemType[m
+[32m+[m[32m  description          String?       @db.VarChar(500)[m
+[32m+[m[32m  qty                  Decimal?      @db.Decimal(10, 2)[m
+[32m+[m[32m  unitCost             Decimal?      @db.Decimal(12, 2)[m
+[32m+[m[32m  notes                String?       @db.Text[m
+[32m+[m[32m  manufacturingOrderId String[m
+[32m+[m[32m  createdById          String[m
+[32m+[m[32m  createdAt            DateTime      @default(now())[m
+[32m+[m[32m  updatedAt            DateTime      @updatedAt[m
+[32m+[m
+[32m+[m[32m  manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Restrict)[m
+[32m+[m[32m  createdBy          User               @relation("ExtraItemCreator", fields: [createdById], references: [id], onDelete: Restrict)[m
+[32m+[m
+[32m+[m[32m  @@index([manufacturingOrderId])[m
+[32m+[m[32m  @@index([type])[m
+[32m+[m[32m  @@map("extra_items")[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32menum TecJobStatus {[m
+[32m+[m[32m  NEW[m
+[32m+[m[32m  IN_PROGRESS[m
+[32m+[m[32m  ON_HOLD[m
+[32m+[m[32m  DONE[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32menum TechnicalRoute {[m
+[32m+[m[32m  PROJECTS[m
+[32m+[m[32m  SOCIAL_MEDIA[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32menum DrawingCategory {[m
+[32m+[m[32m  DRAWINGS[m
+[32m+[m[32m  STRUCTURAL_CALC[m
+[32m+[m[32m  DATA_SHEET[m
+[32m+[m[32m  EXECUTION_DRAWINGS[m
+[32m+[m[32m  APPROVALS[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32menum DrawingFileType {[m
+[32m+[m[32m  PDF[m
+[32m+[m[32m  DWG[m
+[32m+[m[32m  JPG[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32menum ExtraItemType {[m
+[32m+[m[32m  CHAMFER[m
+[32m+[m[32m  WELDING[m
+[32m+[m[32m  EXTRA_ACCESSORY[m
+[32m+[m[32m  OUT_OF_CAIRO_TRANSPORT[m
+[32m+[m[32m  SANDING[m
+[32m+[m[32m}[m

@@ -13,7 +13,11 @@
     "filter": "تصفية",
     "noResults": "لا توجد نتائج",
     "back": "رجوع",
-    "actions": "إجراءات"
+    "actions": "إجراءات",
+    "status": "الحالة",
+    "updatedAt": "تاريخ التحديث",
+    "saved": "تم الحفظ",
+    "me": "أنا"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -393,7 +397,8 @@
     "invalidInput": "بيانات غير صالحة",
     "rejectReasonRequired": "سبب الرفض مطلوب عند تغيير الحالة إلى رفض",
     "serverError": "حدث خطأ في الخادم، يرجى المحاولة مرة أخرى",
-    "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا"
+    "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا",
+    "cannotApproveSelf": "لا يمكن اعتماد رسم رفعته بنفسك"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",
@@ -442,7 +447,8 @@
     "accounting": "الحسابات",
     "hr": "الموارد البشرية",
     "projects": "المشروعات",
-    "audit": "سجل التدقيق"
+    "audit": "سجل التدقيق",
+    "technicalOffice": "المكتب الفني"
   },
   "audit": {
     "title": "سجل التدقيق",
@@ -625,5 +631,54 @@
     "changeStatus": "تغيير الحالة",
     "reviewAdded": "تم إضافة التقييم",
     "statusUpdated": "تم تحديث الحالة"
+  },
+  "tec": {
+    "title": "المكتب الفني",
+    "projects": "مشروعات",
+    "socialMedia": "سوشيال ميديا",
+    "code": "الكود",
+    "engineer": "المهندس",
+    "drawings": "الرسوم",
+    "allStatuses": "كل الحالات",
+    "search": "بحث...",
+    "assignEngineer": "تعيين مهندس",
+    "changeStatus": "تغيير الحالة",
+    "details": "التفاصيل",
+    "status_NEW": "جديد",
+    "status_IN_PROGRESS": "قيد التنفيذ",
+    "status_ON_HOLD": "معلّق",
+    "status_DONE": "تمّ",
+    "jobDoneTitle": "طلب مكتب فني مكتمل",
+    "assignedTitle": "تم تعيينك على طلب",
+    "noJobs": "لا توجد طلبات",
+    "jobDetail": "تفاصيل الطلب",
+    "route": "المسار",
+    "salesOwner": "مسؤول المبيعات",
+    "inspectionOwner": "مسؤول المعاينات",
+    "notes": "ملاحظات",
+    "saveNotes": "حفظ الملاحظات",
+    "notesSaved": "تم حفظ الملاحظات",
+    "drawingsSection": "الرسوم والوثائق",
+    "uploadDrawing": "رفع رسم",
+    "category": "التصنيف",
+    "fileType": "نوع الملف",
+    "label": "العنوان",
+    "revision": "المراجعة",
+    "download": "تحميل",
+    "uploadedBy": "رُفع بواسطة",
+    "approvedBy": "معتمد بواسطة",
+    "approveDrawing": "اعتماد",
+    "drawingApproved": "تم اعتماد الرسم",
+    "drawingUploaded": "تم رفع الرسم",
+    "drawingApprovedTitle": "تم اعتماد رسم",
+    "cannotApproveSelf": "لا يمكن اعتماد رسم رفعته بنفسك",
+    "cat_DRAWINGS": "رسوم",
+    "cat_STRUCTURAL_CALC": "حسابات إنشائية",
+    "cat_DATA_SHEET": "داتا شيت",
+    "cat_EXECUTION_DRAWINGS": "رسوم تنفيذية",
+    "cat_APPROVALS": "اعتمادات",
+    "noDrawings": "لا توجد رسوم في هذا التصنيف",
+    "selectFile": "اختر ملف",
+    "back": "رجوع"
   }
 }

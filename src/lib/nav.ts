@@ -66,6 +66,12 @@ export const navRegistry: NavItem[] = [
     icon: "history",
     roles: ["ADMIN"],
   },
+  {
+    labelKey: "nav.technicalOffice",
+    href: "/technical-office",
+    icon: "drafting_compass",
+    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
+  },
 ];
 
 export function getNavItems(role?: string): NavItem[] {
