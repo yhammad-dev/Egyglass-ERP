@@ -372,14 +372,26 @@
     "SALES_REP": "Sales Rep",
     "INSPECTION_MANAGER": "Inspection Manager",
     "VIEWER": "Viewer",
-    "INSPECTION_REP": "Field Inspector"
+    "INSPECTION_REP": "Field Inspector",
+    "REVIEW": "Review",
+    "PROCUREMENT": "Procurement",
+    "INSTALLATIONS": "Installations",
+    "ACCOUNTING": "Accounting",
+    "HR": "HR",
+    "PROJECTS": "Projects",
+    "TECHNICAL_OFFICE": "Technical Office",
+    "TEC_APPROVER": "Technical Approver"
   },
   "departments": {
     "EXECUTIVE": "Executive",
     "SALES": "Sales",
     "INSPECTIONS": "Inspections",
     "TECHNICAL_OFFICE": "Technical Office",
-    "PROJECTS": "Projects"
+    "PROJECTS": "Projects",
+    "PROCUREMENT": "Procurement",
+    "INSTALLATIONS": "Installations",
+    "ACCOUNTING": "Accounting",
+    "HR": "HR"
   },
   "errors": {
     "factorRequiresApproval": "This factor requires management approval",

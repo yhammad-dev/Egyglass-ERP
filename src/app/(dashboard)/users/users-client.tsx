@@ -61,7 +61,16 @@ const ROLES = [
   "SALES_MANAGER",
   "SALES_REP",
   "INSPECTION_MANAGER",
+  "INSPECTION_REP",
   "VIEWER",
+  "REVIEW",
+  "PROCUREMENT",
+  "INSTALLATIONS",
+  "ACCOUNTING",
+  "HR",
+  "PROJECTS",
+  "TECHNICAL_OFFICE",
+  "TEC_APPROVER",
 ] as const;
 
 const DEPARTMENTS = [
@@ -70,6 +79,10 @@ const DEPARTMENTS = [
   "INSPECTIONS",
   "TECHNICAL_OFFICE",
   "PROJECTS",
+  "PROCUREMENT",
+  "INSTALLATIONS",
+  "ACCOUNTING",
+  "HR",
 ] as const;
 
 function buildFormSchema(requirePassword: boolean) {

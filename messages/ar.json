@@ -371,14 +371,26 @@
     "SALES_REP": "مندوب مبيعات",
     "INSPECTION_MANAGER": "مدير المعاينات",
     "VIEWER": "مشاهد",
-    "INSPECTION_REP": "معاين ميداني"
+    "INSPECTION_REP": "معاين ميداني",
+    "REVIEW": "مراجعة",
+    "PROCUREMENT": "مشتريات",
+    "INSTALLATIONS": "تركيبات",
+    "ACCOUNTING": "محاسبة",
+    "HR": "موارد بشرية",
+    "PROJECTS": "مشروعات",
+    "TECHNICAL_OFFICE": "مكتب فني",
+    "TEC_APPROVER": "معتمد فني"
   },
   "departments": {
     "EXECUTIVE": "الإدارة التنفيذية",
     "SALES": "المبيعات",
     "INSPECTIONS": "المعاينات",
     "TECHNICAL_OFFICE": "المكتب الفني",
-    "PROJECTS": "المشاريع"
+    "PROJECTS": "المشاريع",
+    "PROCUREMENT": "المشتريات",
+    "INSTALLATIONS": "التركيبات",
+    "ACCOUNTING": "الحسابات",
+    "HR": "الموارد البشرية"
   },
   "errors": {
     "factorRequiresApproval": "هذا الفاكتور يحتاج موافقة الإدارة",
