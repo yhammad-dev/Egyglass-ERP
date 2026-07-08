@@ -12,19 +12,17 @@ import {
 } from "@/lib/services/users";
 
 const roleEnum = z.enum([
-  "ADMIN",
-  "SALES_MANAGER",
-  "SALES_REP",
-  "INSPECTION_MANAGER",
-  "VIEWER",
+  "ADMIN", "SALES_MANAGER", "SALES_REP",
+  "INSPECTION_MANAGER", "INSPECTION_REP",
+  "VIEWER", "REVIEW", "PROCUREMENT",
+  "INSTALLATIONS", "ACCOUNTING", "HR",
+  "PROJECTS", "TECHNICAL_OFFICE", "TEC_APPROVER",
 ]);
 
 const departmentEnum = z.enum([
-  "EXECUTIVE",
-  "SALES",
-  "INSPECTIONS",
-  "TECHNICAL_OFFICE",
-  "PROJECTS",
+  "EXECUTIVE", "SALES", "INSPECTIONS",
+  "TECHNICAL_OFFICE", "PROJECTS",
+  "PROCUREMENT", "INSTALLATIONS", "ACCOUNTING", "HR",
 ]);
 
 const createSchema = z.object({
