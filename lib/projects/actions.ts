@@ -164,6 +164,13 @@ export async function linkQuotationToProject(input: unknown) {
     ]);
     if (!project || !quotation) return { error: "errors.notFound" as const };
 
+    // W-03 gate: only APPROVED quotations may be linked to a project.
+    // Enforced here too (not just in getUnlinkedQuotations) in case this
+    // action is ever called directly, bypassing the picker list.
+    if (quotation.status !== "APPROVED") {
+      return { error: "errors.quotationNotApproved" as const };
+    }
+
     await prisma.quotation.update({
       where: { id: parsed.data.quotationId },
       data: { projectId: parsed.data.projectId },
@@ -194,6 +201,7 @@ export async function getUnlinkedQuotations(customerId?: string) {
     const quotations = await prisma.quotation.findMany({
       where: {
         projectId: null,
+        status: "APPROVED", // W-03 gate: PROJECTS only sees quotations approved for the project
         ...(customerId ? { customerId } : {}),
       },
       select: { id: true, number: true, customer: { select: { name: true } } },

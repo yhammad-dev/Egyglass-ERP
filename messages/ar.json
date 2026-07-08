@@ -394,6 +394,7 @@
     "HR": "الموارد البشرية"
   },
   "errors": {
+    "quotationNotApproved": "لا يمكن ربط عرض السعر إلا بعد اعتماده",
     "factorRequiresApproval": "هذا الفاكتور يحتاج موافقة الإدارة",
     "discountExceedsMax": "الخصم يتجاوز الحد الأقصى المسموح به",
     "required": "الحقل مطلوب",

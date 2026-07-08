@@ -395,6 +395,7 @@
     "HR": "HR"
   },
   "errors": {
+    "quotationNotApproved": "This quotation cannot be linked until it is approved",
     "factorRequiresApproval": "This factor requires management approval",
     "discountExceedsMax": "Discount exceeds the maximum allowed",
     "required": "This field is required",
