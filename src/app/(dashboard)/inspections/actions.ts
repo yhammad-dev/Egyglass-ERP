@@ -18,7 +18,8 @@ const createSchema = z.object({
   notes: z.string().optional(),
 });
 
-const ALLOWED_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
+const ALLOWED_ROLES = ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"];
+const MANAGER_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
 
 const scheduleSchema = z.object({
   id: z.string().min(1, "errors.required"),
@@ -27,7 +28,7 @@ const scheduleSchema = z.object({
 });
 
 export async function scheduleInspectionAction(data: unknown) {
-  const auth = await requireRole(ALLOWED_ROLES);
+  const auth = await requireRole(MANAGER_ROLES);
   if (!auth.authorized)
     return { success: false as const, error: "errors.notAuthorized" };
 
@@ -53,7 +54,7 @@ export async function scheduleInspectionAction(data: unknown) {
 }
 
 export async function createInspectionAction(data: unknown) {
-  const auth = await requireRole(ALLOWED_ROLES);
+  const auth = await requireRole(MANAGER_ROLES);
   if (!auth.authorized)
     return { success: false as const, error: "errors.notAuthorized" };
 
@@ -86,6 +87,10 @@ export async function getInspectionDetail(id: string) {
       },
     });
     if (!inspection) return null;
+
+    if (auth.role === "INSPECTION_REP" && inspection.assigneeId !== auth.userId) {
+      return null;
+    }
 
     const [attachments, measurementLogs] = await Promise.all([
       prisma.attachment.findMany({
@@ -232,7 +237,7 @@ const updateStatusSchema = z.object({
 
 export async function updateInspectionStatus(input: unknown) {
   try {
-    const auth = await requireRole(ALLOWED_ROLES);
+    const auth = await requireRole(MANAGER_ROLES);
     if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = updateStatusSchema.safeParse(input);

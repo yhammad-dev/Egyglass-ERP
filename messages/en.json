@@ -371,7 +371,8 @@
     "SALES_MANAGER": "Sales Manager",
     "SALES_REP": "Sales Rep",
     "INSPECTION_MANAGER": "Inspection Manager",
-    "VIEWER": "Viewer"
+    "VIEWER": "Viewer",
+    "INSPECTION_REP": "Field Inspector"
   },
   "departments": {
     "EXECUTIVE": "Executive",

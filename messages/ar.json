@@ -370,7 +370,8 @@
     "SALES_MANAGER": "مدير المبيعات",
     "SALES_REP": "مندوب مبيعات",
     "INSPECTION_MANAGER": "مدير المعاينات",
-    "VIEWER": "مشاهد"
+    "VIEWER": "مشاهد",
+    "INSPECTION_REP": "معاين ميداني"
   },
   "departments": {
     "EXECUTIVE": "الإدارة التنفيذية",
