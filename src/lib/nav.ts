@@ -77,6 +77,12 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN"],
   },
   {
+    labelKey: "nav.coverageEdits",
+    href: "/coverage-edits",
+    icon: "supervisor_account",
+    roles: ["ADMIN", "SALES_MANAGER"],
+  },
+  {
     labelKey: "nav.import",
     href: "/admin/import",
     icon: "upload_file",

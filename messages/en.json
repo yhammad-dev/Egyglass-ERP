@@ -463,7 +463,24 @@
     "users": "Users",
     "adminPricing": "Pricing Settings",
     "audit": "Activity Log",
+    "coverageEdits": "Coverage Edits",
     "import": "Import Data"
+  },
+  "coverageEdits": {
+    "title": "Coverage Edits",
+    "subtitle": "Sales reps' edits on colleagues' customers — for visibility and accountability, not blocked",
+    "searchPlaceholder": "Search by editor or customer",
+    "editor": "Editor",
+    "customer": "Customer",
+    "owner": "Customer Owner",
+    "action": "Edit Type",
+    "date": "Time",
+    "actionCustomerUpdated": "Data Updated",
+    "actionStageChanged": "Stage Changed",
+    "actionInteractionAdded": "Interaction Added",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "pageInfo": "Page {current} of {total}"
   },
   "audit": {
     "title": "Audit Trail",

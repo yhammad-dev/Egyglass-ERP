@@ -462,7 +462,24 @@
     "users": "المستخدمون",
     "adminPricing": "إعدادات الأسعار",
     "audit": "سجل النشاط",
+    "coverageEdits": "تعديلات التغطية",
     "import": "استيراد البيانات"
+  },
+  "coverageEdits": {
+    "title": "تعديلات التغطية",
+    "subtitle": "تعديلات مندوبي المبيعات على عملاء زملائهم — للرؤية والمساءلة، بلا منع",
+    "searchPlaceholder": "بحث بالمحرِّر أو العميل",
+    "editor": "المحرِّر",
+    "customer": "العميل",
+    "owner": "صاحب العميل",
+    "action": "نوع التعديل",
+    "date": "الوقت",
+    "actionCustomerUpdated": "تحديث بيانات",
+    "actionStageChanged": "تغيير مرحلة",
+    "actionInteractionAdded": "إضافة تفاعل",
+    "prevPage": "السابق",
+    "nextPage": "التالي",
+    "pageInfo": "صفحة {current} من {total}"
   },
   "audit": {
     "title": "سجل التدقيق",
