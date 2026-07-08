@@ -266,7 +266,21 @@ model ManufacturingOrder {
   installationOrder InstallationOrder?
   extraItems        ExtraItem[]
 
+  // ── SCR-013: أمر التصنيع البديل (W-06) ──
+  parentOrderId String?
+  faultType     FaultType?
+  parentOrder   ManufacturingOrder?  @relation("MfgReplacement", fields: [parentOrderId], references: [id], onDelete: SetNull)
+  replacements  ManufacturingOrder[] @relation("MfgReplacement")
+
   @@index([status])
+  @@index([parentOrderId])
+}
+
+enum FaultType {
+  BREAKAGE
+  FACTORY_ERROR
+  MEASUREMENT_ERROR
+  CUSTOMER_DELAY
 }
 
 model InstallationOrder {
@@ -362,6 +376,15 @@ model SystemSettings {
   companyName        String?
   updatedById        String?
   updatedAt          DateTime  @updatedAt
+
+  // ── SCR-013: سياسة الخصم الهرمي (P-04) — يملؤها عمرو ──
+  managerApprovalCeilingPct   Decimal?  @db.Decimal(5, 2)
+  // ── SCR-013: عتبة اعتماد CEO للرسومات (W-05 · Gate3) ──
+  ceoDrawingApprovalThreshold Decimal?  @db.Decimal(14, 2)
+  // ── SCR-013: تأخير استطلاع الرضا (W-07) ──
+  satisfactionSurveyDelayDays Int       @default(3)
+  // ── SCR-013: موضع بوابة REVIEW في سلسلة الاعتماد (R-05) — معلّق التوضيح ──
+  reviewGatePosition          Int?
 }
 
 model CashbackTier {
@@ -817,6 +840,9 @@ model Drawing {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
+  // ── SCR-013: تتبّع بوابات الاعتماد (W-05 / R-01) ──
+  status             DrawingStatus   @default(DRAFT)
+
   quotationRequest QuotationRequest @relation(fields: [quotationRequestId], references: [id], onDelete: Cascade)
   uploadedBy       User             @relation("DrawingUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   approvedBy       User?            @relation("DrawingApprover", fields: [approvedById], references: [id], onDelete: SetNull)
@@ -825,6 +851,15 @@ model Drawing {
   @@index([quotationRequestId, category])
   @@index([approvedById])
   @@map("drawings")
+}
+
+enum DrawingStatus {
+  DRAFT
+  TEC_APPROVED
+  INS_VERIFIED
+  CEO_APPROVED
+  RELEASED_TO_FACTORY
+  REJECTED
 }
 
 model ExtraItem {
@@ -838,6 +873,9 @@ model ExtraItem {
   createdById          String
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
+
+  // ── SCR-013: INS يؤكد المقاسات (W-04) ──
+  confirmedByInspection Boolean @default(false)
 
   manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Restrict)
   createdBy          User               @relation("ExtraItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
