@@ -45,7 +45,6 @@ services:
       AUTH_SECRET: "dev-secret-change-me"
       AUTH_TRUST_HOST: "true"
       WATCHPACK_POLLING: "true"   # makes file-watching reliable on Windows
-      NODE_ENV: development
     ports:
       - "3100:3000"   # open the app at http://localhost:3100
     volumes:
