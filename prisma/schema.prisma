@@ -8,67 +8,67 @@ datasource db {
 }
 
 model User {
-  id                String              @id @default(cuid())
-  name              String
-  email             String              @unique
-  passwordHash      String
-  role              Role                @default(VIEWER)
-  department        Department          @default(SALES)
-  isActive          Boolean             @default(true)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  deletedAt         DateTime?
-  activityLogs      ActivityLog[]
-  assignedCustomers Customer[]          @relation("CustomerOwner")
-  inspections       InspectionRequest[] @relation("InspectionAssignee")
-  interactions      Interaction[]
-  quotations        Quotation[]
-  notifications     Notification[]
-  installationOrders InstallationOrder[] @relation("InstallationTeamLead")
-  payments          Payment[]
-  employee          Employee?
-  managedProjects   Project[]           @relation("ProjectManager")
-  approvalRequests  QuotationApproval[]     @relation("ApprovalRequester")
-  approvalReviews   QuotationApproval[]     @relation("ApprovalReviewer")
-  measurements      InspectionMeasurement[] @relation("MeasurementRecorder")
-  uploadedPhotos    InspectionPhoto[]       @relation("PhotoUploader")
+  id                       String                  @id @default(cuid())
+  name                     String
+  email                    String                  @unique
+  passwordHash             String
+  role                     Role                    @default(VIEWER)
+  department               Department              @default(SALES)
+  isActive                 Boolean                 @default(true)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  deletedAt                DateTime?
+  activityLogs             ActivityLog[]
+  assignedCustomers        Customer[]              @relation("CustomerOwner")
+  inspections              InspectionRequest[]     @relation("InspectionAssignee")
+  interactions             Interaction[]
+  quotations               Quotation[]
+  notifications            Notification[]
+  installationOrders       InstallationOrder[]     @relation("InstallationTeamLead")
+  payments                 Payment[]
+  employee                 Employee?
+  managedProjects          Project[]               @relation("ProjectManager")
+  approvalRequests         QuotationApproval[]     @relation("ApprovalRequester")
+  approvalReviews          QuotationApproval[]     @relation("ApprovalReviewer")
+  measurements             InspectionMeasurement[] @relation("MeasurementRecorder")
+  uploadedPhotos           InspectionPhoto[]       @relation("PhotoUploader")
   uploadedDocuments        Document[]
   contracts                Contract[]
-  tecJobsAsEngineer        QuotationRequest[]  @relation("TecEngineer")
-  tecJobsAsSalesOwner      QuotationRequest[]  @relation("TecSalesOwner")
-  tecJobsAsInspectionOwner QuotationRequest[]  @relation("TecInspectionOwner")
-  uploadedDrawings         Drawing[]           @relation("DrawingUploader")
-  approvedDrawings         Drawing[]           @relation("DrawingApprover")
-  createdExtraItems        ExtraItem[]         @relation("ExtraItemCreator")
-postInstallReviews PostInstallReview[] @relation("PostInstallReviewCreator")
+  tecJobsAsEngineer        QuotationRequest[]      @relation("TecEngineer")
+  tecJobsAsSalesOwner      QuotationRequest[]      @relation("TecSalesOwner")
+  tecJobsAsInspectionOwner QuotationRequest[]      @relation("TecInspectionOwner")
+  uploadedDrawings         Drawing[]               @relation("DrawingUploader")
+  approvedDrawings         Drawing[]               @relation("DrawingApprover")
+  createdExtraItems        ExtraItem[]             @relation("ExtraItemCreator")
+  postInstallReviews       PostInstallReview[]     @relation("PostInstallReviewCreator")
 }
 
 model Customer {
-  id           String              @id @default(cuid())
-  name         String
-  phone        String
-  altPhone     String?
-  type         CustomerType        @default(INDIVIDUAL)
-  source       CustomerSource      @default(VISIT)
-  address      String?
-  notes        String?
-  stage        PipelineStage       @default(NEW)
-  rejectReason String?
-  isRepeat     Boolean             @default(false)
-  isVip        Boolean             @default(false)
-  ownerId      String?
-  coveredById  String?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  deletedAt    DateTime?
-  owner        User?               @relation("CustomerOwner", fields: [ownerId], references: [id])
-  inspections  InspectionRequest[]
-  interactions Interaction[]
-  quotations   Quotation[]
-  projects     Project[]
-  contracts             Contract[]
-  quotationRequests     QuotationRequest[]
-  postInstallReviews    PostInstallReview[]
+  id                 String              @id @default(cuid())
+  name               String
+  phone              String
+  altPhone           String?
+  type               CustomerType        @default(INDIVIDUAL)
+  source             CustomerSource      @default(VISIT)
+  address            String?
+  notes              String?
+  stage              PipelineStage       @default(NEW)
+  rejectReason       String?
+  isRepeat           Boolean             @default(false)
+  isVip              Boolean             @default(false)
+  ownerId            String?
+  coveredById        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  owner              User?               @relation("CustomerOwner", fields: [ownerId], references: [id])
+  inspections        InspectionRequest[]
+  interactions       Interaction[]
+  quotations         Quotation[]
+  projects           Project[]
+  contracts          Contract[]
+  quotationRequests  QuotationRequest[]
+  postInstallReviews PostInstallReview[]
 
   @@index([ownerId])
   @@index([stage])
@@ -117,37 +117,37 @@ model Interaction {
 }
 
 model Quotation {
-  id                  String          @id @default(cuid())
-  number              String          @unique
+  id                  String              @id @default(cuid())
+  number              String              @unique
   customerId          String
   createdById         String
-  status              QuotationStatus @default(DRAFT)
-  subtotal            Decimal         @default(0) @db.Decimal(12, 2)
-  discountPct         Decimal         @default(0) @db.Decimal(5, 2)
-  cashbackPct         Decimal         @default(0) @db.Decimal(5, 2)
-  discountAmount      Decimal         @default(0) @db.Decimal(12, 2)
-  taxPct              Decimal         @default(14) @db.Decimal(5, 2)
-  taxAmount           Decimal         @default(0) @db.Decimal(12, 2)
-  total               Decimal         @default(0) @db.Decimal(12, 2)
-  needsApproval       Boolean         @default(false)
+  status              QuotationStatus     @default(DRAFT)
+  subtotal            Decimal             @default(0) @db.Decimal(12, 2)
+  discountPct         Decimal             @default(0) @db.Decimal(5, 2)
+  cashbackPct         Decimal             @default(0) @db.Decimal(5, 2)
+  discountAmount      Decimal             @default(0) @db.Decimal(12, 2)
+  taxPct              Decimal             @default(14) @db.Decimal(5, 2)
+  taxAmount           Decimal             @default(0) @db.Decimal(12, 2)
+  total               Decimal             @default(0) @db.Decimal(12, 2)
+  needsApproval       Boolean             @default(false)
   approvedById        String?
   validUntil          DateTime
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   deletedAt           DateTime?
   previousQuotationId String?
-  quotationType       QuotationType   @default(INITIAL)
+  quotationType       QuotationType       @default(INITIAL)
   reviewNote          String?
-  reviewStatus        ReviewStatus    @default(PENDING_REVIEW)
+  reviewStatus        ReviewStatus        @default(PENDING_REVIEW)
   reviewedAt          DateTime?
   reviewedById        String?
-  createdBy           User            @relation(fields: [createdById], references: [id])
-  customer            Customer        @relation(fields: [customerId], references: [id])
+  createdBy           User                @relation(fields: [createdById], references: [id])
+  customer            Customer            @relation(fields: [customerId], references: [id])
   items               QuotationItem[]
   manufacturingOrder  ManufacturingOrder?
   payments            Payment[]
   projectId           String?
-  project             Project?        @relation(fields: [projectId], references: [id])
+  project             Project?            @relation(fields: [projectId], references: [id])
   approval            QuotationApproval?
   contract            Contract?
   quotationRequest    QuotationRequest?
@@ -185,23 +185,23 @@ model DiscountRequest {
 }
 
 model InspectionRequest {
-  id          String             @id @default(cuid())
-  customerId  String
-  location    InspectionLocation @default(INSIDE_CAIRO)
-  address     String
-  phone       String
-  notes       String?
-  status      InspectionStatus   @default(REQUESTED)
-  scheduledAt DateTime?
-  dueDate     DateTime
-  assigneeId  String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  deletedAt   DateTime?
-  type          InspectionType     @default(PRICING)
-  siteReadiness Boolean?           // null=لم يُحدَّد، true=جاهز، false=غير جاهز
-  assignee     User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])
-  customer     Customer                @relation(fields: [customerId], references: [id])
+  id               String                  @id @default(cuid())
+  customerId       String
+  location         InspectionLocation      @default(INSIDE_CAIRO)
+  address          String
+  phone            String
+  notes            String?
+  status           InspectionStatus        @default(REQUESTED)
+  scheduledAt      DateTime?
+  dueDate          DateTime
+  assigneeId       String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  deletedAt        DateTime?
+  type             InspectionType          @default(PRICING)
+  siteReadiness    Boolean? // null=لم يُحدَّد، true=جاهز، false=غير جاهز
+  assignee         User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])
+  customer         Customer                @relation(fields: [customerId], references: [id])
   measurements     InspectionMeasurement[]
   photos           InspectionPhoto[]
   quotationRequest QuotationRequest?
@@ -254,15 +254,15 @@ model Notification {
 }
 
 model ManufacturingOrder {
-  id          String    @id @default(cuid())
-  quotationId String    @unique
-  quotation   Quotation @relation(fields: [quotationId], references: [id])
-  status      MfgStatus @default(PENDING)
-  assignedTo  String?
-  notes       String?
-  expectedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String             @id @default(cuid())
+  quotationId       String             @unique
+  quotation         Quotation          @relation(fields: [quotationId], references: [id])
+  status            MfgStatus          @default(PENDING)
+  assignedTo        String?
+  notes             String?
+  expectedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   installationOrder InstallationOrder?
   extraItems        ExtraItem[]
 
@@ -270,32 +270,32 @@ model ManufacturingOrder {
 }
 
 model InstallationOrder {
-  id                    String             @id @default(cuid())
-  manufacturingOrderId  String             @unique
-  manufacturingOrder    ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id])
-  teamLeadId            String?
-  teamLead              User?              @relation("InstallationTeamLead", fields: [teamLeadId], references: [id])
-  scheduledAt           DateTime?
-  status                InstStatus         @default(PENDING)
-  notes                 String?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  id                   String             @id @default(cuid())
+  manufacturingOrderId String             @unique
+  manufacturingOrder   ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id])
+  teamLeadId           String?
+  teamLead             User?              @relation("InstallationTeamLead", fields: [teamLeadId], references: [id])
+  scheduledAt          DateTime?
+  status               InstStatus         @default(PENDING)
+  notes                String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@index([status])
   @@index([teamLeadId])
 }
 
 model Payment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   quotationId String
   quotation   Quotation @relation(fields: [quotationId], references: [id])
-  amount      Decimal  @db.Decimal(12, 2)
+  amount      Decimal   @db.Decimal(12, 2)
   paidAt      DateTime
   method      String
   notes       String?
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
 
   @@index([quotationId])
 }
@@ -331,19 +331,19 @@ model LeaveRequest {
 }
 
 model Project {
-  id          String        @id @default(cuid())
-  nameAr      String
-  customerId  String
-  customer    Customer      @relation(fields: [customerId], references: [id])
-  managerId   String?
-  manager     User?         @relation("ProjectManager", fields: [managerId], references: [id])
-  status      ProjectStatus @default(ACTIVE)
-  startDate   DateTime?
-  endDate     DateTime?
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  quotations  Quotation[]
+  id         String        @id @default(cuid())
+  nameAr     String
+  customerId String
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  managerId  String?
+  manager    User?         @relation("ProjectManager", fields: [managerId], references: [id])
+  status     ProjectStatus @default(ACTIVE)
+  startDate  DateTime?
+  endDate    DateTime?
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  quotations Quotation[]
 
   @@index([customerId])
   @@index([status])
@@ -664,6 +664,7 @@ enum QtyRule {
   BY_CONFIG
   MANUAL
 }
+
 model QuotationApproval {
   id            String    @id @default(cuid())
   quotationId   String    @unique
@@ -682,39 +683,40 @@ model QuotationApproval {
   @@index([quotationId])
   @@map("quotation_approvals")
 }
+
 model InspectionMeasurement {
-  id           String     @id @default(cuid())
+  id           String            @id @default(cuid())
   inspectionId String
   inspection   InspectionRequest @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  label        String     @db.VarChar(200)
-  value        Decimal    @db.Decimal(12, 4)
-  unit         String     @db.VarChar(50)
-  minSpec      Decimal?   @db.Decimal(12, 4)
-  maxSpec      Decimal?   @db.Decimal(12, 4)
-  result       String     @default("PENDING")
-  notes        String?    @db.Text
+  label        String            @db.VarChar(200)
+  value        Decimal           @db.Decimal(12, 4)
+  unit         String            @db.VarChar(50)
+  minSpec      Decimal?          @db.Decimal(12, 4)
+  maxSpec      Decimal?          @db.Decimal(12, 4)
+  result       String            @default("PENDING")
+  notes        String?           @db.Text
   recordedById String
-  recordedBy   User       @relation("MeasurementRecorder", fields: [recordedById], references: [id])
-  recordedAt   DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  recordedBy   User              @relation("MeasurementRecorder", fields: [recordedById], references: [id])
+  recordedAt   DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([inspectionId])
   @@map("inspection_measurements")
 }
 
 model Document {
-  id           String    @id @default(cuid())
-  entityType   String    @db.VarChar(50)
+  id           String   @id @default(cuid())
+  entityType   String   @db.VarChar(50)
   entityId     String
-  filename     String    @db.VarChar(300)
-  originalName String    @db.VarChar(300)
-  mimeType     String    @db.VarChar(100)
+  filename     String   @db.VarChar(300)
+  originalName String   @db.VarChar(300)
+  mimeType     String   @db.VarChar(100)
   sizeBytes    Int
-  url          String    @db.VarChar(1000)
-  label        String?   @db.VarChar(200)
+  url          String   @db.VarChar(1000)
+  label        String?  @db.VarChar(200)
   uploadedById String
-  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
-  createdAt    DateTime  @default(now())
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
 
   @@index([entityType, entityId])
   @@map("documents")
@@ -730,9 +732,9 @@ model Contract {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  customer    Customer  @relation(fields: [customerId], references: [id])
-  quotation   Quotation @relation(fields: [quotationId], references: [id])
-  createdBy   User      @relation(fields: [createdById], references: [id])
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  quotation          Quotation           @relation(fields: [quotationId], references: [id])
+  createdBy          User                @relation(fields: [createdById], references: [id])
   postInstallReviews PostInstallReview[]
 
   @@index([customerId])
@@ -740,19 +742,19 @@ model Contract {
 }
 
 model InspectionPhoto {
-  id           String     @id @default(cuid())
+  id           String            @id @default(cuid())
   inspectionId String
   inspection   InspectionRequest @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  filename     String     @db.VarChar(300)
-  originalName String     @db.VarChar(300)
-  mimeType     String     @db.VarChar(100)
+  filename     String            @db.VarChar(300)
+  originalName String            @db.VarChar(300)
+  mimeType     String            @db.VarChar(100)
   sizeBytes    Int
-  url          String     @db.VarChar(1000)
-  caption      String?    @db.VarChar(500)
+  url          String            @db.VarChar(1000)
+  caption      String?           @db.VarChar(500)
   takenAt      DateTime?
   uploadedById String
-  uploadedBy   User       @relation("PhotoUploader", fields: [uploadedById], references: [id])
-  createdAt    DateTime   @default(now())
+  uploadedBy   User              @relation("PhotoUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime          @default(now())
 
   @@index([inspectionId])
   @@map("inspection_photos")
@@ -771,7 +773,7 @@ model QuotationRequest {
   notes               String?        @db.Text
   customerId          String
   quotationId         String         @unique
-  inspectionRequestId String? @unique
+  inspectionRequestId String?        @unique
   engineerId          String?
   salesOwnerId        String?
   inspectionOwnerId   String?
@@ -779,11 +781,11 @@ model QuotationRequest {
   updatedAt           DateTime       @updatedAt
   deletedAt           DateTime?
 
-  customer          Customer           @relation(fields: [customerId],          references: [id], onDelete: Restrict)
-  quotation         Quotation          @relation(fields: [quotationId],         references: [id], onDelete: Restrict)
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quotation         Quotation          @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   inspectionRequest InspectionRequest? @relation(fields: [inspectionRequestId], references: [id], onDelete: SetNull)
-  engineer          User?              @relation("TecEngineer",        fields: [engineerId],        references: [id], onDelete: SetNull)
-  salesOwner        User?              @relation("TecSalesOwner",      fields: [salesOwnerId],      references: [id], onDelete: SetNull)
+  engineer          User?              @relation("TecEngineer", fields: [engineerId], references: [id], onDelete: SetNull)
+  salesOwner        User?              @relation("TecSalesOwner", fields: [salesOwnerId], references: [id], onDelete: SetNull)
   inspectionOwner   User?              @relation("TecInspectionOwner", fields: [inspectionOwnerId], references: [id], onDelete: SetNull)
   drawings          Drawing[]
 
