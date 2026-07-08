@@ -108,6 +108,7 @@ export async function importMaterialsAction(formData: FormData) {
             cost,
             unit: unitRaw as MaterialUnit,
             isActive: true,
+            updatedAt: new Date(),
           },
           update: {
             nameAr,
