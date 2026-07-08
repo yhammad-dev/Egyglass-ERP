@@ -76,6 +76,12 @@ export const navRegistry: NavItem[] = [
     icon: "history",
     roles: ["ADMIN"],
   },
+  {
+    labelKey: "nav.import",
+    href: "/admin/import",
+    icon: "upload_file",
+    roles: ["ADMIN"],
+  },
 ];
 
 export function getNavItems(role?: string): NavItem[] {

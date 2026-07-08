@@ -7,6 +7,8 @@ import { signOutAction } from "@/lib/actions/auth";
 import { t } from "@/lib/server-translations";
 import { Toaster } from "@/components/ui/sonner";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { prisma } from "@/lib/prisma";
+import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
 
@@ -20,11 +22,30 @@ export default async function DashboardLayout({
 
   const navItems = getNavItems(session.user.role);
 
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "singleton" },
+    select: { companyLogoUrl: true, companyName: true },
+  }).catch(() => null);
+
+  const companyLogoUrl = settings?.companyLogoUrl ?? null;
+  const companyName = settings?.companyName ?? t("app.name");
+
   return (
     <div className="flex h-screen overflow-hidden" dir="rtl">
       <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold">{t("app.name")}</h1>
+          <div className="flex items-center gap-2">
+            {companyLogoUrl && (
+              <Image
+                src={companyLogoUrl}
+                alt={companyName}
+                width={32}
+                height={32}
+                className="rounded object-contain shrink-0"
+              />
+            )}
+            <h1 className="text-lg font-bold truncate">{companyName}</h1>
+          </div>
           <p className="text-xs text-gray-400 mt-1 truncate">
             {session.user.name} — {t(`roles.${session.user.role}`)}
           </p>

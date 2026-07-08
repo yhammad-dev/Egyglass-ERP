@@ -449,7 +449,8 @@
     "executive": "Executive",
     "users": "Users",
     "adminPricing": "Pricing Settings",
-    "audit": "Activity Log"
+    "audit": "Activity Log",
+    "import": "Import Data"
   },
   "audit": {
     "title": "Audit Trail",
@@ -681,5 +682,15 @@
     "noDrawings": "No drawings in this category",
     "selectFile": "Select file",
     "back": "Back"
+  },
+  "import": {
+    "title": "Import Data",
+    "priceList": "Price List",
+    "materials": "Materials",
+    "uploadFile": "Choose Excel file",
+    "upload": "Upload",
+    "success": "Import successful",
+    "records": "records",
+    "noValidRows": "No valid rows found in file"
   }
 }
