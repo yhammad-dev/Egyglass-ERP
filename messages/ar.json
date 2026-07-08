@@ -433,22 +433,21 @@
     }
   },
   "nav": {
-    "dashboard": "لوحة التحكم",
-    "customers": "العملاء",
+    "dashboard": "الرئيسية",
+    "customers": "المبيعات",
     "quotations": "عروض الأسعار",
     "inspections": "المعاينات",
-    "users": "المستخدمين",
-    "reports": "التقارير",
-    "manufacturing": "أوامر التصنيع",
+    "technicalOffice": "المكتب الفني",
     "review": "المراجعة",
-    "adminPricing": "إدارة الأسعار",
+    "manufacturing": "التصنيع",
     "installations": "التركيبات",
-    "executive": "لوحة الإدارة التنفيذية",
+    "projects": "المشروعات",
     "accounting": "الحسابات",
     "hr": "الموارد البشرية",
-    "projects": "المشروعات",
-    "audit": "سجل التدقيق",
-    "technicalOffice": "المكتب الفني"
+    "executive": "الإدارة العليا",
+    "users": "المستخدمون",
+    "adminPricing": "إعدادات الأسعار",
+    "audit": "سجل النشاط"
   },
   "audit": {
     "title": "سجل التدقيق",

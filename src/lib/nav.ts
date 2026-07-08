@@ -10,13 +10,11 @@ export const navRegistry: NavItem[] = [
   { labelKey: "nav.customers", href: "/customers", icon: "people" },
   { labelKey: "nav.quotations", href: "/quotations", icon: "receipt" },
   { labelKey: "nav.inspections", href: "/inspections", icon: "search" },
-  { labelKey: "nav.users", href: "/users", icon: "admin", roles: ["ADMIN"] },
-  { labelKey: "nav.reports", href: "/reports", icon: "bar_chart" },
   {
-    labelKey: "nav.manufacturing",
-    href: "/manufacturing",
-    icon: "factory",
-    roles: ["ADMIN", "PROCUREMENT"],
+    labelKey: "nav.technicalOffice",
+    href: "/technical-office",
+    icon: "drafting_compass",
+    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
   },
   {
     labelKey: "nav.review",
@@ -25,10 +23,10 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "REVIEW"],
   },
   {
-    labelKey: "nav.adminPricing",
-    href: "/admin/pricing",
-    icon: "settings",
-    roles: ["ADMIN"],
+    labelKey: "nav.manufacturing",
+    href: "/manufacturing",
+    icon: "factory",
+    roles: ["ADMIN", "PROCUREMENT"],
   },
   {
     labelKey: "nav.installations",
@@ -37,10 +35,10 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "INSTALLATIONS"],
   },
   {
-    labelKey: "nav.executive",
-    href: "/executive",
-    icon: "analytics",
-    roles: ["ADMIN"],
+    labelKey: "nav.projects",
+    href: "/projects",
+    icon: "folder",
+    roles: ["ADMIN", "PROJECTS"],
   },
   {
     labelKey: "nav.accounting",
@@ -55,22 +53,28 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "HR"],
   },
   {
-    labelKey: "nav.projects",
-    href: "/projects",
-    icon: "folder",
-    roles: ["ADMIN", "PROJECTS"],
+    labelKey: "nav.executive",
+    href: "/executive",
+    icon: "analytics",
+    roles: ["ADMIN"],
+  },
+  {
+    labelKey: "nav.users",
+    href: "/users",
+    icon: "admin",
+    roles: ["ADMIN"],
+  },
+  {
+    labelKey: "nav.adminPricing",
+    href: "/admin/pricing",
+    icon: "settings",
+    roles: ["ADMIN"],
   },
   {
     labelKey: "nav.audit",
     href: "/audit",
     icon: "history",
     roles: ["ADMIN"],
-  },
-  {
-    labelKey: "nav.technicalOffice",
-    href: "/technical-office",
-    icon: "drafting_compass",
-    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
   },
 ];
 
