@@ -26,6 +26,9 @@ export async function getAccountingDashboard() {
       include: {
         customer: { select: { id: true, name: true } },
         payments: { select: { amount: true } },
+        // Payment-engine part B: rows with a contract can open the milestone
+        // plan editor / balances panel (getContractBalances needs contractId).
+        contract: { select: { id: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -45,6 +48,7 @@ export async function getAccountingDashboard() {
         totalContract,
         totalPaid,
         remaining,
+        contractId: q.contract?.id ?? null,
         status: (remaining <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "UNPAID") as
           | "PAID"
           | "PARTIAL"
