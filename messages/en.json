@@ -286,6 +286,8 @@
     },
     "print": {
       "title": "Quotation",
+      "titleEn": "Quotation",
+      "drawingPlaceholder": "Engineering drawing / product image with dimensions",
       "companyTagline": "Egyglass Co For Architectural Glazing Applications",
       "printPdf": "🖨️ Print / PDF",
       "back": "Back",

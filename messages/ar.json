@@ -285,6 +285,8 @@
     },
     "print": {
       "title": "عرض سعر",
+      "titleEn": "Quotation",
+      "drawingPlaceholder": "مكان الرسم الهندسي / صورة المنتج بالمقاسات",
       "companyTagline": "Egyglass Co For Architectural Glazing Applications",
       "printPdf": "🖨️ طباعة / PDF",
       "back": "رجوع",

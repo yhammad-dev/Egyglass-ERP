@@ -100,6 +100,12 @@ export default async function QuotationPrintPage(props: {
           body { margin: 0; }
         }
         @page { size: A4; margin: 15mm; }
+        .print-doc {
+          font-family: var(--font-cairo), "Cairo", "Segoe UI", Tahoma, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .items-table { table-layout: fixed; }
       `}</style>
 
       <div className="no-print fixed top-4 left-4 z-50 flex gap-2">
@@ -112,7 +118,7 @@ export default async function QuotationPrintPage(props: {
         </a>
       </div>
 
-      <div className="max-w-[794px] mx-auto p-6 bg-white text-[#1a1a1a]">
+      <div className="print-doc max-w-[794px] mx-auto p-6 bg-white text-[#1a1a1a]">
         {/* ── الترويسة: لوجو + سطر الشركة ثنائي اللغة + عنوان المستند ── */}
         <header className="border-b-4 border-double border-gray-800 pb-3 mb-4">
           <div className="flex items-center justify-between gap-4">
@@ -130,11 +136,11 @@ export default async function QuotationPrintPage(props: {
             )}
             <div className="text-center flex-1">
               <p className="text-2xl font-bold tracking-wide">{companyName}</p>
-              <p className="text-sm text-gray-700" dir="ltr">
-                {t("quotations.print.companyTagline")}
-              </p>
             </div>
             <div className="text-center border-2 border-gray-800 px-5 py-2">
+              <p className="text-sm font-semibold" dir="ltr">
+                {t("quotations.print.titleEn")}
+              </p>
               <p className="text-xl font-bold">{t("quotations.print.title")}</p>
             </div>
           </div>
@@ -178,27 +184,28 @@ export default async function QuotationPrintPage(props: {
 
         {/* ── جدول البنود ── */}
         <table
-          className="w-full text-sm mb-4 border border-gray-500"
+          className="items-table w-full text-sm mb-4 border border-gray-500"
           style={{ borderCollapse: "collapse" }}
         >
           <thead>
             <tr className="bg-gray-800 text-white">
               <th className="py-2 px-2 border border-gray-500 w-8">#</th>
+              {/* عمود البيان بلا عرض ثابت — مع table-layout:fixed يأخذ كل المساحة المتبقية */}
               <th className="py-2 px-2 border border-gray-500 text-right">
                 {t("quotations.print.item")}
               </th>
-              <th className="py-2 px-2 border border-gray-500 w-20">
+              <th className="py-2 px-2 border border-gray-500 w-14">
                 {t("quotations.print.qty")}
               </th>
               {isProjects && (
-                <th className="py-2 px-2 border border-gray-500 w-20">
+                <th className="py-2 px-2 border border-gray-500 w-14">
                   {t("quotations.print.unit")}
                 </th>
               )}
-              <th className="py-2 px-2 border border-gray-500 w-28">
+              <th className="py-2 px-2 border border-gray-500 w-24">
                 {t("quotations.print.unitPrice")}
               </th>
-              <th className="py-2 px-2 border border-gray-500 w-28">
+              <th className="py-2 px-2 border border-gray-500 w-24">
                 {t("quotations.print.lineTotal")}
               </th>
             </tr>
@@ -209,7 +216,7 @@ export default async function QuotationPrintPage(props: {
                 <td className="py-1.5 px-2 border border-gray-400 text-center">
                   {i + 1}
                 </td>
-                <td className="py-1.5 px-2 border border-gray-400">
+                <td className="py-1.5 px-2 border border-gray-400 break-words">
                   {item.description}
                 </td>
                 <td
@@ -240,6 +247,15 @@ export default async function QuotationPrintPage(props: {
             ))}
           </tbody>
         </table>
+
+        {/* ── مكان محجوز للرسمة الهندسية (سوشيال فقط — كالعينة C3_7306؛ الرفع feature لاحق) ── */}
+        {isSocial && (
+          <section className="border border-dashed border-gray-500 mb-4 h-56 flex items-center justify-center">
+            <p className="text-xs text-gray-400">
+              {t("quotations.print.drawingPlaceholder")}
+            </p>
+          </section>
+        )}
 
         <div className="flex gap-4 mb-4 items-start">
           {/* ── جهة تصنيع الزجاج (سوشيال — خانات تُعلَّم يدويًا؛ التخزين feature لاحق) ── */}
