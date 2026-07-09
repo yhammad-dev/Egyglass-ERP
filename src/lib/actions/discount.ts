@@ -1,27 +1,32 @@
 "use server";
 
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { notifyRole } from "@/lib/notifications/send";
 
 const DISCOUNT_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 
+// Pricing-audit fix: money math in Prisma.Decimal — zero float.
+const D = Prisma.Decimal;
+type Dec = InstanceType<typeof D>;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getSettings() {
   const s = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
   return {
-    discountBasePct: s?.discountBasePct.toNumber() ?? 18,
-    discountMaxReqPct: s?.discountMaxReqPct.toNumber() ?? 25,
+    discountBasePct: s?.discountBasePct ?? new D(18),
+    discountMaxReqPct: s?.discountMaxReqPct ?? new D(25),
   };
 }
 
-function recomputeTotals(subtotal: number, discountPct: number, taxPct: number) {
-  const discountAmount = (subtotal * discountPct) / 100;
-  const netAfterDiscount = subtotal - discountAmount;
-  const taxAmount = (netAfterDiscount * taxPct) / 100;
-  const total = netAfterDiscount + taxAmount;
+function recomputeTotals(subtotal: Dec, discountPct: Dec, taxPct: Dec) {
+  const discountAmount = subtotal.mul(discountPct).div(100);
+  const netAfterDiscount = subtotal.sub(discountAmount);
+  const taxAmount = netAfterDiscount.mul(taxPct).div(100);
+  const total = netAfterDiscount.add(taxAmount);
   return { discountAmount, taxAmount, total };
 }
 
@@ -43,7 +48,8 @@ export async function requestDiscountAction(
     const parsed = requestDiscountSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" };
 
-    const { quotationId, requestedPct, reason } = parsed.data;
+    const { quotationId, reason } = parsed.data;
+    const requestedPct = new D(String(parsed.data.requestedPct));
 
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
@@ -63,11 +69,13 @@ export async function requestDiscountAction(
 
     const { discountBasePct, discountMaxReqPct } = await getSettings();
 
-    const subtotal = quotation.subtotal.toNumber();
-    const taxPct = quotation.taxPct.toNumber();
-    const { discountAmount, taxAmount, total } = recomputeTotals(subtotal, requestedPct, taxPct);
+    const { discountAmount, taxAmount, total } = recomputeTotals(
+      quotation.subtotal,
+      requestedPct,
+      quotation.taxPct
+    );
 
-    if (requestedPct <= discountBasePct) {
+    if (requestedPct.lte(discountBasePct)) {
       // Within base threshold — apply directly, no approval needed
       await prisma.quotation.update({
         where: { id: quotationId },
@@ -88,7 +96,7 @@ export async function requestDiscountAction(
     }
 
     // Above base threshold — requires approval
-    const approverRole = requestedPct > discountMaxReqPct ? "ADMIN" : "SALES_MANAGER";
+    const approverRole = requestedPct.gt(discountMaxReqPct) ? "ADMIN" : "SALES_MANAGER";
     const resolvedReason =
       reason?.trim() ||
       `خصم ${requestedPct}% يتجاوز الحد الأساسي (${discountBasePct}%)`;
@@ -166,10 +174,10 @@ export async function decideDiscountAction(
     if (discountRequest.status !== "PENDING") return { error: "errors.invalidInput" };
 
     const { discountMaxReqPct } = await getSettings();
-    const requestedPct = discountRequest.requestedPct.toNumber();
+    const requestedPct = discountRequest.requestedPct;
 
     // SALES_MANAGER cannot decide requests that exceed discountMaxReqPct
-    if (roleCheck.role === "SALES_MANAGER" && requestedPct > discountMaxReqPct) {
+    if (roleCheck.role === "SALES_MANAGER" && requestedPct.gt(discountMaxReqPct)) {
       return { error: "errors.notAuthorized" };
     }
 
@@ -179,8 +187,6 @@ export async function decideDiscountAction(
     });
     if (!quotation) return { error: "errors.notFound" };
 
-    const subtotal = quotation.subtotal.toNumber();
-    const taxPct = quotation.taxPct.toNumber();
     const now = new Date();
 
     if (decision === "REJECTED") {
@@ -215,10 +221,14 @@ export async function decideDiscountAction(
     // APPROVED or ADJUSTED
     const finalPct =
       decision === "ADJUSTED"
-        ? (approvedPct ?? requestedPct)
+        ? (approvedPct !== undefined ? new D(String(approvedPct)) : requestedPct)
         : requestedPct;
 
-    const { discountAmount, taxAmount, total } = recomputeTotals(subtotal, finalPct, taxPct);
+    const { discountAmount, taxAmount, total } = recomputeTotals(
+      quotation.subtotal,
+      finalPct,
+      quotation.taxPct
+    );
 
     await prisma.$transaction([
       prisma.discountRequest.update({

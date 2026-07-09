@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { QuotationStatus } from "@prisma/client";
+import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { calculateRecipe } from "./calculateRecipe";
@@ -11,6 +11,12 @@ const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
 // RR-2: the low-factor floor is no longer hardcoded. It is read from
 // SystemSettings.factorMinimum (SCR-008) and enforced server-side below.
 const FACTOR_MINIMUM_FALLBACK = 1.5;
+
+// Pricing-audit fix: all money math below runs in Prisma.Decimal (decimal.js) —
+// never JS floats. Client-supplied numbers cross into Decimal via String() so
+// no binary float representation ever leaks into the pipeline.
+const D = Prisma.Decimal;
+const toDec = (n: number) => new D(String(n));
 
 export async function getProductRecipes(productTypeId: string) {
   try {
@@ -217,29 +223,31 @@ export async function createQuotation(
 
     const settings = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
     const validDays = settings?.quotationValidDays ?? 3;
-    const vatPct = settings?.vatPct.toNumber() ?? 14;
-    const discountBasePct = settings?.discountBasePct.toNumber() ?? 18;
-    const discountMaxReqPct = settings?.discountMaxReqPct.toNumber() ?? 25;
+    const vatPct = settings?.vatPct ?? new D(14);
+    const discountBasePct = settings?.discountBasePct ?? new D(18);
+    const discountMaxReqPct = settings?.discountMaxReqPct ?? new D(25);
 
     // RR-1/STEP-4: totals are ALWAYS re-derived server-side from the line items,
     // the negotiated discount, and the VAT rate in SystemSettings. No client-supplied
     // subtotal/total is accepted (the input schema does not expose those fields).
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const discountPct = parsed.data.discountPct ?? 0;
+    // Pricing-audit fix: computed in Decimal end-to-end (zero float).
+    const lineTotals = items.map((item) => toDec(item.quantity).mul(toDec(item.unitPrice)));
+    const subtotal = lineTotals.reduce((sum, lt) => sum.add(lt), new D(0));
+    const discountPct = toDec(parsed.data.discountPct ?? 0);
 
     // RR-1 STEP-1.4: hard cap — a discount above the configured maximum is rejected outright.
-    if (discountPct > discountMaxReqPct) {
+    if (discountPct.gt(discountMaxReqPct)) {
       return { error: "errors.discountExceedsMax" };
     }
 
     // RR-1 STEP-1.2/1.3: discount → net → VAT on net (NOT on subtotal).
-    const discountAmount = (subtotal * discountPct) / 100;
-    const netAfterDiscount = subtotal - discountAmount;
-    const taxAmount = (netAfterDiscount * vatPct) / 100;
-    const total = netAfterDiscount + taxAmount;
+    const discountAmount = subtotal.mul(discountPct).div(100);
+    const netAfterDiscount = subtotal.sub(discountAmount);
+    const taxAmount = netAfterDiscount.mul(vatPct).div(100);
+    const total = netAfterDiscount.add(taxAmount);
 
     // A discount above the base cap requires management approval.
-    const discountNeedsApproval = discountPct > discountBasePct;
+    const discountNeedsApproval = discountPct.gt(discountBasePct);
     const requiresApproval = (needsApproval ?? false) || discountNeedsApproval;
 
     // RR-1 STEP-1.5 (cashback): referral cashback is a SEPARATE post-execution
@@ -271,11 +279,11 @@ export async function createQuotation(
         needsApproval: requiresApproval,
         ...(requiresApproval ? { status: "PENDING_APPROVAL" as const } : {}),
         items: {
-          create: items.map((item) => ({
+          create: items.map((item, i) => ({
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            lineTotal: item.quantity * item.unitPrice,
+            lineTotal: lineTotals[i],
           })),
         },
       },
@@ -377,16 +385,36 @@ export async function updateQuotation(
 
     const { id, customerId, title, items } = parsed.data;
 
-    const existing = await prisma.quotation.findUnique({ where: { id } });
+    const existing = await prisma.quotation.findUnique({
+      where: { id },
+      include: { contract: { select: { id: true } } },
+    });
     if (!existing) return { error: "errors.notFound" };
+
+    // Immutability guard (Amr's rule): a signed contract is a source document —
+    // its quotation can never be edited. Any change goes through a contract
+    // annex / a new quotation (separate feature). Enforced server-side, before
+    // any write; hiding the edit UI alone would not be a boundary.
+    if (existing.contract) {
+      return { error: "errors.quotationHasContract" };
+    }
 
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) return { error: "errors.notFound" };
 
-    const vatPct = existing.taxPct.toNumber();
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const taxAmount = (subtotal * vatPct) / 100;
-    const total = subtotal + taxAmount;
+    // Pricing-audit fix: Decimal end-to-end (zero float).
+    const vatPct = existing.taxPct;
+    // Pricing-audit fix (discount drop): re-apply the quotation's EXISTING
+    // discount when items change. The old code computed total = subtotal + VAT
+    // with no discount — silently inflating the total (+23.46% on a 19% quote)
+    // while leaving discountPct/discountAmount stale on the row.
+    const discountPct = existing.discountPct;
+    const lineTotals = items.map((item) => toDec(item.quantity).mul(toDec(item.unitPrice)));
+    const subtotal = lineTotals.reduce((sum, lt) => sum.add(lt), new D(0));
+    const discountAmount = subtotal.mul(discountPct).div(100);
+    const netAfterDiscount = subtotal.sub(discountAmount);
+    const taxAmount = netAfterDiscount.mul(vatPct).div(100);
+    const total = netAfterDiscount.add(taxAmount);
 
     const quotation = await prisma.$transaction(async (tx) => {
       await tx.quotationItem.deleteMany({ where: { quotationId: id } });
@@ -395,14 +423,15 @@ export async function updateQuotation(
         data: {
           customerId,
           subtotal,
+          discountAmount, // kept in lockstep with total (was left stale before)
           taxAmount,
           total,
           items: {
-            create: items.map((item) => ({
+            create: items.map((item, i) => ({
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
-              lineTotal: item.quantity * item.unitPrice,
+              lineTotal: lineTotals[i],
             })),
           },
         },
