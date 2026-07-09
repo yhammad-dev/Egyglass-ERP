@@ -561,6 +561,8 @@
   },
   "accounting": {
     "title": "Accounting",
+    "scopedNoticeProjects": "This page shows only quotations linked to your assigned projects (read-only)",
+    "scopedNoticeTechnicalOffice": "This page shows only quotations within the Projects route (read-only)",
     "customer": "Customer",
     "number": "Quotation Number",
     "total": "Total",

@@ -44,7 +44,7 @@ export const navRegistry: NavItem[] = [
     labelKey: "nav.accounting",
     href: "/accounting",
     icon: "payments",
-    roles: ["ADMIN", "ACCOUNTING"],
+    roles: ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"],
   },
   {
     labelKey: "nav.hr",

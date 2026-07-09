@@ -3,16 +3,26 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { getFinanceScope } from "../finance/scope";
 
-const ACCOUNTING_ROLES = ["ADMIN", "ACCOUNTING"];
+// R-03: read-only financial visibility, least-privilege scoped by getFinanceScope.
+const ACCOUNTING_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"];
+// Writes (recording payments) stay accounting-only — R-03 only expands reads.
+const ACCOUNTING_WRITE_ROLES = ["ADMIN", "ACCOUNTING"];
 
 export async function getAccountingDashboard() {
   try {
-    const roleCheck = await requireRole(ACCOUNTING_ROLES);
+    const roleCheck = await requireRole(ACCOUNTING_READ_ROLES);
     if (!roleCheck.authorized) return [];
 
+    const scope = getFinanceScope(roleCheck.role, roleCheck.userId);
+    if (scope.kind === "none") return [];
+
     const quotations = await prisma.quotation.findMany({
-      where: { reviewStatus: "APPROVED" },
+      where: {
+        reviewStatus: "APPROVED",
+        ...(scope.kind === "filtered" ? scope.quotationWhere : {}),
+      },
       include: {
         customer: { select: { id: true, name: true } },
         payments: { select: { amount: true } },
@@ -49,8 +59,21 @@ export async function getAccountingDashboard() {
 
 export async function getPayments(quotationId: string) {
   try {
-    const roleCheck = await requireRole(ACCOUNTING_ROLES);
+    const roleCheck = await requireRole(ACCOUNTING_READ_ROLES);
     if (!roleCheck.authorized) return [];
+
+    const scope = getFinanceScope(roleCheck.role, roleCheck.userId);
+    if (scope.kind === "none") return [];
+
+    // Defense-in-depth: even if called directly with a quotationId outside
+    // the dashboard list, verify it is actually within the caller's scope.
+    if (scope.kind === "filtered") {
+      const inScope = await prisma.quotation.findFirst({
+        where: { id: quotationId, ...scope.quotationWhere },
+        select: { id: true },
+      });
+      if (!inScope) return [];
+    }
 
     const payments = await prisma.payment.findMany({
       where: { quotationId },
@@ -82,7 +105,7 @@ const addPaymentSchema = z.object({
 
 export async function addPayment(input: unknown) {
   try {
-    const roleCheck = await requireRole(ACCOUNTING_ROLES);
+    const roleCheck = await requireRole(ACCOUNTING_WRITE_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = addPaymentSchema.safeParse(input);

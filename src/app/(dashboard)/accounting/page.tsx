@@ -5,10 +5,15 @@ import { getAccountingDashboard } from "../../../../lib/accounting/actions";
 import { AccountingClient } from "./accounting-client";
 
 export default async function AccountingPage() {
-  const roleCheck = await requireRole(["ADMIN", "ACCOUNTING"]);
+  const roleCheck = await requireRole([
+    "ADMIN",
+    "ACCOUNTING",
+    "PROJECTS",
+    "TECHNICAL_OFFICE",
+  ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const rows = await getAccountingDashboard();
 
-  return <AccountingClient initialRows={rows} />;
+  return <AccountingClient initialRows={rows} currentRole={roleCheck.role} />;
 }

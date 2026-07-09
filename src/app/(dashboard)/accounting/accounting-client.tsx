@@ -45,11 +45,18 @@ type AccountingRow = {
 
 export function AccountingClient({
   initialRows,
+  currentRole,
 }: {
   initialRows: AccountingRow[];
+  currentRole: string;
 }) {
   const t = useTranslations();
   const [rows, setRows] = useState<AccountingRow[]>(initialRows);
+
+  // R-03: only ADMIN/ACCOUNTING can record payments — PROJECTS/TECHNICAL_OFFICE
+  // get read-only, scope-filtered visibility (enforced server-side too).
+  const canWrite = currentRole === "ADMIN" || currentRole === "ACCOUNTING";
+  const columnCount = canWrite ? 7 : 6;
 
   const [paymentTarget, setPaymentTarget] = useState<AccountingRow | null>(null);
   const [amountInput, setAmountInput] = useState("");
@@ -130,7 +137,16 @@ export function AccountingClient({
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">{t("accounting.title")}</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">{t("accounting.title")}</h1>
+        {!canWrite && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {currentRole === "PROJECTS"
+              ? t("accounting.scopedNoticeProjects")
+              : t("accounting.scopedNoticeTechnicalOffice")}
+          </p>
+        )}
+      </div>
 
       <div className="rounded-md border">
         <Table>
@@ -142,7 +158,7 @@ export function AccountingClient({
               <TableHead>{t("accounting.paid")}</TableHead>
               <TableHead>{t("accounting.remaining")}</TableHead>
               <TableHead>{t("accounting.status")}</TableHead>
-              <TableHead>{t("app.actions")}</TableHead>
+              {canWrite && <TableHead>{t("app.actions")}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -167,21 +183,23 @@ export function AccountingClient({
                       {t(`accounting.status_${row.status}`)}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openAddPayment(row)}
-                    >
-                      {t("accounting.addPayment")}
-                    </Button>
-                  </TableCell>
+                  {canWrite && (
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openAddPayment(row)}
+                      >
+                        {t("accounting.addPayment")}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={columnCount} className="text-center text-muted-foreground py-8">
                   {t("app.noResults")}
                 </TableCell>
               </TableRow>
@@ -202,7 +220,7 @@ export function AccountingClient({
                 <TableCell className="font-semibold">
                   <span dir="ltr">{numberFormat.format(totals.remaining)}</span>
                 </TableCell>
-                <TableCell colSpan={2} />
+                <TableCell colSpan={canWrite ? 2 : 1} />
               </TableRow>
             </TableFooter>
           )}
