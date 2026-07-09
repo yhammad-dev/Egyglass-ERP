@@ -10,6 +10,11 @@ const SOCIAL_NOTE_KEYS = Array.from(
   (_, i) => `quotations.print.socialNote${i + 1}`
 );
 
+const PROJECT_NOTE_KEYS = Array.from(
+  { length: 21 },
+  (_, i) => `quotations.print.projectNote${i + 1}`
+);
+
 export default async function QuotationPrintPage(props: {
   params: Promise<{ id: string }>;
 }) {
@@ -49,6 +54,8 @@ export default async function QuotationPrintPage(props: {
           companyLogoUrl: true,
           warrantyTextSocialMedia: true,
           warrantySocialOnQuotation: true,
+          warrantyTextProjects: true,
+          warrantyProjectsOnQuotation: true,
         },
       })
       .catch(() => null),
@@ -57,14 +64,23 @@ export default async function QuotationPrintPage(props: {
   if (!q) notFound();
 
   const isSocial = q.quotationRequest?.technicalRoute === "SOCIAL_MEDIA";
+  const isProjects = q.quotationRequest?.technicalRoute === "PROJECTS";
   const issuerName = q.quotationRequest?.engineer?.name ?? q.createdBy.name;
 
   const companyName = settings?.companyName || "EgyGlass";
   const logoUrl = settings?.companyLogoUrl ?? null;
-  const showWarranty =
+  const showSocialWarranty =
     isSocial &&
     (settings?.warrantySocialOnQuotation ?? true) &&
     !!settings?.warrantyTextSocialMedia;
+  const showProjectsWarranty =
+    isProjects &&
+    (settings?.warrantyProjectsOnQuotation ?? true) &&
+    !!settings?.warrantyTextProjects;
+  const showWarranty = showSocialWarranty || showProjectsWarranty;
+  const warrantyText = showSocialWarranty
+    ? settings?.warrantyTextSocialMedia
+    : settings?.warrantyTextProjects;
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(n);
@@ -174,6 +190,11 @@ export default async function QuotationPrintPage(props: {
               <th className="py-2 px-2 border border-gray-500 w-20">
                 {t("quotations.print.qty")}
               </th>
+              {isProjects && (
+                <th className="py-2 px-2 border border-gray-500 w-20">
+                  {t("quotations.print.unit")}
+                </th>
+              )}
               <th className="py-2 px-2 border border-gray-500 w-28">
                 {t("quotations.print.unitPrice")}
               </th>
@@ -197,6 +218,12 @@ export default async function QuotationPrintPage(props: {
                 >
                   {item.quantity.toNumber()}
                 </td>
+                {isProjects && (
+                  <td className="py-1.5 px-2 border border-gray-400 text-center">
+                    {/* QuotationItem بلا حقل unit بعد — يمتلئ عند استيعابه (قرار يوسف: خيار أ) */}
+                    {t("quotations.dash")}
+                  </td>
+                )}
                 <td
                   className="py-1.5 px-2 border border-gray-400 text-left"
                   style={{ fontVariantNumeric: "tabular-nums" }}
@@ -244,20 +271,24 @@ export default async function QuotationPrintPage(props: {
                 {fmt(subtotal)}
               </span>
             </div>
-            <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
-              <span>
-                {t("quotations.print.discount")} ({discountPct}%)
-              </span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {fmt(discountAmount)}-
-              </span>
-            </div>
-            <div className="flex justify-between px-3 py-1.5 border-b border-gray-300 font-semibold">
-              <span>{t("quotations.print.netAfterDiscount")}</span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {fmt(netAfterDiscount)}
-              </span>
-            </div>
+            {discountPct > 0 && (
+              <>
+                <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
+                  <span>
+                    {t("quotations.print.discount")} ({discountPct}%)
+                  </span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {fmt(discountAmount)}-
+                  </span>
+                </div>
+                <div className="flex justify-between px-3 py-1.5 border-b border-gray-300 font-semibold">
+                  <span>{t("quotations.print.netAfterDiscount")}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {fmt(netAfterDiscount)}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
               <span>
                 {t("quotations.print.vat")} ({q.taxPct.toNumber()}%)
@@ -281,14 +312,14 @@ export default async function QuotationPrintPage(props: {
           {fmtDate(q.validUntil)}
         </p>
 
-        {/* ── الملاحظات العامة (11 — شروط السوشيال) ── */}
-        {isSocial && (
+        {/* ── الملاحظات العامة (سوشيال: 11 · مشروعات: 21) ── */}
+        {(isSocial || isProjects) && (
           <section className="border border-gray-400 text-xs mb-4">
             <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
               {t("quotations.print.generalNotes")}
             </p>
             <ol className="list-decimal ps-7 pe-3 py-2 space-y-1">
-              {SOCIAL_NOTE_KEYS.map((key) => (
+              {(isProjects ? PROJECT_NOTE_KEYS : SOCIAL_NOTE_KEYS).map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
             </ol>
@@ -301,24 +332,41 @@ export default async function QuotationPrintPage(props: {
             <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
               {t("quotations.print.warrantyTitle")}
             </p>
-            <p className="px-3 py-2 whitespace-pre-line">
-              {settings?.warrantyTextSocialMedia}
-            </p>
+            <p className="px-3 py-2 whitespace-pre-line">{warrantyText}</p>
           </section>
         )}
 
-        {/* ── توقيع واحد: موافقة العميل ── */}
-        <footer className="flex justify-start pt-4">
-          <div className="text-center text-sm">
-            <p className="font-semibold mb-10">
-              {t("quotations.print.customerApproval")}
-            </p>
-            <div className="border-b border-gray-700 w-52" />
-            <p className="text-xs text-gray-500 mt-1">
-              {t("quotations.print.signature")}
-            </p>
-          </div>
-        </footer>
+        {/* ── التوقيعات: المشروعات = المكتب الفني + المدير التنفيذي · غيرها = موافقة العميل ── */}
+        {isProjects ? (
+          <footer className="flex justify-between pt-4 px-4">
+            {[
+              // اسم المهندس من engineerId ?? createdBy (عرض فقط) · المدير: approvedById لا يُملأ بعد → "—"
+              [t("quotations.print.signatureTechnicalOffice"), issuerName],
+              [t("quotations.print.signatureExecutiveDirector"), t("quotations.dash")],
+            ].map(([label, name]) => (
+              <div key={label} className="text-center text-sm">
+                <p className="font-semibold mb-2">{label}</p>
+                <p className="mb-6">{name}</p>
+                <div className="border-b border-gray-700 w-52" />
+                <p className="text-xs text-gray-500 mt-1">
+                  {t("quotations.print.signature")}
+                </p>
+              </div>
+            ))}
+          </footer>
+        ) : (
+          <footer className="flex justify-start pt-4">
+            <div className="text-center text-sm">
+              <p className="font-semibold mb-10">
+                {t("quotations.print.customerApproval")}
+              </p>
+              <div className="border-b border-gray-700 w-52" />
+              <p className="text-xs text-gray-500 mt-1">
+                {t("quotations.print.signature")}
+              </p>
+            </div>
+          </footer>
+        )}
       </div>
     </>
   );
