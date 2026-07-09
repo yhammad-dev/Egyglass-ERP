@@ -311,7 +311,12 @@ model Payment {
   createdBy   User      @relation(fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
 
+  // ── SCR-014: ربط اختياري بالبند المخطّط (الدفعة الفعلية مقابل أي بند) ──
+  milestoneId String?
+  milestone   PaymentMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
   @@index([quotationId])
+  @@index([milestoneId])
 }
 
 model Employee {
@@ -385,6 +390,14 @@ model SystemSettings {
   satisfactionSurveyDelayDays Int       @default(3)
   // ── SCR-013: موضع بوابة REVIEW في سلسلة الاعتماد (R-05) — معلّق التوضيح ──
   reviewGatePosition          Int?
+
+  // ── SCR-014: نصوص الضمان الحرة (P-03) — يعدّلها ADMIN من الإعدادات ──
+  warrantyTextProjects        String?  @db.Text
+  warrantyTextSocialMedia     String?  @db.Text
+  // ── SCR-014: تحكّم في مكان ظهور كل ضمان (السوشيال بلا عقد → لا خيار "في العقد" لها) ──
+  warrantyProjectsOnQuotation Boolean  @default(true)
+  warrantyProjectsOnContract  Boolean  @default(true)
+  warrantySocialOnQuotation   Boolean  @default(true)
 }
 
 model CashbackTier {
@@ -755,13 +768,37 @@ model Contract {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // ── SCR-014: قيمة العقد المجمّدة (snapshot من Quotation.total وقت الإنشاء — النِسب تُحسب منها) ──
+  totalValue Decimal? @db.Decimal(14, 2)
+
   customer           Customer            @relation(fields: [customerId], references: [id])
   quotation          Quotation           @relation(fields: [quotationId], references: [id])
   createdBy          User                @relation(fields: [createdById], references: [id])
   postInstallReviews PostInstallReview[]
+  paymentMilestones  PaymentMilestone[]
 
   @@index([customerId])
   @@map("contracts")
+}
+
+// ── SCR-014: خطة الدفعات المخطّطة — "خطة + فعلي" (النسبة هنا، لا في Payment) ──
+model PaymentMilestone {
+  id            String   @id @default(cuid())
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  label         String
+  percentage    Decimal  @db.Decimal(5, 2)
+  plannedAmount Decimal  @db.Decimal(14, 2)
+  sortOrder     Int      @default(0)
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contractId])
+  @@map("payment_milestones")
 }
 
 model InspectionPhoto {
