@@ -29,6 +29,15 @@ export async function createContract(input: unknown) {
     const existing = await prisma.contract.findUnique({ where: { quotationId } });
     if (existing) return { error: "يوجد عقد مرتبط بهذا العرض بالفعل" };
 
+    // SCR-014: fetch the quotation to snapshot its total as the frozen contract
+    // value (official rule: value freezes at issuance; later changes = new
+    // contract/annex, never a live read of the mutable quotation).
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: quotationId },
+      select: { id: true, number: true, total: true },
+    });
+    if (!quotation) return { error: "عرض السعر غير موجود" };
+
     const contract = await prisma.contract.create({
       data: {
         customerId,
@@ -36,6 +45,7 @@ export async function createContract(input: unknown) {
         signedAt: signedAt ? new Date(signedAt) : null,
         notes: notes || null,
         createdById: roleCheck.userId,
+        totalValue: quotation.total, // snapshot — frozen at issuance (Decimal, no float)
       },
     });
 
@@ -43,6 +53,16 @@ export async function createContract(input: unknown) {
     await prisma.customer.update({
       where: { id: customerId },
       data: { stage: "CONTRACT" },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "CONTRACT_CREATED",
+        entity: "Contract",
+        entityId: contract.id,
+        details: `تم إنشاء عقد لعرض السعر ${quotation.number} بقيمة مجمّدة ${quotation.total.toFixed(2)}`,
+      },
     });
 
     return { success: true, contract };

@@ -396,6 +396,9 @@
   },
   "errors": {
     "quotationNotApproved": "This quotation cannot be linked until it is approved",
+    "contractValueMissing": "Contract has no frozen value — payment plan cannot be computed",
+    "milestonesSumNot100": "Milestone percentages must sum to exactly 100%",
+    "invalidPercentage": "Invalid percentage — must be greater than zero with at most two decimal places",
     "factorRequiresApproval": "This factor requires management approval",
     "discountExceedsMax": "Discount exceeds the maximum allowed",
     "required": "This field is required",
