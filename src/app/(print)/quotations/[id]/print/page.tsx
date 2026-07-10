@@ -36,6 +36,7 @@ export default async function QuotationPrintPage(props: {
       include: {
         customer: { select: { name: true, phone: true, address: true } },
         createdBy: { select: { name: true } },
+        project: { select: { nameAr: true } },
         items: true,
         quotationRequest: {
           select: {
@@ -114,6 +115,21 @@ export default async function QuotationPrintPage(props: {
           print-color-adjust: exact;
         }
         .items-table { table-layout: fixed; }
+        /* طباعة متعددة الصفحات: ترويسة الجدول تتكرر، الصفوف والكتل القصيرة لا تنقطع،
+           والملاحظات الطويلة تُمنع من القطع على مستوى البند لا الكتلة */
+        .items-table thead { display: table-header-group; }
+        .items-table tr,
+        .no-split,
+        .print-doc li {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        /* التوقيعات: no-split فقط — تتبع آخر محتوى مباشرة بلا حجز صفحة أو فراغ
+           (قرار قانوني: لا صفحة توقيعات شبه فارغة) */
+        .sig-anchor {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
       `}</style>
 
       <div className="no-print fixed top-4 left-4 z-50 flex gap-2">
@@ -155,7 +171,7 @@ export default async function QuotationPrintPage(props: {
         </header>
 
         {/* ── سجل المستند (auditability): مرجع · مُصدِر · تواريخ · حالة ── */}
-        <section className="grid grid-cols-4 gap-0 border border-gray-400 text-sm mb-4">
+        <section className="no-split grid grid-cols-4 gap-0 border border-gray-400 text-sm mb-4">
           {[
             [t("quotations.print.quotationNumber"), q.number],
             [t("quotations.print.issuedBy"), issuerName],
@@ -188,6 +204,13 @@ export default async function QuotationPrintPage(props: {
               {t("quotations.print.address")}: {q.customer.address ?? t("quotations.dash")}
             </p>
           </div>
+          {/* اسم المشروع — يُملأ بعد التعاقد فقط (W-03)؛ يظهر عند وجوده، لا خانة فارغة */}
+          {q.project && (
+            <p className="px-2 py-1.5 border-t border-gray-300">
+              <span className="font-semibold">{t("quotations.print.projectName")}:</span>{" "}
+              {q.project.nameAr}
+            </p>
+          )}
         </section>
 
         {/* ── جدول البنود ── */}
@@ -268,7 +291,7 @@ export default async function QuotationPrintPage(props: {
         <div className="flex gap-4 mb-4 items-start">
           {/* ── جهة تصنيع الزجاج (سوشيال — خانات تُعلَّم يدويًا؛ التخزين feature لاحق) ── */}
           {isSocial && (
-            <section className="flex-1 border border-gray-400 text-sm">
+            <section className="no-split flex-1 border border-gray-400 text-sm">
               <p className="bg-gray-100 px-2 py-1 font-semibold border-b border-gray-400">
                 {t("quotations.print.glassManufacturer")}
               </p>
@@ -288,7 +311,7 @@ export default async function QuotationPrintPage(props: {
           )}
 
           {/* ── الإجماليات: خصم صريح قبل/بعد ثم الضريبة ثم النهائي ── */}
-          <div className="w-80 ms-auto text-sm border border-gray-500">
+          <div className="no-split w-80 ms-auto text-sm border border-gray-500">
             <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
               <span>{t("quotations.print.subtotalBeforeDiscount")}</span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -338,11 +361,12 @@ export default async function QuotationPrintPage(props: {
 
         {/* ── الملاحظات العامة (سوشيال: 11 · مشروعات: 21) ── */}
         {(isSocial || isProjects) && (
-          <section className="border border-gray-400 text-xs mb-4">
+          <section className="border border-gray-400 mb-4">
             <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
               {t("quotations.print.generalNotes")}
             </p>
-            <ol className="list-decimal ps-7 pe-3 py-2 space-y-1">
+            {/* ضغط بصري للشروط فقط: خط 10px + تباعد أضيق — المحتوى الأساسي بوضوحه */}
+            <ol className="list-decimal ps-6 pe-3 py-1.5 space-y-0.5 text-[10px] leading-snug">
               {(isProjects ? PROJECT_NOTE_KEYS : SOCIAL_NOTE_KEYS).map((key) => (
                 <li key={key}>{t(key)}</li>
               ))}
@@ -352,7 +376,7 @@ export default async function QuotationPrintPage(props: {
 
         {/* ── الضمان (config: warrantyTextSocialMedia + warrantySocialOnQuotation) ── */}
         {showWarranty && (
-          <section className="border border-gray-400 text-xs mb-6">
+          <section className="no-split border border-gray-400 text-xs mb-6">
             <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
               {t("quotations.print.warrantyTitle")}
             </p>
@@ -361,8 +385,9 @@ export default async function QuotationPrintPage(props: {
         )}
 
         {/* ── التوقيعات: المشروعات = المكتب الفني + المدير التنفيذي · غيرها = موافقة العميل ── */}
+        <div className="sig-anchor">
         {isProjects ? (
-          <footer className="flex justify-between pt-4 px-4">
+          <footer className="no-split flex justify-between pt-4 px-4">
             {[
               // اسم المهندس من engineerId ?? createdBy · اسم المعتمِد من approvedById (يُملأ عند الاعتماد؛ "—" للتاريخي)
               [t("quotations.print.signatureTechnicalOffice"), issuerName],
@@ -382,7 +407,7 @@ export default async function QuotationPrintPage(props: {
             ))}
           </footer>
         ) : (
-          <footer className="flex justify-start pt-4">
+          <footer className="no-split flex justify-start pt-4">
             <div className="text-center text-sm">
               <p className="font-semibold mb-10">
                 {t("quotations.print.customerApproval")}
@@ -394,6 +419,7 @@ export default async function QuotationPrintPage(props: {
             </div>
           </footer>
         )}
+        </div>
       </div>
     </>
   );
