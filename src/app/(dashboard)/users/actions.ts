@@ -2,11 +2,13 @@
 
 import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
+import { ALLOWED_EMAIL_DOMAIN } from "@/lib/config";
 import {
   createUser,
   updateUser,
   deleteUser,
   reactivateUser,
+  unlockUser,
   getUsers,
   LastAdminGuardError,
 } from "@/lib/services/users";
@@ -25,10 +27,30 @@ const departmentEnum = z.enum([
   "PROCUREMENT", "INSTALLATIONS", "ACCOUNTING", "HR",
 ]);
 
+// SCR-016: سياسة كلمة المرور — طول ≥8 + 3 فئات على الأقل من 4 (كبير/صغير/رقم/رمز)
+const passwordPolicy = z
+  .string()
+  .min(8, "errors.passwordMinLength8")
+  .refine((p) => {
+    const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) =>
+      r.test(p)
+    ).length;
+    return classes >= 3;
+  }, "errors.passwordComplexity");
+
+// SCR-016: النطاق المسموح للإنشاء الجديد فقط (forward-looking) — القدامى خارج الفحص
+const emailWithDomain = z
+  .string()
+  .email("errors.emailInvalid")
+  .refine(
+    (e) => e.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN),
+    "errors.emailDomainNotAllowed"
+  );
+
 const createSchema = z.object({
   name: z.string().min(1, "errors.required"),
-  email: z.string().email("errors.emailInvalid"),
-  password: z.string().min(6, "errors.passwordMinLength"),
+  email: emailWithDomain,
+  password: passwordPolicy,
   role: roleEnum,
   department: departmentEnum,
 });
@@ -36,11 +58,9 @@ const createSchema = z.object({
 const updateSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "errors.required").optional(),
-  email: z.string().email("errors.emailInvalid").optional(),
-  password: z
-    .string()
-    .min(6, "errors.passwordMinLength")
-    .optional(),
+  // النطاق يُفحص فقط إن أُرسل email جديد — تعديل بلا تغيير إيميل يمر (لا يحبس القدامى)
+  email: emailWithDomain.optional(),
+  password: passwordPolicy.optional(),
   role: roleEnum.optional(),
   department: departmentEnum.optional(),
   isActive: z.boolean().optional(),
@@ -122,6 +142,19 @@ export async function deleteUserAction(id: string) {
       return { success: false as const, error: e.message };
     }
     return { success: false as const, error: "errors.deleteFailed" };
+  }
+}
+
+// SCR-016: فك قفل حساب مقفول تلقائيًا (أدمن فقط)
+export async function unlockUserAction(id: string) {
+  const auth = await requireRole(["ADMIN"]);
+  if (!auth.authorized) return { success: false as const, error: "errors.notAuthorized" };
+
+  try {
+    await unlockUser(id, auth.userId);
+    return { success: true as const };
+  } catch {
+    return { success: false as const, error: "errors.updateFailed" };
   }
 }
 

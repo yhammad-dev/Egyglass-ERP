@@ -17,6 +17,7 @@ export interface UserRow {
   isActive: boolean;
   createdAt: Date;
   deletedAt: Date | null;
+  lockedUntil: Date | null;
 }
 
 export interface CreateUserInput {
@@ -48,6 +49,7 @@ export async function getUsers(): Promise<UserRow[]> {
       isActive: true,
       createdAt: true,
       deletedAt: true,
+      lockedUntil: true,
     },
   });
   return users;
@@ -203,6 +205,26 @@ export async function reactivateUser(id: string, actorId: string) {
       action: "USER_REACTIVATED",
       entity: "User",
       entityId: user.id,
+    },
+  });
+
+  return user;
+}
+
+// SCR-016: فك قفل الحساب — تصفير حقول القفل الثلاثة، دون لمس isActive
+export async function unlockUser(id: string, actorId: string) {
+  const user = await prisma.user.update({
+    where: { id },
+    data: { failedLoginAttempts: 0, lastFailedLoginAt: null, lockedUntil: null },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "ACCOUNT_UNLOCKED",
+      entity: "User",
+      entityId: user.id,
+      details: JSON.stringify({ email: user.email, unlockedBy: actorId }),
     },
   });
 

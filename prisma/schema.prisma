@@ -18,6 +18,12 @@ model User {
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   deletedAt                DateTime?
+
+  // ── SCR-016: قفل الحساب (5 محاولات فاشلة / rolling 24h → قفل 24h) ──
+  failedLoginAttempts      Int                     @default(0)
+  lastFailedLoginAt        DateTime?
+  lockedUntil              DateTime?
+
   activityLogs             ActivityLog[]
   assignedCustomers        Customer[]              @relation("CustomerOwner")
   inspections              InspectionRequest[]     @relation("InspectionAssignee")

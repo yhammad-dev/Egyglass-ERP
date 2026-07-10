@@ -44,6 +44,7 @@ import {
   updateUserAction,
   deleteUserAction,
   reactivateUserAction,
+  unlockUserAction,
   listUsersAction,
 } from "./actions";
 import type { UserRow } from "@/lib/services/users";
@@ -220,6 +221,17 @@ export function UsersClient({
     await refreshUsers();
   }
 
+  // SCR-016: فك القفل التلقائي (أدمن)
+  async function handleUnlock(row: UserRow) {
+    const result = await unlockUserAction(row.id);
+    if (!result.success) {
+      toast.error(t(result.error));
+    } else {
+      toast.success(t("users.unlocked"));
+    }
+    await refreshUsers();
+  }
+
   const columns = [
     columnHelper.accessor("name", {
       header: t("users.name"),
@@ -240,6 +252,9 @@ export function UsersClient({
       cell: (info) => {
         const row = info.row.original;
         if (row.deletedAt) return <Badge variant="destructive">{t("users.deleted")}</Badge>;
+        // SCR-016: شارة القفل التلقائي (منفصلة عن التعطيل الإداري)
+        if (row.lockedUntil && new Date(row.lockedUntil) > new Date())
+          return <Badge variant="destructive">{t("users.locked")}</Badge>;
         return info.getValue() ? (
           <Badge variant="default">{t("users.active")}</Badge>
         ) : (
@@ -265,6 +280,15 @@ export function UsersClient({
         }
         return (
           <div className="flex gap-2">
+            {row.lockedUntil && new Date(row.lockedUntil) > new Date() && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleUnlock(row)}
+              >
+                {t("users.unlock")}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
