@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { getSystemSettings } from "@/lib/config";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -59,9 +60,7 @@ export async function getFactorMinimum(): Promise<number> {
     const roleCheck = await requireRole(ADMIN_ROLES);
     if (!roleCheck.authorized) return 1.5;
 
-    const settings = await prisma.systemSettings.findUnique({
-      where: { id: "singleton" },
-    });
+    const settings = await getSystemSettings();
     return settings?.factorMinimum.toNumber() ?? 1.5;
   } catch (error) {
     console.error("[getFactorMinimum]", error);
@@ -81,9 +80,7 @@ export async function updateFactorMinimum(input: unknown) {
     const parsed = updateFactorMinimumSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
-    const existing = await prisma.systemSettings.findUnique({
-      where: { id: "singleton" },
-    });
+    const existing = await getSystemSettings();
 
     await prisma.systemSettings.upsert({
       where: { id: "singleton" },
@@ -190,12 +187,77 @@ export async function toggleMaterialActive(input: unknown) {
 }
 
 // Public read — no role check needed (used on print pages)
+export async function getDiscountSettings(): Promise<{ basePct: number; maxPct: number }> {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { basePct: 18, maxPct: 25 };
+
+    const settings = await getSystemSettings();
+    return {
+      basePct: settings?.discountBasePct.toNumber() ?? 18,
+      maxPct: settings?.discountMaxReqPct.toNumber() ?? 25,
+    };
+  } catch (error) {
+    console.error("[getDiscountSettings]", error);
+    return { basePct: 18, maxPct: 25 };
+  }
+}
+
+const updateDiscountSettingsSchema = z
+  .object({
+    basePct: z.coerce.number().positive("errors.invalidInput").max(100, "errors.invalidInput"),
+    maxPct: z.coerce.number().positive("errors.invalidInput").max(100, "errors.invalidInput"),
+  })
+  .refine((v) => v.maxPct >= v.basePct, { message: "errors.discountMaxBelowBase" });
+
+export async function updateDiscountSettings(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = updateDiscountSettingsSchema.safeParse(input);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "errors.invalidInput" };
+    }
+    const { basePct, maxPct } = parsed.data;
+
+    const existing = await getSystemSettings();
+
+    await prisma.systemSettings.upsert({
+      where: { id: "singleton" },
+      update: {
+        discountBasePct: basePct,
+        discountMaxReqPct: maxPct,
+        updatedById: roleCheck.userId,
+      },
+      create: {
+        id: "singleton",
+        discountBasePct: basePct,
+        discountMaxReqPct: maxPct,
+        updatedById: roleCheck.userId,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "UPDATE_DISCOUNT_SETTINGS",
+        entity: "SystemSettings",
+        entityId: "singleton",
+        details: `تم تغيير إعدادات الخصم: الحد الأساسي من ${existing?.discountBasePct ?? "18"}% إلى ${basePct}% · السقف الأقصى من ${existing?.discountMaxReqPct ?? "25"}% إلى ${maxPct}%`,
+      },
+    });
+
+    return { success: true as const, basePct, maxPct };
+  } catch (error) {
+    console.error("[updateDiscountSettings]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
 export async function getCompanySettings() {
   try {
-    const settings = await prisma.systemSettings.findUnique({
-      where: { id: "singleton" },
-      select: { companyName: true, companyLogoUrl: true },
-    });
+    const settings = await getSystemSettings();
     return {
       companyName: settings?.companyName ?? "EgyGlass",
       companyLogoUrl: settings?.companyLogoUrl ?? null,

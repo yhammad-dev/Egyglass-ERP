@@ -27,6 +27,7 @@ import {
   toggleMaterialActive,
   togglePricingFactorActive,
   updateFactorMinimum,
+  updateDiscountSettings,
 } from "../../../../../lib/admin/actions";
 
 type MaterialRow = {
@@ -50,10 +51,14 @@ export function PricingCatalogClient({
   initialMaterials,
   initialPricingFactors,
   initialFactorMinimum,
+  initialDiscountBasePct,
+  initialDiscountMaxReqPct,
 }: {
   initialMaterials: MaterialRow[];
   initialPricingFactors: PricingFactorRow[];
   initialFactorMinimum: number;
+  initialDiscountBasePct: number;
+  initialDiscountMaxReqPct: number;
 }) {
   const t = useTranslations();
 
@@ -92,6 +97,40 @@ export function PricingCatalogClient({
 
     setFactorMinimum(response.value);
     toast.success("تم تحديث الحد الأدنى لعامل التسعير");
+  }
+
+  const [discountBase, setDiscountBase] = useState<number>(initialDiscountBasePct);
+  const [discountMax, setDiscountMax] = useState<number>(initialDiscountMaxReqPct);
+  const [discountBaseInput, setDiscountBaseInput] = useState(String(initialDiscountBasePct));
+  const [discountMaxInput, setDiscountMaxInput] = useState(String(initialDiscountMaxReqPct));
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [savingDiscount, setSavingDiscount] = useState(false);
+
+  async function handleSaveDiscountSettings() {
+    setDiscountError(null);
+    const basePct = Number(discountBaseInput);
+    const maxPct = Number(discountMaxInput);
+    if (Number.isNaN(basePct) || basePct <= 0 || Number.isNaN(maxPct) || maxPct <= 0) {
+      setDiscountError(t("errors.invalidInput"));
+      return;
+    }
+    if (maxPct < basePct) {
+      setDiscountError(t("errors.discountMaxBelowBase"));
+      return;
+    }
+
+    setSavingDiscount(true);
+    const response = await updateDiscountSettings({ basePct, maxPct });
+    setSavingDiscount(false);
+
+    if ("error" in response) {
+      setDiscountError(t(response.error ?? "errors.invalidInput"));
+      return;
+    }
+
+    setDiscountBase(response.basePct);
+    setDiscountMax(response.maxPct);
+    toast.success(t("admin.pricing.discountUpdated"));
   }
 
   const numberFormat = new Intl.NumberFormat("en-US", {
@@ -199,6 +238,53 @@ export function PricingCatalogClient({
           <p className="text-xs text-muted-foreground">
             القيمة الحالية:{" "}
             <span dir="ltr">{numberFormat.format(factorMinimum)}</span>
+          </p>
+        </div>
+
+        <div className="rounded-md border p-4 max-w-md space-y-2 mt-6">
+          <Label>{t("admin.pricing.discountTitle")}</Label>
+          <p className="text-sm text-muted-foreground">
+            {t("admin.pricing.discountHint")}
+          </p>
+          <div className="flex items-end gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="discountBasePct" className="text-xs">
+                {t("admin.pricing.discountBaseLabel")}
+              </Label>
+              <Input
+                id="discountBasePct"
+                dir="ltr"
+                value={discountBaseInput}
+                onChange={(e) => setDiscountBaseInput(e.target.value)}
+                className="w-24"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="discountMaxReqPct" className="text-xs">
+                {t("admin.pricing.discountMaxLabel")}
+              </Label>
+              <Input
+                id="discountMaxReqPct"
+                dir="ltr"
+                value={discountMaxInput}
+                onChange={(e) => setDiscountMaxInput(e.target.value)}
+                className="w-24"
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleSaveDiscountSettings}
+              disabled={savingDiscount}
+            >
+              {t("admin.pricing.save")}
+            </Button>
+          </div>
+          <FieldError message={discountError ?? undefined} />
+          <p className="text-xs text-muted-foreground">
+            {t("admin.pricing.discountCurrent")}:{" "}
+            <span dir="ltr">
+              {numberFormat.format(discountBase)}% / {numberFormat.format(discountMax)}%
+            </span>
           </p>
         </div>
       </div>

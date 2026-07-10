@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { getSystemSettings } from "@/lib/config";
 import { getPricingFactors, getProductTypes } from "../../../../../lib/pricing/actions";
 import { QuotationBuilder } from "./_components/quotation-builder";
 
@@ -30,10 +31,7 @@ export default async function NewQuotationPage(props: {
     }),
     getProductTypes(),
     getPricingFactors(),
-    prisma.systemSettings.findUnique({
-      where: { id: "singleton" },
-      select: { discountBasePct: true },
-    }),
+    getSystemSettings(),
   ]);
 
   return (

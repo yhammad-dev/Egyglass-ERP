@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { getSystemSettings } from "@/lib/config";
 import { notifyRole } from "@/lib/notifications/send";
 
 const DISCOUNT_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -15,7 +16,7 @@ type Dec = InstanceType<typeof D>;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getSettings() {
-  const s = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
+  const s = await getSystemSettings();
   return {
     discountBasePct: s?.discountBasePct ?? new D(18),
     discountMaxReqPct: s?.discountMaxReqPct ?? new D(25),

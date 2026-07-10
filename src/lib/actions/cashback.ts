@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { getSystemSettings } from "@/lib/config";
 
 const CASHBACK_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
 
@@ -28,10 +29,7 @@ export async function linkCashbackOnContractAction(
         where: { id: customerId },
         select: { id: true, name: true, isRepeat: true, coveredById: true },
       }),
-      prisma.systemSettings.findUnique({
-        where: { id: "singleton" },
-        select: { cashbackActive: true },
-      }),
+      getSystemSettings(),
     ]);
 
     if (!customer) return { error: "errors.notFound" };

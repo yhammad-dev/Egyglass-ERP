@@ -1,7 +1,8 @@
 <!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Next.js version note
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This project uses Next.js 15.3.4 (App Router, Turbopack) — verified, not 16.
+If any generated code or cached documentation suggests v16 APIs, ignore it.
 <!-- END:nextjs-agent-rules -->
 
 ---
@@ -11,7 +12,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Stack (verified)
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Framework | **Next.js 16** (App Router, Turbopack) | NOT 15. Check docs in `node_modules/next/dist/docs/` |
+| Framework | **Next.js 15.3.4** (App Router, Turbopack) | NOT 16. Verified via build/runtime repeatedly. |
 | Auth | **Auth.js v5** (credentials) | `src/lib/auth.ts`, `src/lib/auth.config.ts` |
 | ORM | **Prisma** + PostgreSQL | Docker volume `egyglass_db_data` on `db:5432` |
 | DB superuser | **egyglass** (NOT postgres) | Set via `POSTGRES_USER` in docker-compose |
@@ -82,7 +83,11 @@ Rules:
 ## Schema — Phase 1 (FROZEN at `schema-phase1-done`)
 The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHANGE-REQUESTS.md).
 
-**Roles (enum Role):** ADMIN, SALES_MANAGER, SALES_REP, INSPECTION_MANAGER, REVIEW, VIEWER.
+**Roles (enum Role) — 14 exact values.** Full authoritative table lives in CLAUDE.md §3 — do not
+duplicate/maintain a separate list here to avoid drift:
+ADMIN, SALES_MANAGER, SALES_REP, INSPECTION_MANAGER, INSPECTION_REP, VIEWER, REVIEW,
+PROCUREMENT, INSTALLATIONS, ACCOUNTING, HR, PROJECTS, TECHNICAL_OFFICE, TEC_APPROVER.
+No `QUALITY_REVIEW`. No `INS_MANAGER`/`PRJ_MANAGER`/`INSTALLATION` (singular).
 
 **Core models:** User, Customer, Interaction, Quotation, QuotationItem, InspectionRequest, Attachment, ActivityLog.
 

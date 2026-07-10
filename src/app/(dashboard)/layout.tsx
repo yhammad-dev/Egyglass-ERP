@@ -7,7 +7,7 @@ import { signOutAction } from "@/lib/actions/auth";
 import { t } from "@/lib/server-translations";
 import { Toaster } from "@/components/ui/sonner";
 import { NotificationsBell } from "@/components/notifications-bell";
-import { prisma } from "@/lib/prisma";
+import { getSystemSettings } from "@/lib/config";
 import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
@@ -22,10 +22,7 @@ export default async function DashboardLayout({
 
   const navItems = getNavItems(session.user.role);
 
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: "singleton" },
-    select: { companyLogoUrl: true, companyName: true },
-  }).catch(() => null);
+  const settings = await getSystemSettings().catch(() => null);
 
   const companyLogoUrl = settings?.companyLogoUrl ?? null;
   const companyName = settings?.companyName ?? t("app.name");

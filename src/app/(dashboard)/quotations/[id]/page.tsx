@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { getSystemSettings } from "@/lib/config";
 import { QuotationDetail } from "./_components/quotation-detail";
 
 export default async function QuotationDetailPage(props: {
@@ -30,10 +31,7 @@ export default async function QuotationDetailPage(props: {
       where: { quotationId: id, status: "PENDING" },
       select: { id: true, requestedPct: true, reason: true, createdAt: true },
     }),
-    prisma.systemSettings.findUnique({
-      where: { id: "singleton" },
-      select: { discountMaxReqPct: true },
-    }),
+    getSystemSettings(),
   ]);
 
   if (!quotation) notFound();

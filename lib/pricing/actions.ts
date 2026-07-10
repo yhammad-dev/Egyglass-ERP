@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
 import { sendNotification } from "../notifications/send";
 
@@ -153,7 +154,7 @@ export async function calculateProductPricing(
 
     // RR-2: enforce the pricing-factor floor server-side (never client-trusted).
     // Threshold comes from SystemSettings.factorMinimum, not a hardcoded constant.
-    const settings = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
+    const settings = await getSystemSettings();
     const factorMinimum = settings?.factorMinimum.toNumber() ?? FACTOR_MINIMUM_FALLBACK;
 
     if (factorValue < factorMinimum) {
@@ -221,7 +222,7 @@ export async function createQuotation(
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) return { error: "errors.notFound" };
 
-    const settings = await prisma.systemSettings.findUnique({ where: { id: "singleton" } });
+    const settings = await getSystemSettings();
     const validDays = settings?.quotationValidDays ?? 3;
     const vatPct = settings?.vatPct ?? new D(14);
     const discountBasePct = settings?.discountBasePct ?? new D(18);

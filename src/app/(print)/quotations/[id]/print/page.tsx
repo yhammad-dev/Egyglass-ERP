@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { getSystemSettings } from "@/lib/config";
 import { t } from "@/lib/server-translations";
 import { PrintButton } from "./_components/print-button";
 
@@ -47,19 +48,7 @@ export default async function QuotationPrintPage(props: {
         },
       },
     }),
-    prisma.systemSettings
-      .findUnique({
-        where: { id: "singleton" },
-        select: {
-          companyName: true,
-          companyLogoUrl: true,
-          warrantyTextSocialMedia: true,
-          warrantySocialOnQuotation: true,
-          warrantyTextProjects: true,
-          warrantyProjectsOnQuotation: true,
-        },
-      })
-      .catch(() => null),
+    getSystemSettings().catch(() => null),
   ]);
 
   if (!q) notFound();
