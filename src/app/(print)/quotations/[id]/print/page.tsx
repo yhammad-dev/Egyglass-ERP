@@ -63,6 +63,14 @@ export default async function QuotationPrintPage(props: {
 
   if (!q) notFound();
 
+  // approvedById عمود scalar بلا relation في الـ schema — قراءة الاسم باستعلام منفصل
+  const approver = q.approvedById
+    ? await prisma.user.findUnique({
+        where: { id: q.approvedById },
+        select: { name: true },
+      })
+    : null;
+
   const isSocial = q.quotationRequest?.technicalRoute === "SOCIAL_MEDIA";
   const isProjects = q.quotationRequest?.technicalRoute === "PROJECTS";
   const issuerName = q.quotationRequest?.engineer?.name ?? q.createdBy.name;
@@ -356,9 +364,12 @@ export default async function QuotationPrintPage(props: {
         {isProjects ? (
           <footer className="flex justify-between pt-4 px-4">
             {[
-              // اسم المهندس من engineerId ?? createdBy (عرض فقط) · المدير: approvedById لا يُملأ بعد → "—"
+              // اسم المهندس من engineerId ?? createdBy · اسم المعتمِد من approvedById (يُملأ عند الاعتماد؛ "—" للتاريخي)
               [t("quotations.print.signatureTechnicalOffice"), issuerName],
-              [t("quotations.print.signatureExecutiveDirector"), t("quotations.dash")],
+              [
+                t("quotations.print.signatureExecutiveDirector"),
+                approver?.name ?? t("quotations.dash"),
+              ],
             ].map(([label, name]) => (
               <div key={label} className="text-center text-sm">
                 <p className="font-semibold mb-2">{label}</p>

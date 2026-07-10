@@ -244,6 +244,7 @@ export async function decideDiscountAction(
         where: { id: discountRequest.quotationId },
         data: {
           status: "APPROVED",
+          approvedById: roleCheck.userId,
           discountPct: finalPct,
           discountAmount,
           taxAmount,
@@ -259,8 +260,8 @@ export async function decideDiscountAction(
           entityId: discountRequestId,
           details:
             decision === "ADJUSTED"
-              ? `تمت الموافقة بنسبة معدّلة ${finalPct}% (بدلاً من ${requestedPct}%) على عرض السعر ${quotation.number}`
-              : `تمت الموافقة على خصم ${finalPct}% على عرض السعر ${quotation.number}`,
+              ? `تمت الموافقة بنسبة معدّلة ${finalPct}% (بدلاً من ${requestedPct}%) على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}`
+              : `تمت الموافقة على خصم ${finalPct}% على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}`,
         },
       }),
     ]);

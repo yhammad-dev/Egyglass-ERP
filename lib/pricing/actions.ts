@@ -477,7 +477,11 @@ export async function updateQuotationStatus(
 
     await prisma.quotation.update({
       where: { id: quotationId },
-      data: { status },
+      // approvedById يُكتب فقط عند الانتقال إلى APPROVED؛ مغادرة APPROVED لا تمحوه (أثر تاريخي)
+      data: {
+        status,
+        ...(status === "APPROVED" ? { approvedById: roleCheck.userId } : {}),
+      },
     });
 
     await prisma.activityLog.create({
@@ -486,7 +490,7 @@ export async function updateQuotationStatus(
         action: "UPDATE_STATUS",
         entity: "Quotation",
         entityId: quotationId,
-        details: `تم تغيير حالة عرض السعر ${quotation.number} من ${quotation.status} إلى ${status}`,
+        details: `تم تغيير حالة عرض السعر ${quotation.number} من ${quotation.status} إلى ${status}${status === "APPROVED" ? ` — اعتماد بواسطة ${roleCheck.userId}` : ""}`,
       },
     });
 
