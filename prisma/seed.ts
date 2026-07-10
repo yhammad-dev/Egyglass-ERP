@@ -4,7 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await bcrypt.hash("admin123", 12);
+  // أمان: لا كلمة مرور صلبة في الكود — تُقرأ من env، وقيمة الـ placeholder تُرفض أيضًا.
+  const seedPassword = process.env.SEED_USERS_PASSWORD;
+  if (!seedPassword || seedPassword === "<SET_STRONG_PASSWORD>") {
+    throw new Error(
+      "SEED_USERS_PASSWORD env var is required — set a real value in .env (not the placeholder)"
+    );
+  }
+  const passwordHash = await bcrypt.hash(seedPassword, 12);
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@egyglass.com" },
