@@ -124,9 +124,15 @@
   - SCR-014 (ضمان): `warrantyTextProjects` (Text?) · `warrantyTextSocialMedia` (Text?) · `warrantyProjectsOnQuotation`/`warrantyProjectsOnContract`/`warrantySocialOnQuotation` (booleans, default true) — لا يوجد `warrantySocialOnContract` (السوشيال بلا عقد أصلاً)
 - **نماذج موجودة بالفعل — تحقّق قبل أي migration جديدة:** `QuotationRequest`, `Drawing` (+ `status`: enum `DrawingStatus`), `ExtraItem` (+ `confirmedByInspection`), `Referral`, `CashbackTier`, `PriceListItem`, `PricingFactor`, `DiscountRequest`, `QuotationApproval`, `ManufacturingOrder` (+ `parentOrderId` + `faultType`: enum `FaultType` + self-relation `MfgReplacement`), `InstallationOrder`.
 - **SCR-014 الجديد:** `PaymentMilestone` (contractId, label, percentage Decimal(5,2), plannedAmount Decimal(14,2), sortOrder) · `Payment.milestoneId` (nullable, onDelete SetNull) · `Contract.totalValue` (Decimal? — snapshot من Quotation.total وقت الإصدار، لا يُقرأ لايف).
-- **الرقم 18 في الكود = fallback default فقط.** القراءة الموحّدة عبر `lib/config.ts` (قيد التوحيد — كل ملف لسه له `getSettings()` خاص، بند تنظيف معلّق).
+- **الرقم 18 في الكود = fallback default فقط.** ✅ القراءة موحّدة الآن عبر `src/lib/config.ts` → `getSystemSettings()` (المسار الفعلي المفروض من tsconfig alias `@/lib/config` — وليس `lib/config.ts`). بلا caching (كل الصفحات `force-dynamic`) وبلا ابتلاع أخطاء (سلوك `findUnique` حرفيًا). مُتحقَّق: صفر `systemSettings.findUnique` خارج `config.ts` (commit `bdc873a`).
 - **يوسف وحده يطبّق أي migration، داخل Docker.**
+### الطبقة 1 (تنظيف الديون) — مقفولة ✅ (commit bdc873a, 2026-07-10)
+- توحيد قراءة SystemSettings في `src/lib/config.ts` (refactor صفري السلوك).
+- شاشة إعدادات الخصم للأدمن: `updateDiscountSettings` (requireRole ADMIN + zod: موجبان ≤100 + refine maxPct≥basePct سيرفر-سايد + ActivityLog قديم/جديد). مُتحقَّق بالمسارات الأربعة (حفظ/validation/RBAC/إرجاع).
+- توثيق NODE_ENV: كان نظيفًا سلفًا (commit `671ac34`) — لا تعديل.
+- approvedById: منفّذ سلفًا (commit `68adec6`) — المساران يكتبان approvedById عند APPROVED، DiscountRequest.decidedById منفصل.
 
+> ✅ **مُتحقَّق على مستوى القاعدة (2026-07-10):** سياسة deactivate-not-delete مفروضة فعليًا بـ FK constraints — محاولة حذف مستخدم له سجلات ActivityLog تُرفض بـ P2003 (سلوك صحيح يحمي الأثر التدقيقي). المستخدمون يُعطَّلون (`isActive=false`) لا يُحذفون. السجلات append-only لا تُمسّ.
 ---
 
 ## 8. الضمان + العقد + محرك الدفعات (SCR-014 — مكتمل)
@@ -183,6 +189,18 @@
 - قواعد Turbopack-in-Docker (restart بعد أي ملف route/action جديد).
 
 ---
+## بنود معلّقة (تنظيف + أمان)
+
+### أمني — إلزامي قبل أي رفعة UAT
+- **كلمات مرور seed — مُعالَجة ✅ (mitigated, commit `8aad85c`):**
+  - `seed-admin.ts` → `SEED_ADMIN_PASSWORD` (env، إجباري) · `seed.ts` → `SEED_USERS_PASSWORD` (env، إجباري).
+  - حارس يرفض الغياب **والـ placeholder** معًا → الـ seed يتوقف قبل أي كتابة، لا يشتغل بكلمة ضعيفة. `.env.example` بـ `<SET_STRONG_PASSWORD>` (placeholder مرفوض عمدًا).
+  - ⚠️ **مخاطرة متبقية مقبولة (accepted risk):** القيم القديمة ما زالت في **تاريخ git** — لم يُعَد كتابة التاريخ (خطر على repo نشط أكبر من فائدته). التنظيف الكامل (`git filter-repo`) مؤجّل بوعي.
+  - 🔒 **قاعدة تشغيلية إلزامية (UAT/production):** أي حساب حقيقي يُنشأ بكلمة مرور **مُولَّدة جديدة وقت النشر** — ممنوع استخدام أي قيمة كانت في الـ repo. كلمات UAT منفصلة تمامًا عن أي seed value.
+- **حساب `admin@egyglass.com` (dev seed):** مُعطَّل (`isActive=false`, commit-less DB op) — ليس محذوفًا، لحماية الأثر التدقيقي. لا تعيد تفعيله. لا يذهب لـ UAT مفعّلًا.
+
+### تنظيف توثيقي (غير عاجل)
+- لوحة `factorMinimum` في `pricing-catalog-client.tsx` فيها نصوص عربية hardcoded قديمة (عناوين) تخرق قاعدة `t()` الإلزامية — تُحوّل لـ i18n في جلسة تنظيف لاحقة. اللوحة الجديدة (الخصم) كلها `t()` سليمة.
 
 ## 12. قالب البرومبت المحكوم
 
