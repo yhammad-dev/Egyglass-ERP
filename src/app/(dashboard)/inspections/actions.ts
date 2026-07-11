@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createInspection, scheduleInspection } from "@/lib/services/inspections";
-import { sendNotification } from "@/lib/notifications/send";
+import { sendNotification, notifyRole } from "@/lib/notifications/send";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
@@ -151,6 +151,7 @@ export async function addMeasurements(input: unknown) {
 
     const inspection = await prisma.inspectionRequest.findUnique({
       where: { id: parsed.data.id },
+      include: { customer: { select: { id: true, name: true, ownerId: true } } },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
@@ -167,6 +168,35 @@ export async function addMeasurements(input: unknown) {
         }),
       },
     });
+
+    // دفعة ب — فجوة 4: المقاسات تُخطر المكتب الفني (INS-R05: جاهزة لإعادة التسعير)
+    await notifyRole("TECHNICAL_OFFICE", {
+      title: "notifications.measurementsReadyTitle",
+      body: `مقاسات جديدة للعميل ${inspection.customer.name} — جاهزة لإعادة التسعير`,
+      type: "MEASUREMENTS_READY",
+      entityId: inspection.id,
+      entityType: "InspectionRequest",
+    });
+
+    // + التزام W-02/SAL-R10: المبيعات تُخطَر دائمًا — مالك العميل، وإلا مدير المبيعات
+    if (inspection.customer.ownerId) {
+      await sendNotification({
+        userId: inspection.customer.ownerId,
+        title: "notifications.measurementsRecordedTitle",
+        body: `سُجّلت مقاسات معاينة عميلك ${inspection.customer.name}`,
+        type: "MEASUREMENTS_RECORDED_SALES",
+        entityId: inspection.id,
+        entityType: "InspectionRequest",
+      });
+    } else {
+      await notifyRole("SALES_MANAGER", {
+        title: "notifications.measurementsRecordedTitle",
+        body: `سُجّلت مقاسات معاينة العميل ${inspection.customer.name} (بلا مالك مندوب)`,
+        type: "MEASUREMENTS_RECORDED_SALES",
+        entityId: inspection.id,
+        entityType: "InspectionRequest",
+      });
+    }
 
     return { success: true as const };
   } catch (error) {

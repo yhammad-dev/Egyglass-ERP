@@ -16,6 +16,7 @@ export interface DrawingRow {
   approvedByName: string | null;
   approvedAt: Date | null;
   createdAt: Date;
+  status: string;
 }
 
 export interface TecJobRow {
@@ -176,6 +177,7 @@ export async function getTecJobDetail(
       approvedByName: d.approvedBy?.name ?? null,
       approvedAt: d.approvedAt,
       createdAt: d.createdAt,
+      status: d.status,
     })),
   };
 }

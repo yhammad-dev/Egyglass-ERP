@@ -23,6 +23,8 @@ import {
   updateJobNotesAction,
   uploadDrawingAction,
   approveDrawingAction,
+  verifyDrawingAction,
+  ceoApproveDrawingAction,
 } from "../actions";
 
 type TecJobStatus = "NEW" | "IN_PROGRESS" | "ON_HOLD" | "DONE";
@@ -61,6 +63,9 @@ export function TecDetailClient({
 
   const canUpload = currentRole === "ADMIN" || currentRole === "TECHNICAL_OFFICE";
   const canApprove = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
+  // دفعة ب — بوابتا G2/G3 (W-05)
+  const canVerify = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+  const canCeoApprove = currentRole === "ADMIN";
 
   // Upload form state
   const [uploadCategory, setUploadCategory] = useState<DrawingCategory>("DRAWINGS");
@@ -147,6 +152,7 @@ export function TecDetailClient({
           approvedByName: null,
           approvedAt: null,
           createdAt: new Date(),
+          status: "DRAFT",
         },
         ...prev,
       ]);
@@ -170,11 +176,42 @@ export function TecDetailClient({
     setDrawings((prev) =>
       prev.map((d) =>
         d.id === drawing.id
-          ? { ...d, approvedByName: "✓", approvedAt: new Date() }
+          ? { ...d, approvedByName: "✓", approvedAt: new Date(), status: "TEC_APPROVED" }
           : d
       )
     );
     toast.success(t("tec.drawingApproved"));
+  }
+
+  // دفعة ب — G2: تحقق مدير المعاينات (قد يُفرج مباشرة تحت العتبة)
+  async function handleVerify(drawing: DrawingRow) {
+    setApprovingId(drawing.id);
+    const result = await verifyDrawingAction({ drawingId: drawing.id });
+    setApprovingId(null);
+    if ("error" in result) {
+      toast.error(t(result.error ?? "errors.serverError"));
+      return;
+    }
+    const newStatus = result.released ? "RELEASED_TO_FACTORY" : "INS_VERIFIED";
+    setDrawings((prev) =>
+      prev.map((d) => (d.id === drawing.id ? { ...d, status: newStatus } : d))
+    );
+    toast.success(t(result.released ? "tec.drawingReleased" : "tec.drawingVerified"));
+  }
+
+  // دفعة ب — G3: اعتماد CEO (فوق العتبة) ثم إفراج
+  async function handleCeoApprove(drawing: DrawingRow) {
+    setApprovingId(drawing.id);
+    const result = await ceoApproveDrawingAction({ drawingId: drawing.id });
+    setApprovingId(null);
+    if ("error" in result) {
+      toast.error(t(result.error ?? "errors.serverError"));
+      return;
+    }
+    setDrawings((prev) =>
+      prev.map((d) => (d.id === drawing.id ? { ...d, status: "RELEASED_TO_FACTORY" } : d))
+    );
+    toast.success(t("tec.drawingReleased"));
   }
 
   const categoryDrawings = drawings.filter((d) => d.category === activeCategory);
@@ -284,11 +321,16 @@ export function TecDetailClient({
         ) : (
           <div className="space-y-3">
             {categoryDrawings.map((drawing) => {
+              const notSelf = !(
+                drawing.uploadedByName === (t("app.me") ?? "أنا") &&
+                currentRole !== "ADMIN"
+              );
               const canApproveThis =
-                canApprove &&
-                !drawing.approvedAt &&
-                !(drawing.uploadedByName === (t("app.me") ?? "أنا") &&
-                  currentRole !== "ADMIN");
+                canApprove && drawing.status === "DRAFT" && notSelf;
+              const canVerifyThis =
+                canVerify && drawing.status === "TEC_APPROVED" && notSelf;
+              const canCeoThis =
+                canCeoApprove && drawing.status === "INS_VERIFIED" && notSelf;
 
               return (
                 <div key={drawing.id} className="border rounded-lg p-4 space-y-2">
@@ -317,6 +359,9 @@ export function TecDetailClient({
                           </Button>
                         </a>
                       )}
+                      <Badge variant="outline" className="text-xs">
+                        {t(`tec.dstatus_${drawing.status}`)}
+                      </Badge>
                       {canApproveThis && (
                         <Button
                           type="button"
@@ -329,6 +374,30 @@ export function TecDetailClient({
                           {approvingId === drawing.id
                             ? t("app.loading")
                             : t("tec.approveDrawing")}
+                        </Button>
+                      )}
+                      {canVerifyThis && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="text-xs"
+                          disabled={approvingId === drawing.id}
+                          onClick={() => handleVerify(drawing)}
+                        >
+                          {t("tec.verifyDrawing")}
+                        </Button>
+                      )}
+                      {canCeoThis && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="text-xs"
+                          disabled={approvingId === drawing.id}
+                          onClick={() => handleCeoApprove(drawing)}
+                        >
+                          {t("tec.ceoApproveDrawing")}
                         </Button>
                       )}
                     </div>

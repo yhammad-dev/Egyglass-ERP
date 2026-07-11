@@ -237,9 +237,14 @@ export async function approveDrawingAction(input: unknown) {
 
     const drawing = await prisma.drawing.findUnique({
       where: { id: drawingId },
-      select: { id: true, uploadedById: true, quotationRequestId: true },
+      select: { id: true, uploadedById: true, quotationRequestId: true, status: true },
     });
     if (!drawing) return { error: "errors.notFound" as const };
+
+    // دفعة ب — G1 يكتب DrawingStatus: التسلسل الشرعي DRAFT→TEC_APPROVED فقط
+    if (drawing.status !== "DRAFT") {
+      return { error: "errors.illegalStatusTransition" as const };
+    }
 
     if (drawing.uploadedById === auth.userId && auth.role !== "ADMIN") {
       return { error: "errors.cannotApproveSelf" as const };
@@ -247,7 +252,11 @@ export async function approveDrawingAction(input: unknown) {
 
     await prisma.drawing.update({
       where: { id: drawingId },
-      data: { approvedById: auth.userId, approvedAt: new Date() },
+      data: {
+        approvedById: auth.userId,
+        approvedAt: new Date(),
+        status: "TEC_APPROVED",
+      },
     });
 
     await prisma.activityLog.create({
@@ -271,6 +280,60 @@ export async function approveDrawingAction(input: unknown) {
     revalidatePath(`/technical-office/${drawing.quotationRequestId}`);
     return { success: true as const };
   } catch {
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ── دفعة ب — بوابتا G2/G3 (المنطق وقرارات التخطي في services/drawing-approval.ts) ──
+
+const gateSchema = z.object({ drawingId: z.string().min(1) });
+
+/** G2 — تحقق مدير المعاينات (TEC_APPROVED → INS_VERIFIED → إفراج أو بوابة CEO حسب العتبة) */
+export async function verifyDrawingAction(input: unknown) {
+  try {
+    const auth = await requireRole(["INSPECTION_MANAGER", "ADMIN"]);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = gateSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { verifyDrawing, DrawingGateError } = await import(
+      "@/lib/services/drawing-approval"
+    );
+    try {
+      const result = await verifyDrawing(parsed.data.drawingId, auth.userId, auth.role);
+      return { success: true as const, released: result.released };
+    } catch (e) {
+      if (e instanceof DrawingGateError) return { error: e.message };
+      throw e;
+    }
+  } catch (e) {
+    console.error("[verifyDrawingAction]", e);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+/** G3 — اعتماد CEO (ADMIN): مطلوب فقط فوق العتبة (INS_VERIFIED → CEO_APPROVED → إفراج) */
+export async function ceoApproveDrawingAction(input: unknown) {
+  try {
+    const auth = await requireRole(["ADMIN"]);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = gateSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { ceoApproveDrawing, DrawingGateError } = await import(
+      "@/lib/services/drawing-approval"
+    );
+    try {
+      await ceoApproveDrawing(parsed.data.drawingId, auth.userId, auth.role);
+      return { success: true as const };
+    } catch (e) {
+      if (e instanceof DrawingGateError) return { error: e.message };
+      throw e;
+    }
+  } catch (e) {
+    console.error("[ceoApproveDrawingAction]", e);
     return { error: "errors.serverError" as const };
   }
 }

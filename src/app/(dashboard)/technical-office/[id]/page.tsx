@@ -9,7 +9,13 @@ export default async function TecDetailPage(props: {
 }) {
   const { id } = await props.params;
 
-  const roleCheck = await requireRole(["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
+  // دفعة ب: INSPECTION_MANAGER يدخل لبوابة G2 (تحقق الرسومات)
+  const roleCheck = await requireRole([
+    "ADMIN",
+    "TECHNICAL_OFFICE",
+    "TEC_APPROVER",
+    "INSPECTION_MANAGER",
+  ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const job = await getTecJobDetail(id, roleCheck.userId, roleCheck.role);
