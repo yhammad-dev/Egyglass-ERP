@@ -355,6 +355,26 @@
       "projectNote21": "This offer complements the contract terms and is inseparable from them upon contracting."
     }
   },
+  "statements": {
+    "status_DRAFT": "Draft",
+    "status_ISSUED": "Issued",
+    "status_PAID": "Paid",
+    "print": {
+      "title": "Progress Statement",
+      "titleEn": "Progress Statement",
+      "docNumber": "Statement No.",
+      "draftNoNumber": "Draft — no number",
+      "issuedBy": "Issued by",
+      "issueDate": "Issue date",
+      "status": "Status",
+      "contractInfo": "Contract details",
+      "customer": "Customer",
+      "quotationRef": "Quotation ref.",
+      "progressPct": "Progress %",
+      "statementValue": "Statement value",
+      "notes": "Description"
+    }
+  },
   "inspections": {
     "title": "Inspections",
     "newInspection": "New Inspection Request",
@@ -476,6 +496,8 @@
     "factorRequiresApproval": "This factor requires management approval",
     "discountExceedsMax": "Discount exceeds the maximum allowed",
     "discountMaxBelowBase": "The maximum must not be lower than the base threshold",
+    "contractValueMissing": "Contract value is not recorded — statement cannot be calculated",
+    "statementNotDraft": "Statement is not a draft — it cannot be issued",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",

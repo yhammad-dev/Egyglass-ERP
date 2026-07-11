@@ -354,6 +354,26 @@
       "projectNote21": "هذا العرض مكمّل لشروط العقد ولا يُجزّأ عنها عند التعاقد."
     }
   },
+  "statements": {
+    "status_DRAFT": "مسودة",
+    "status_ISSUED": "صادر",
+    "status_PAID": "مدفوع",
+    "print": {
+      "title": "مستخلص",
+      "titleEn": "Progress Statement",
+      "docNumber": "رقم المستخلص",
+      "draftNoNumber": "مسودة — بلا رقم",
+      "issuedBy": "المُصدِر",
+      "issueDate": "تاريخ الإصدار",
+      "status": "الحالة",
+      "contractInfo": "بيانات العقد",
+      "customer": "العميل",
+      "quotationRef": "مرجع عرض السعر",
+      "progressPct": "نسبة الإنجاز",
+      "statementValue": "قيمة المستخلص",
+      "notes": "البيان"
+    }
+  },
   "inspections": {
     "title": "المعاينات",
     "newInspection": "طلب معاينة جديد",
@@ -475,6 +495,8 @@
     "factorRequiresApproval": "هذا الفاكتور يحتاج موافقة الإدارة",
     "discountExceedsMax": "الخصم يتجاوز الحد الأقصى المسموح به",
     "discountMaxBelowBase": "السقف الأقصى يجب ألا يقل عن الحد الأساسي",
+    "contractValueMissing": "قيمة العقد غير مسجّلة — لا يمكن حساب المستخلص",
+    "statementNotDraft": "المستخلص ليس مسودة — لا يمكن إصداره",
     "required": "الحقل مطلوب",
     "emailInvalid": "بريد إلكتروني غير صالح",
     "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",

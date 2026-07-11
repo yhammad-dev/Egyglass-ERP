@@ -47,6 +47,8 @@ model User {
   approvedDrawings         Drawing[]               @relation("DrawingApprover")
   createdExtraItems        ExtraItem[]             @relation("ExtraItemCreator")
   postInstallReviews       PostInstallReview[]     @relation("PostInstallReviewCreator")
+  issuedStatements         ProgressStatement[]     @relation("StatementIssuer")
+  issuedInvoices           Invoice[]               @relation("InvoiceIssuer")
 }
 
 model Customer {
@@ -75,6 +77,7 @@ model Customer {
   contracts          Contract[]
   quotationRequests  QuotationRequest[]
   postInstallReviews PostInstallReview[]
+  invoices           Invoice[]
 
   @@index([ownerId])
   @@index([stage])
@@ -157,6 +160,7 @@ model Quotation {
   approval            QuotationApproval?
   contract            Contract?
   quotationRequest    QuotationRequest?
+  invoices            Invoice[]
 
   @@index([customerId])
   @@index([status])
@@ -782,6 +786,8 @@ model Contract {
   createdBy          User                @relation(fields: [createdById], references: [id])
   postInstallReviews PostInstallReview[]
   paymentMilestones  PaymentMilestone[]
+  progressStatements ProgressStatement[]
+  invoices           Invoice[]
 
   @@index([customerId])
   @@map("contracts")
@@ -798,13 +804,86 @@ model PaymentMilestone {
   plannedAmount Decimal  @db.Decimal(14, 2)
   sortOrder     Int      @default(0)
 
-  payments Payment[]
+  payments           Payment[]
+  progressStatements ProgressStatement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([contractId])
   @@map("payment_milestones")
+}
+
+// ── SCR-015 دفعة 1: المستخلص — سند مرقّم (صيغة نصية مركّبة) بـ snapshot مجمّد ──
+model ProgressStatement {
+  id             String            @id @default(cuid())
+  // يُولّد عند ISSUED فقط عبر src/lib/finance/document-number.ts — nullable في DRAFT
+  // مشروعات: EG{seq}/YY/M/D · سوشيال: C3_{seq} — تعديل الصيغة = الدالة فقط، بلا migration
+  documentNumber String?
+  contractId     String
+  contract       Contract          @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  progressPct    Decimal           @db.Decimal(5, 2)
+  // snapshot: يُجمّد وقت الإصدار — لا يُقرأ لايف بعد ISSUED (مبدأ Contract.totalValue)
+  statementValue Decimal           @db.Decimal(14, 2)
+  status         StatementStatus   @default(DRAFT)
+  issuedAt       DateTime?
+  issuedById     String?
+  issuedBy       User?             @relation("StatementIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  milestoneId    String?
+  milestone      PaymentMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  notes          String?           @db.Text
+  invoices       Invoice[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([documentNumber])
+  @@index([contractId])
+  @@index([status])
+  @@map("progress_statements")
+}
+
+enum StatementStatus {
+  DRAFT
+  ISSUED
+  PAID
+}
+
+// ── SCR-015 دفعة 1: كيان الفاتورة — schema فقط، المنطق والطباعة في الدفعة 2 ──
+model Invoice {
+  id             String             @id @default(cuid())
+  documentNumber String?
+  customerId     String
+  customer       Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contractId     String?
+  contract       Contract?          @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  statementId    String?
+  statement      ProgressStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  quotationId    String?
+  quotation      Quotation?         @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  subtotal       Decimal            @db.Decimal(14, 2)
+  discountAmount Decimal            @default(0) @db.Decimal(14, 2)
+  vatAmount      Decimal            @db.Decimal(14, 2)
+  totalAmount    Decimal            @db.Decimal(14, 2)
+  status         InvoiceStatus      @default(DRAFT)
+  issuedAt       DateTime?
+  issuedById     String?
+  issuedBy       User?              @relation("InvoiceIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  notes          String?            @db.Text
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([documentNumber])
+  @@index([customerId])
+  @@index([contractId])
+  @@index([status])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
 }
 
 model InspectionPhoto {
