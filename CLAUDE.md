@@ -76,9 +76,9 @@
 - **W-01** طلبات التسعير: Single Entry Point + `requestSource` enum. لا تسعير خارج النظام.
 - **W-02** التعديل بعد المعاينة: مسار واحد يتقارب عند المكتب الفني (مالك إعادة التسعير). المبيعات تُخطَر دائمًا.
 - **W-03** المشروعات: اكتساب موحد عبر المبيعات · توجيه داخلي بالمصدر · كريم بعد التعاقد (app-layer gate: APPROVED فقط). ✅ مُنفَّذ.
-- **W-04** بطاقة الإكسسوار: TEC ينشئ · INS يؤكد المقاسات (`confirmedByInspection`) · PRC ينفّذ التوريد دون تعديل.
+- **W-04** بطاقة الإكسسوار: ✅ **مُنفَّذ فعليًا (دفعة أ)** بالدورة الثلاثية — TEC ينشئ البنود · INS يؤكد المقاسات (`confirmedByInspection` + إشعار PRC) · PRC يُدخل `unitCost` فقط **دون أي تعديل مواصفة (مفروض server-side** — action التكلفة لا يقبل نوعًا/وصفًا/كمية بنيويًا، ولا تكلفة على بند غير مؤكَّد). `services/extra-items.ts` + لوحة في شاشة الأوردر.
 - **W-05 / R-01** اعتماد الرسومات: بوابتان متمايزتان + CEO مشروط. Gate1 `TEC_APPROVER` · Gate2 `INSPECTION_MANAGER` (verify) · Gate3 CEO (عتبة config) · دور `REVIEW` موضعه في السلسلة = config. المهندس لا يعتمد رسمته.
-- **W-06** بدل الكسر: Fast-track (يتخطى Gate1، الرسمة معتمدة) + `parentOrderId` + `faultType` + إشعار للمسؤول. ✅ مُنفَّذ (SCR-013).
+- **W-06** بدل الكسر: Fast-track (يتخطى Gate1، الرسمة معتمدة) + `parentOrderId` + `faultType` + إشعار للمسؤول. ⚠️ **schema فقط (SCR-013) — المنطق غير مبني** (تدقيق COVERAGE-AUDIT-B1: صفر كود يكتب الحقلين؛ فجوة IMT حرجة معلّقة).
 - **W-07** استطلاع الرضا: event-driven عند `INSTALLED_FINAL` → إشعار المبيعات → استطلاع بعد `satisfactionSurveyDelayDays` (config=3). ✅ مُنفَّذ (SCR-013).
 - **R-02** كتابة عملاء الزملاء: مسموح + logging كامل + لوحة رؤية للمدير (soft-control). ✅ مُنفَّذ.
 - **R-03** قراءة المالية: project-scoped (least privilege) عبر `lib/finance/scope.ts`. ✅ مُنفَّذ.
@@ -125,6 +125,7 @@
 - **نماذج موجودة بالفعل — تحقّق قبل أي migration جديدة:** `QuotationRequest`, `Drawing` (+ `status`: enum `DrawingStatus`), `ExtraItem` (+ `confirmedByInspection`), `Referral`, `CashbackTier`, `PriceListItem`, `PricingFactor`, `DiscountRequest`, `QuotationApproval`, `ManufacturingOrder` (+ `parentOrderId` + `faultType`: enum `FaultType` + self-relation `MfgReplacement`), `InstallationOrder`.
 - **SCR-014 الجديد:** `PaymentMilestone` (contractId, label, percentage Decimal(5,2), plannedAmount Decimal(14,2), sortOrder) · `Payment.milestoneId` (nullable, onDelete SetNull) · `Contract.totalValue` (Decimal? — snapshot من Quotation.total وقت الإصدار، لا يُقرأ لايف).
 - **الرقم 18 في الكود = fallback default فقط.** ✅ القراءة موحّدة الآن عبر `src/lib/config.ts` → `getSystemSettings()` (المسار الفعلي المفروض من tsconfig alias `@/lib/config` — وليس `lib/config.ts`). بلا caching (كل الصفحات `force-dynamic`) وبلا ابتلاع أخطاء (سلوك `findUnique` حرفيًا). مُتحقَّق: صفر `systemSettings.findUnique` خارج `config.ts` (commit `bdc873a`).
+- **دفعة أ (migration `batch_a_factory_mfg_review`, tag `schema-batch-a-done`):** كيان `Factory` (name·code @unique·contact·isActive·notes — بسيط عمدًا، التقييم مؤجّل بعد UAT) · `ManufacturingOrder.factoryId?` (SetNull) + `rejectionReason?` · `MfgStatus` أصبح 6 قيم: `{PENDING, UNDER_REVIEW, REJECTED, IN_PRODUCTION, READY, DELIVERED}` — التسلسل الشرعي مفروض server-side، بوابة المراجعة قرارها `INSPECTION_MANAGER` (إجابة شكري BRD-11).
 - **يوسف وحده يطبّق أي migration، داخل Docker.**
 ### الطبقة 1 (تنظيف الديون) — مقفولة ✅ (commit bdc873a, 2026-07-10)
 - توحيد قراءة SystemSettings في `src/lib/config.ts` (refactor صفري السلوك).
@@ -200,6 +201,10 @@
   - ⚠️ **مخاطرة متبقية مقبولة (accepted risk):** القيم القديمة ما زالت في **تاريخ git** — لم يُعَد كتابة التاريخ (خطر على repo نشط أكبر من فائدته). التنظيف الكامل (`git filter-repo`) مؤجّل بوعي.
   - 🔒 **قاعدة تشغيلية إلزامية (UAT/production):** أي حساب حقيقي يُنشأ بكلمة مرور **مُولَّدة جديدة وقت النشر** — ممنوع استخدام أي قيمة كانت في الـ repo. كلمات UAT منفصلة تمامًا عن أي seed value.
 - **حساب `admin@egyglass.com` (dev seed):** مُعطَّل (`isActive=false`, commit-less DB op) — ليس محذوفًا، لحماية الأثر التدقيقي. لا تعيد تفعيله. لا يذهب لـ UAT مفعّلًا.
+
+### تشغيلي — قبل UAT
+- **`notifyRole` لصفر مستلمين يضيع بصمت** (لا خطأ، لا تسجيل) — تحسين مؤجّل.
+- ⚠️ **تحذير UAT:** seed UAT يجب أن يولّد مستخدمًا نشطًا لكل دور يستقبل إشعارات (TEC/PRC/INSTALLATIONS/INS/SALES/ACCOUNTING) وإلا تضيع الإشعارات بصمت — مثبت عمليًا في اختبارات دفعة أ (أدوار TEC/PRC/INSTALLATIONS كانت بلا مستخدمين نشطين).
 
 ### تنظيف توثيقي (غير عاجل)
 - لوحة `factorMinimum` في `pricing-catalog-client.tsx` فيها نصوص عربية hardcoded قديمة (عناوين) تخرق قاعدة `t()` الإلزامية — تُحوّل لـ i18n في جلسة تنظيف لاحقة. اللوحة الجديدة (الخصم) كلها `t()` سليمة.

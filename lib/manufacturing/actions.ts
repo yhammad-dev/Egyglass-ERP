@@ -76,6 +76,20 @@ export async function updateMfgStatus(input: unknown) {
     });
     if (!order) return { error: "errors.notFound" as const };
 
+    // دفعة أ: فرض التسلسل الشرعي server-side — القفزات غير الشرعية مرفوضة.
+    // الانتقالات إلى/من بوابة المراجعة تتم حصريًا عبر actions البوابة (submit/approve/reject).
+    const LEGAL_TRANSITIONS: Record<string, string[]> = {
+      PENDING: ["UNDER_REVIEW"],
+      UNDER_REVIEW: [], // موافقة/رفض عبر actions البوابة فقط (أدوار مختلفة)
+      REJECTED: ["UNDER_REVIEW"],
+      IN_PRODUCTION: ["READY"],
+      READY: ["DELIVERED"],
+      DELIVERED: [],
+    };
+    if (!LEGAL_TRANSITIONS[order.status]?.includes(parsed.data.status)) {
+      return { error: "errors.illegalStatusTransition" as const };
+    }
+
     await prisma.manufacturingOrder.update({
       where: { id: parsed.data.id },
       data: { status: parsed.data.status },

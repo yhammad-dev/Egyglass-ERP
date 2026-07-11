@@ -282,8 +282,30 @@ model ManufacturingOrder {
   parentOrder   ManufacturingOrder?  @relation("MfgReplacement", fields: [parentOrderId], references: [id], onDelete: SetNull)
   replacements  ManufacturingOrder[] @relation("MfgReplacement")
 
+  // ── دفعة أ: ربط المصنع (PRC-R04) + سبب الرفض في بوابة المراجعة (PRC-R03) ──
+  factoryId       String?
+  factory         Factory? @relation(fields: [factoryId], references: [id], onDelete: SetNull)
+  rejectionReason String?  @db.Text
+
   @@index([status])
   @@index([parentOrderId])
+  @@index([factoryId])
+}
+
+// ── دفعة أ: المصانع (PRC-R04) — بسيط عمدًا؛ التقييم/الإحصاءات مؤجّلة بعد UAT ──
+model Factory {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique // تكويد شكري — فريد
+  contact   String?          // تليفون/إيميل حر
+  isActive  Boolean  @default(true)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  manufacturingOrders ManufacturingOrder[]
+
+  @@map("factories")
 }
 
 enum FaultType {
@@ -627,6 +649,8 @@ enum QuotationType {
 
 enum MfgStatus {
   PENDING
+  UNDER_REVIEW
+  REJECTED
   IN_PRODUCTION
   READY
   DELIVERED
