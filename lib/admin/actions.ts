@@ -255,6 +255,158 @@ export async function updateDiscountSettings(input: unknown) {
   }
 }
 
+// ─── دفعة د: شاشة الإعدادات الكاملة — كل قيم SystemSettings القابلة للضبط ───
+
+/** قراءة كل القيم القابلة للضبط لشاشة الأدمن (ADMIN فقط) */
+export async function getSystemConfig() {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return null;
+
+    const s = await getSystemSettings();
+    return {
+      warrantyTextProjects: s?.warrantyTextProjects ?? "",
+      warrantyTextSocialMedia: s?.warrantyTextSocialMedia ?? "",
+      warrantyProjectsOnQuotation: s?.warrantyProjectsOnQuotation ?? true,
+      warrantyProjectsOnContract: s?.warrantyProjectsOnContract ?? true,
+      warrantySocialOnQuotation: s?.warrantySocialOnQuotation ?? true,
+      ceoDrawingApprovalThreshold: s?.ceoDrawingApprovalThreshold?.toNumber() ?? null,
+      managerApprovalCeilingPct: s?.managerApprovalCeilingPct?.toNumber() ?? null,
+      reviewGatePosition: s?.reviewGatePosition ?? null,
+      satisfactionSurveyDelayDays: s?.satisfactionSurveyDelayDays ?? 3,
+      quotationValidDays: s?.quotationValidDays ?? 3,
+      vatPct: s?.vatPct.toNumber() ?? 14,
+      cashbackActive: s?.cashbackActive ?? true,
+      cashbackStartDate: s?.cashbackStartDate?.toISOString().slice(0, 10) ?? null,
+    };
+  } catch (error) {
+    console.error("[getSystemConfig]", error);
+    return null;
+  }
+}
+
+/** helper موحّد: upsert + ActivityLog بالقيم القديمة/الجديدة (نمط updateDiscountSettings) */
+async function applySettingsUpdate(
+  actorId: string,
+  action: string,
+  data: Record<string, unknown>,
+  detailsAr: string
+) {
+  await prisma.systemSettings.upsert({
+    where: { id: "singleton" },
+    update: { ...data, updatedById: actorId },
+    create: { id: "singleton", ...data, updatedById: actorId },
+  });
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action,
+      entity: "SystemSettings",
+      entityId: "singleton",
+      details: detailsAr,
+    },
+  });
+}
+
+const warrantySchema = z.object({
+  warrantyTextProjects: z.string().max(5000),
+  warrantyTextSocialMedia: z.string().max(5000),
+  warrantyProjectsOnQuotation: z.boolean(),
+  warrantyProjectsOnContract: z.boolean(),
+  warrantySocialOnQuotation: z.boolean(),
+});
+
+export async function updateWarrantySettings(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = warrantySchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const old = await getSystemSettings();
+    await applySettingsUpdate(
+      roleCheck.userId,
+      "UPDATE_WARRANTY_SETTINGS",
+      {
+        warrantyTextProjects: parsed.data.warrantyTextProjects || null,
+        warrantyTextSocialMedia: parsed.data.warrantyTextSocialMedia || null,
+        warrantyProjectsOnQuotation: parsed.data.warrantyProjectsOnQuotation,
+        warrantyProjectsOnContract: parsed.data.warrantyProjectsOnContract,
+        warrantySocialOnQuotation: parsed.data.warrantySocialOnQuotation,
+      },
+      `تحديث إعدادات الضمان — نص المشروعات: ${old?.warrantyTextProjects ? "موجود" : "فارغ"}→${parsed.data.warrantyTextProjects ? "موجود" : "فارغ"} · نص السوشيال: ${old?.warrantyTextSocialMedia ? "موجود" : "فارغ"}→${parsed.data.warrantyTextSocialMedia ? "موجود" : "فارغ"} · مواضع الطباعة: [${old?.warrantyProjectsOnQuotation},${old?.warrantyProjectsOnContract},${old?.warrantySocialOnQuotation}]→[${parsed.data.warrantyProjectsOnQuotation},${parsed.data.warrantyProjectsOnContract},${parsed.data.warrantySocialOnQuotation}]`
+    );
+    return { success: true as const };
+  } catch (error) {
+    console.error("[updateWarrantySettings]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+const policySchema = z.object({
+  // nullable: الحقل الفارغ = NULL = "غير مضبوط/يُتخطّى" (دلالة موثقة في دفعة ب)
+  ceoDrawingApprovalThreshold: z.coerce.number().positive("errors.invalidInput").nullable(),
+  managerApprovalCeilingPct: z.coerce
+    .number()
+    .positive("errors.invalidInput")
+    .max(100, "errors.invalidInput")
+    .nullable(),
+  reviewGatePosition: z.coerce.number().int().positive("errors.invalidInput").nullable(),
+  satisfactionSurveyDelayDays: z.coerce.number().int().positive("errors.invalidInput"),
+  quotationValidDays: z.coerce.number().int().positive("errors.invalidInput"),
+  vatPct: z.coerce.number().positive("errors.invalidInput").max(100, "errors.invalidInput"),
+});
+
+export async function updatePolicySettings(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = policySchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const old = await getSystemSettings();
+    await applySettingsUpdate(
+      roleCheck.userId,
+      "UPDATE_POLICY_SETTINGS",
+      { ...parsed.data },
+      `تحديث السياسات — عتبة CEO: ${old?.ceoDrawingApprovalThreshold ?? "NULL"}→${parsed.data.ceoDrawingApprovalThreshold ?? "NULL"} · سقف المدير: ${old?.managerApprovalCeilingPct ?? "NULL"}→${parsed.data.managerApprovalCeilingPct ?? "NULL"} · موضع REVIEW: ${old?.reviewGatePosition ?? "NULL"}→${parsed.data.reviewGatePosition ?? "NULL"} · استطلاع: ${old?.satisfactionSurveyDelayDays}→${parsed.data.satisfactionSurveyDelayDays} · صلاحية العرض: ${old?.quotationValidDays}→${parsed.data.quotationValidDays} · ضريبة: ${old?.vatPct}→${parsed.data.vatPct}`
+    );
+    return { success: true as const };
+  } catch (error) {
+    console.error("[updatePolicySettings]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+const cashbackSchema = z.object({
+  cashbackActive: z.boolean(),
+  cashbackStartDate: z.coerce.date().nullable(),
+});
+
+export async function updateCashbackSettings(input: unknown) {
+  try {
+    const roleCheck = await requireRole(ADMIN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = cashbackSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const old = await getSystemSettings();
+    await applySettingsUpdate(
+      roleCheck.userId,
+      "UPDATE_CASHBACK_SETTINGS",
+      { ...parsed.data },
+      `تحديث الكاش باك — مفعّل: ${old?.cashbackActive}→${parsed.data.cashbackActive} · تاريخ البدء: ${old?.cashbackStartDate?.toISOString().slice(0, 10) ?? "NULL"}→${parsed.data.cashbackStartDate?.toISOString().slice(0, 10) ?? "NULL"}`
+    );
+    return { success: true as const };
+  } catch (error) {
+    console.error("[updateCashbackSettings]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
 export async function getCompanySettings() {
   try {
     const settings = await getSystemSettings();

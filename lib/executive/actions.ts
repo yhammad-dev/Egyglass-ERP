@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 
@@ -88,6 +89,42 @@ export async function getDashboardKPIs() {
         ? (approvedQuotationsCount / totalQuotationsCount) * 100
         : 0;
 
+    // ── دفعة د (CEO-R06): مشاريع + مالية Decimal + مؤشرات تشغيل ──
+    // "المشاريع المتأخرة" — التعريف المختار: إشارتان تشغيليتان حقيقيتان بدل اشتقاق ضعيف
+    // (Project لا يملك جدولًا زمنيًا مستخدمًا): أوامر تصنيع تجاوزت expectedAt ولم تُسلَّم،
+    // وتركيبات مجدولة فات موعدها ولم تكتمل — وعدان زمنيان صريحان في البيانات.
+    const [
+      activeProjects,
+      overdueMfgOrders,
+      overdueInstallations,
+      mfgUnderReview,
+      drawingsAwaitingCeo,
+      paymentsSum,
+    ] = await Promise.all([
+      prisma.project.count({ where: { status: "ACTIVE" } }),
+      prisma.manufacturingOrder.count({
+        where: {
+          expectedAt: { lt: now },
+          status: { in: ["IN_PRODUCTION", "UNDER_REVIEW", "PENDING"] },
+        },
+      }),
+      prisma.installationOrder.count({
+        where: {
+          scheduledAt: { lt: now },
+          status: { in: ["PENDING", "SCHEDULED", "IN_PROGRESS"] },
+        },
+      }),
+      prisma.manufacturingOrder.count({ where: { status: "UNDER_REVIEW" } }),
+      prisma.drawing.count({ where: { status: "INS_VERIFIED" } }),
+      prisma.payment.aggregate({ _sum: { amount: true } }),
+    ]);
+
+    // المالية Decimal كامل — التحويل لـ number عند حدود الإرجاع فقط
+    const D = Prisma.Decimal;
+    const approvedTotalDec = approvedRevenue._sum.total ?? new D(0);
+    const collectedDec = paymentsSum._sum.amount ?? new D(0);
+    const outstandingDec = approvedTotalDec.sub(collectedDec);
+
     return {
       kpis: {
         activeCustomers,
@@ -95,7 +132,15 @@ export async function getDashboardKPIs() {
         conversionRate,
         mfgInProduction,
         installationsScheduledThisWeek,
-        approvedRevenue: approvedRevenue._sum.total?.toNumber() ?? 0,
+        approvedRevenue: approvedTotalDec.toNumber(),
+        // دفعة د
+        activeProjects,
+        overdueMfgOrders,
+        overdueInstallations,
+        mfgUnderReview,
+        drawingsAwaitingCeo,
+        totalCollected: collectedDec.toNumber(),
+        totalOutstanding: outstandingDec.toNumber(),
       },
       recentQuotations: recentQuotations.map((q) => ({
         id: q.id,

@@ -43,7 +43,30 @@ export default async function ExecutivePage() {
       label: t("executive.kpi.approvedRevenue"),
       value: <span dir="ltr">{numberFormat.format(kpis.approvedRevenue)}</span>,
     },
-  ];
+    // ── دفعة د (CEO-R06) ──
+    { label: t("executive.kpi.activeProjects"), value: kpis.activeProjects },
+    {
+      label: t("executive.kpi.overdueMfgOrders"),
+      value: kpis.overdueMfgOrders,
+      alert: kpis.overdueMfgOrders > 0,
+    },
+    {
+      label: t("executive.kpi.overdueInstallations"),
+      value: kpis.overdueInstallations,
+      alert: kpis.overdueInstallations > 0,
+    },
+    { label: t("executive.kpi.mfgUnderReview"), value: kpis.mfgUnderReview },
+    { label: t("executive.kpi.drawingsAwaitingCeo"), value: kpis.drawingsAwaitingCeo },
+    {
+      label: t("executive.kpi.totalCollected"),
+      value: <span dir="ltr">{numberFormat.format(kpis.totalCollected)}</span>,
+    },
+    {
+      label: t("executive.kpi.totalOutstanding"),
+      value: <span dir="ltr">{numberFormat.format(kpis.totalOutstanding)}</span>,
+      alert: kpis.totalOutstanding > 0,
+    },
+  ] as { label: string; value: React.ReactNode; alert?: boolean }[];
 
   return (
     <div className="space-y-8 p-6">
@@ -51,9 +74,16 @@ export default async function ExecutivePage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((card, index) => (
-          <div key={index} className="rounded-md border bg-white p-4 space-y-2">
+          <div
+            key={index}
+            className={`rounded-md border p-4 space-y-2 ${
+              card.alert ? "bg-red-50 border-red-200" : "bg-white"
+            }`}
+          >
             <p className="text-sm text-muted-foreground">{card.label}</p>
-            <p className="text-2xl font-bold">{card.value}</p>
+            <p className={`text-2xl font-bold ${card.alert ? "text-red-700" : ""}`}>
+              {card.value}
+            </p>
           </div>
         ))}
       </div>

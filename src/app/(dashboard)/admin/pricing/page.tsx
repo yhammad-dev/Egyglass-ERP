@@ -7,21 +7,24 @@ import {
   getFactorMinimum,
   getCompanySettings,
   getDiscountSettings,
+  getSystemConfig,
 } from "../../../../../lib/admin/actions";
 import { PricingCatalogClient } from "./pricing-catalog-client";
 import { CompanySettingsPanel } from "../../../../components/company-settings-panel";
+import { SystemSettingsPanel } from "./system-settings-panel";
 
 export default async function AdminPricingPage() {
   const roleCheck = await requireRole(["ADMIN"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
-  const [materials, pricingFactors, factorMinimum, companySettings, discountSettings] =
+  const [materials, pricingFactors, factorMinimum, companySettings, discountSettings, systemConfig] =
     await Promise.all([
       getMaterials(),
       getPricingFactors(),
       getFactorMinimum(),
       getCompanySettings(),
       getDiscountSettings(),
+      getSystemConfig(),
     ]);
 
   return (
@@ -37,6 +40,7 @@ export default async function AdminPricingPage() {
         initialDiscountBasePct={discountSettings.basePct}
         initialDiscountMaxReqPct={discountSettings.maxPct}
       />
+      {systemConfig && <SystemSettingsPanel initial={systemConfig} />}
     </div>
   );
 }

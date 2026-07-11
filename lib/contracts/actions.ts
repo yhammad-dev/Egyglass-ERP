@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
+import { notifyRole } from "@/lib/notifications/send";
 import { z } from "zod";
 
 const CONTRACT_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
@@ -34,7 +35,7 @@ export async function createContract(input: unknown) {
     // contract/annex, never a live read of the mutable quotation).
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
-      select: { id: true, number: true, total: true },
+      select: { id: true, number: true, total: true, customer: { select: { name: true } } },
     });
     if (!quotation) return { error: "عرض السعر غير موجود" };
 
@@ -63,6 +64,15 @@ export async function createContract(input: unknown) {
         entityId: contract.id,
         details: `تم إنشاء عقد لعرض السعر ${quotation.number} بقيمة مجمّدة ${quotation.total.toFixed(2)}`,
       },
+    });
+
+    // دفعة د — ACC-R01: الحسابات تُخطَر فور التعاقد (لا تنتظر فتح الشاشة)
+    await notifyRole("ACCOUNTING", {
+      title: "notifications.contractCreatedTitle",
+      body: `عقد جديد — العميل ${quotation.customer.name} · عرض ${quotation.number} · قيمة مجمّدة ${quotation.total.toFixed(2)} جنيه`,
+      type: "CONTRACT_CREATED",
+      entityId: contract.id,
+      entityType: "Contract",
     });
 
     return { success: true, contract };
