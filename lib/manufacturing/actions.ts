@@ -44,8 +44,9 @@ export async function getMfgOrders() {
 
 export async function createManufacturingOrder(quotationId: string) {
   try {
-    const existing = await prisma.manufacturingOrder.findUnique({
-      where: { quotationId },
+    // "أمر أصلي واحد لكل عرض" يُفرض هنا منطقيًا (القيد الصلب رُفع لتمكين بدائل W-06)
+    const existing = await prisma.manufacturingOrder.findFirst({
+      where: { quotationId, parentOrderId: null },
     });
     if (existing) return existing;
 

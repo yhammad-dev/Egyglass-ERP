@@ -169,7 +169,12 @@ export function InstallationsClient({
             {orders.length ? (
               orders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell>
+                    {/* دفعة ج: صفحة الأمر (بنود/صور/فريق) */}
+                    <a href={`/installations/${order.id}`} className="underline underline-offset-2">
+                      {order.customerName}
+                    </a>
+                  </TableCell>
                   <TableCell>
                     {order.scheduledAt
                       ? dateFormat.format(new Date(order.scheduledAt))

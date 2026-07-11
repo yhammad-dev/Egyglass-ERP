@@ -49,6 +49,8 @@ model User {
   postInstallReviews       PostInstallReview[]     @relation("PostInstallReviewCreator")
   issuedStatements         ProgressStatement[]     @relation("StatementIssuer")
   issuedInvoices           Invoice[]               @relation("InvoiceIssuer")
+  installationPhotos       InstallationPhoto[]     @relation("InstallationPhotoUploader")
+  installationItems        InstallationItem[]      @relation("InstallationItemCreator")
 }
 
 model Customer {
@@ -153,7 +155,7 @@ model Quotation {
   createdBy           User                @relation(fields: [createdById], references: [id])
   customer            Customer            @relation(fields: [customerId], references: [id])
   items               QuotationItem[]
-  manufacturingOrder  ManufacturingOrder?
+  manufacturingOrders ManufacturingOrder[]
   payments            Payment[]
   projectId           String?
   project             Project?            @relation(fields: [projectId], references: [id])
@@ -265,7 +267,9 @@ model Notification {
 
 model ManufacturingOrder {
   id                String             @id @default(cuid())
-  quotationId       String             @unique
+  // كان @unique — رُفع القيد لتمكين أوامر بديلة (W-06) لنفس العرض؛
+  // "أمر أصلي واحد لكل عرض" يُفرض منطقيًا في createManufacturingOrder (parentOrderId: null)
+  quotationId       String
   quotation         Quotation          @relation(fields: [quotationId], references: [id])
   status            MfgStatus          @default(PENDING)
   assignedTo        String?
@@ -290,6 +294,7 @@ model ManufacturingOrder {
   @@index([status])
   @@index([parentOrderId])
   @@index([factoryId])
+  @@index([quotationId])
 }
 
 // ── دفعة أ: المصانع (PRC-R04) — بسيط عمدًا؛ التقييم/الإحصاءات مؤجّلة بعد UAT ──
@@ -311,6 +316,7 @@ model Factory {
 enum FaultType {
   BREAKAGE
   FACTORY_ERROR
+  TEC_ERROR
   MEASUREMENT_ERROR
   CUSTOMER_DELAY
 }
@@ -327,8 +333,53 @@ model InstallationOrder {
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
+  photos InstallationPhoto[]
+  items  InstallationItem[]
+
   @@index([status])
   @@index([teamLeadId])
+}
+
+// ── دفعة ج: صور التركيب (IMT-R06) — اختيارية، تموت مع الأمر ──
+model InstallationPhoto {
+  id                  String            @id @default(cuid())
+  installationOrderId String
+  installationOrder   InstallationOrder @relation(fields: [installationOrderId], references: [id], onDelete: Cascade)
+  url                 String            @db.VarChar(1000)
+  caption             String?           @db.VarChar(300)
+  uploadedById        String?
+  uploadedBy          User?             @relation("InstallationPhotoUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt           DateTime          @default(now())
+
+  @@index([installationOrderId])
+  @@map("installation_photos")
+}
+
+// ── دفعة ج: بنود التركيب (IMT-R05) — حوادث يسجلها قائد الفريق؛ تغذّي W-06 ──
+model InstallationItem {
+  id                  String               @id @default(cuid())
+  installationOrderId String
+  installationOrder   InstallationOrder    @relation(fields: [installationOrderId], references: [id], onDelete: Restrict)
+  type                InstallationItemType
+  description         String?              @db.VarChar(500)
+  quantity            Decimal?             @db.Decimal(10, 2)
+  cost                Decimal?             @db.Decimal(12, 2) // اختيارية — حسب الحالة (إجابة إسلام)
+  createdById         String
+  createdBy           User                 @relation("InstallationItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt           DateTime             @default(now())
+
+  @@index([installationOrderId])
+  @@index([type])
+  @@map("installation_items")
+}
+
+enum InstallationItemType {
+  BREAKAGE_REPLACEMENT
+  MFG_ERROR
+  TEC_ERROR
+  MEASUREMENT_ERROR
+  CLIENT_DELAY
+  OTHER
 }
 
 model Payment {
