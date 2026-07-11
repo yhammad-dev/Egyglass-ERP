@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
@@ -37,13 +38,20 @@ export async function getAccountingDashboard() {
       // RR-1 STEP-4: contract value is quotation.total, which is now the
       // post-discount, post-VAT figure computed server-side in createQuotation
       // (never the raw subtotal).
+      // SCR-015 دفعة 2: التجميع Decimal كامل — التحويل لـ number عند حدود الإرجاع فقط
+      const totalPaidDec = q.payments.reduce(
+        (sum, p) => sum.add(p.amount),
+        new Prisma.Decimal(0)
+      );
+      const remainingDec = q.total.sub(totalPaidDec);
       const totalContract = q.total.toNumber();
-      const totalPaid = q.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0);
-      const remaining = totalContract - totalPaid;
+      const totalPaid = totalPaidDec.toNumber();
+      const remaining = remainingDec.toNumber();
 
       return {
         quotationId: q.id,
         number: q.number,
+        customerId: q.customer.id,
         customerName: q.customer.name,
         totalContract,
         totalPaid,
@@ -58,6 +66,86 @@ export async function getAccountingDashboard() {
   } catch (error) {
     console.error("[getAccountingDashboard]", error);
     return [];
+  }
+}
+
+// ─── SCR-015 دفعة 2: شيت العميل (أعمدة راندا) — قراءة مجمّعة per-customer ─────
+// يخضع لـ getFinanceScope (R-03) كباقي القراءات المالية — لا يتجاوزه.
+export type CustomerSheetRow = {
+  quotationId: string;
+  number: string;
+  date: Date;
+  description: string;
+  totalContract: number;
+  totalPaid: number;
+  remaining: number;
+};
+
+export async function getCustomerSheet(customerId: string): Promise<{
+  customerName: string;
+  rows: CustomerSheetRow[];
+  totals: { contract: number; paid: number; remaining: number };
+} | null> {
+  try {
+    const roleCheck = await requireRole(ACCOUNTING_READ_ROLES);
+    if (!roleCheck.authorized) return null;
+
+    const scope = getFinanceScope(roleCheck.role, roleCheck.userId);
+    if (scope.kind === "none") return null;
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true },
+    });
+    if (!customer) return null;
+
+    const quotations = await prisma.quotation.findMany({
+      where: {
+        customerId,
+        reviewStatus: "APPROVED",
+        ...(scope.kind === "filtered" ? scope.quotationWhere : {}),
+      },
+      include: {
+        payments: { select: { amount: true } },
+        project: { select: { nameAr: true } },
+        items: { select: { description: true }, take: 1 },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // التجميع Decimal كامل — التحويل لـ number عند حدود الإرجاع فقط
+    const D = Prisma.Decimal;
+    let contractSum = new D(0);
+    let paidSum = new D(0);
+
+    const rows = quotations.map((q) => {
+      const paid = q.payments.reduce((sum, p) => sum.add(p.amount), new D(0));
+      const remaining = q.total.sub(paid);
+      contractSum = contractSum.add(q.total);
+      paidSum = paidSum.add(paid);
+      return {
+        quotationId: q.id,
+        number: q.number,
+        date: q.createdAt,
+        description: q.project?.nameAr ?? q.items[0]?.description ?? "—",
+        totalContract: q.total.toNumber(),
+        totalPaid: paid.toNumber(),
+        remaining: remaining.toNumber(),
+      };
+    });
+
+    return {
+      customerName: customer.name,
+      rows,
+      totals: {
+        contract: contractSum.toNumber(),
+        paid: paidSum.toNumber(),
+        remaining: contractSum.sub(paidSum).toNumber(),
+      },
+    };
+  } catch (error) {
+    console.error("[getCustomerSheet]", error);
+    return null;
   }
 }
 

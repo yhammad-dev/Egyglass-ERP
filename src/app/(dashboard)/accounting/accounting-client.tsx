@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ const STATUS_VARIANT: Record<PaymentStatus, "default" | "secondary" | "outline" 
 type AccountingRow = {
   quotationId: string;
   number: string;
+  customerId: string;
   customerName: string;
   totalContract: number;
   totalPaid: number;
@@ -285,7 +287,15 @@ export function AccountingClient({
             {rows.length ? (
               rows.map((row) => (
                 <TableRow key={row.quotationId}>
-                  <TableCell>{row.customerName}</TableCell>
+                  <TableCell>
+                    {/* SCR-015: رابط شيت العميل (أعمدة راندا) */}
+                    <Link
+                      href={`/accounting/customer/${row.customerId}`}
+                      className="underline underline-offset-2"
+                    >
+                      {row.customerName}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <span dir="ltr">{row.number}</span>
                   </TableCell>

@@ -36,22 +36,35 @@ function parseSocialSeq(documentNumber: string): number | null {
 }
 
 async function resolveProjectSeq(db: Db, contractId: string): Promise<number> {
-  // ثابت للعقد: لو لهذا العقد مستخلص مُصدَر سابق، رقمه هو المرجع
-  const existing = await db.progressStatement.findFirst({
+  // ثابت للعقد: رقم المشروع مشترك بين مستخلصات العقد وفواتيره —
+  // أي مستند EG سابق لهذا العقد (مستخلص أو فاتورة) هو المرجع
+  const existingStmt = await db.progressStatement.findFirst({
     where: { contractId, documentNumber: { startsWith: PROJECTS_PREFIX } },
     select: { documentNumber: true },
   });
+  const existing =
+    existingStmt ??
+    (await db.invoice.findFirst({
+      where: { contractId, documentNumber: { startsWith: PROJECTS_PREFIX } },
+      select: { documentNumber: true },
+    }));
   if (existing?.documentNumber) {
     const seq = parseProjectSeq(existing.documentNumber);
     if (seq !== null) return seq;
   }
 
-  // أول إصدار لهذا العقد: أعلى رقم مشروع مستخدم في أي مستخلص +1 (وإلا 1)
-  const all = await db.progressStatement.findMany({
-    where: { documentNumber: { startsWith: PROJECTS_PREFIX } },
-    select: { documentNumber: true },
-  });
-  const max = all.reduce((m, s) => {
+  // أول إصدار لهذا العقد: أعلى رقم مشروع مستخدم في أي مستند EG (مستخلصات + فواتير) +1
+  const [stmts, invs] = await Promise.all([
+    db.progressStatement.findMany({
+      where: { documentNumber: { startsWith: PROJECTS_PREFIX } },
+      select: { documentNumber: true },
+    }),
+    db.invoice.findMany({
+      where: { documentNumber: { startsWith: PROJECTS_PREFIX } },
+      select: { documentNumber: true },
+    }),
+  ]);
+  const max = [...stmts, ...invs].reduce((m, s) => {
     const seq = s.documentNumber ? parseProjectSeq(s.documentNumber) : null;
     return seq !== null && seq > m ? seq : m;
   }, 0);
@@ -89,4 +102,39 @@ export async function generateStatementDocumentNumber(
   const m = issueDate.getMonth() + 1;
   const d = issueDate.getDate();
   return `${PROJECTS_PREFIX}${String(projectSeq).padStart(PROJECT_SEQ_PAD, "0")}/${yy}/${m}/${d}-${issuedCount + 1}`;
+}
+
+/**
+ * SCR-015 دفعة 2: رقم الفاتورة — نفس مبادئ المستخلص، والتمييز عن المستخلص = مقطع "INV".
+ * - مشروعات (contractId إلزامي): EG{رقم المشروع الثابت للعقد}/YY/M/D-INV{تسلسل فواتير العقد}
+ *   مثال: EG0001/26/7/11-INV1 — رقم المشروع مشترك مع مستخلصات نفس العقد.
+ * - سوشيال (بلا عقد): C3_{تسلسل عام بعدد فواتير السوشيال} — فضاء ترقيم مستقل عن مستخلصات C3_.
+ * الصيغة قابلة للتعديل هنا فقط.
+ */
+export async function generateInvoiceDocumentNumber(
+  db: Db,
+  contractId: string | null,
+  route: "PROJECTS" | "SOCIAL_MEDIA",
+  issueDate: Date
+): Promise<string> {
+  if (route === "SOCIAL_MEDIA" || !contractId) {
+    const all = await db.invoice.findMany({
+      where: { documentNumber: { startsWith: SOCIAL_PREFIX } },
+      select: { documentNumber: true },
+    });
+    const max = all.reduce((m, s) => {
+      const seq = s.documentNumber ? parseSocialSeq(s.documentNumber) : null;
+      return seq !== null && seq > m ? seq : m;
+    }, 0);
+    return `${SOCIAL_PREFIX}${max + 1}`;
+  }
+
+  const projectSeq = await resolveProjectSeq(db, contractId);
+  const issuedCount = await db.invoice.count({
+    where: { contractId, documentNumber: { not: null } },
+  });
+  const yy = String(issueDate.getFullYear() % 100).padStart(2, "0");
+  const m = issueDate.getMonth() + 1;
+  const d = issueDate.getDate();
+  return `${PROJECTS_PREFIX}${String(projectSeq).padStart(PROJECT_SEQ_PAD, "0")}/${yy}/${m}/${d}-INV${issuedCount + 1}`;
 }
