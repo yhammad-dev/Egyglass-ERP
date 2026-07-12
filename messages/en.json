@@ -495,7 +495,8 @@
     "linkedToContract": "Projects — invoice will be linked to the contract automatically",
     "directNoContract": "Social media — direct invoice, no contract",
     "awaitingApprovalTitle": "Invoice awaiting management approval",
-    "issuedTitle": "Invoice issued"
+    "issuedTitle": "Invoice issued",
+    "cancelledTitle": "An issued invoice was cancelled"
   },
   "quotationRequest": {
     "title": "Quotation requests",

@@ -494,7 +494,8 @@
     "linkedToContract": "مشروعات — ستُربط الفاتورة بالعقد تلقائيًا",
     "directNoContract": "سوشيال ميديا — فاتورة مباشرة بلا عقد",
     "awaitingApprovalTitle": "فاتورة بانتظار اعتماد الإدارة",
-    "issuedTitle": "صدرت الفاتورة"
+    "issuedTitle": "صدرت الفاتورة",
+    "cancelledTitle": "أُلغيت فاتورة صادرة"
   },
   "quotationRequest": {
     "title": "طلبات التسعير",

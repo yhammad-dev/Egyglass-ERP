@@ -94,9 +94,30 @@ export async function cancelInvoiceAction(input: unknown) {
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = cancelInvoiceSchema.safeParse(input);
-    if (!parsed.success) return { error: "errors.invalidInput" as const };
+    if (!parsed.success) {
+      // D-24: السبب إلزامي server-side (لا UI فقط)
+      return {
+        error:
+          parsed.error.flatten().fieldErrors.reason?.[0] ??
+          ("errors.invalidInput" as const),
+      };
+    }
 
-    await cancelInvoice(parsed.data.id, parsed.data.reason, roleCheck.userId);
+    const cancelled = await cancelInvoice(
+      parsed.data.id,
+      parsed.data.reason,
+      roleCheck.userId
+    );
+
+    // D-24: إشعار فوري لـ ADMIN (رقم + مبلغ + سبب) — الضابط = الأثر والرؤية لا المنع
+    await notifyRole("ADMIN", {
+      title: "invoices.cancelledTitle",
+      body: `أُلغيت الفاتورة ${cancelled.documentNumber ?? cancelled.id} — مبلغ ${cancelled.totalAmount} — السبب: ${parsed.data.reason}`,
+      type: "INVOICE_CANCELLED",
+      entityId: cancelled.id,
+      entityType: "Invoice",
+    });
+
     return { success: true as const };
   } catch (e) {
     if (e instanceof InvoiceError) return { error: e.message };
