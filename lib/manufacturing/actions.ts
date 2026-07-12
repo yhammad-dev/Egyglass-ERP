@@ -91,8 +91,10 @@ export async function createManufacturingOrder(quotationId: string) {
     });
     if (existing) return { success: true as const, id: existing.id };
 
+    // D-16: الإصدار نفسه = الاعتماد — الأمر يدخل بوابة REVIEW مباشرة (UNDER_REVIEW)،
+    // لا PENDING ولا خطوة "أرسل للمراجعة" يدوية (BL-59). PENDING صارت ميتة لـ MO (BL-64).
     const order = await prisma.manufacturingOrder.create({
-      data: { quotationId },
+      data: { quotationId, status: "UNDER_REVIEW" },
     });
 
     await prisma.activityLog.create({
@@ -101,14 +103,14 @@ export async function createManufacturingOrder(quotationId: string) {
         action: "MFG_ORDER_CREATED",
         entity: "ManufacturingOrder",
         entityId: order.id,
-        details: `أصدر المدير التنفيذي أمر تصنيع لعرض السعر ${quotation.number}`,
+        details: `أصدر المدير التنفيذي أمر تصنيع لعرض السعر ${quotation.number} — دخل بوابة المراجعة مباشرة`,
       },
     });
 
-    // إشعار PROCUREMENT (شكري) — الأمر جاهز لدخول بوابة المراجعة
-    await notifyRole("PROCUREMENT", {
+    // D-16: إشعار REVIEW (صاحب الدور التالي) — لا PROCUREMENT (دوره بعد اعتماد REVIEW)
+    await notifyRole("REVIEW", {
       title: "notifications.newMfgOrderTitle",
-      body: `أمر تصنيع جديد لعرض السعر ${quotation.number}`,
+      body: `أمر تصنيع جديد لعرض السعر ${quotation.number} — بانتظار المطابقة والاعتماد`,
       type: "MFG_ORDER_CREATED",
       entityId: order.id,
       entityType: "ManufacturingOrder",
