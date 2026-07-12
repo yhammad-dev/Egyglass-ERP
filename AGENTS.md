@@ -6,6 +6,7 @@ If any generated code or cached documentation suggests v16 APIs, ignore it.
 <!-- END:nextjs-agent-rules -->
 
 ---
+>اقرأ BACKLOG.md قبل أي مهمة. قسم "قرارات محسومة" مرجع مُلزِم — لا اجتهاد فيه.
 
 # EgyGlass ERP — Agent Rules (Ground Truth)
 
