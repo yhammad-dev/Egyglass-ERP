@@ -153,6 +153,15 @@ export async function updateMfgStatus(input: unknown) {
       return { error: "errors.illegalStatusTransition" as const };
     }
 
+    // D-12 (بوابة READY): لا انتقال IN_PRODUCTION → READY قبل تعيين المصنع/التاريخ
+    // (شكري يعيّنهما عبر assignFactory). المصنع إلزامي حتى نزول موديول المخازن (BL-57).
+    if (
+      parsed.data.status === "READY" &&
+      (order.factoryId === null || order.expectedAt === null)
+    ) {
+      return { error: "errors.factoryNotAssigned" as const };
+    }
+
     await prisma.manufacturingOrder.update({
       where: { id: parsed.data.id },
       data: { status: parsed.data.status },

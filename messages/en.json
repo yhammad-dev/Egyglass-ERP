@@ -201,7 +201,9 @@
     "matchConfirmed": "Match confirmed",
     "matchIncompleteHint": "Confirm all three matches to enable approval",
     "noInspection": "No linked inspection",
-    "noEngineeringDrawing": "No technically approved drawing"
+    "noEngineeringDrawing": "No technically approved drawing",
+    "assignFactory": "Assign factory",
+    "factoryAssigned": "Factory and date assigned"
   },
   "extraItems": {
     "title": "Accessory card (extra items)",
@@ -747,7 +749,8 @@
     "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",
     "matchIncomplete": "All three matches must be confirmed before approval",
     "socialContractAutoOnly": "Social contracts are auto-created by accounting on first payment — not created manually",
-    "noPaymentForManufacturing": "Cannot issue a manufacturing order without a recorded payment (payment precedes manufacturing)"
+    "noPaymentForManufacturing": "Cannot issue a manufacturing order without a recorded payment (payment precedes manufacturing)",
+    "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

@@ -20,6 +20,7 @@ import {
   approveOrderAction,
   rejectOrderAction,
   confirmMatchAction,
+  assignFactoryAction,
 } from "./actions";
 
 type FactoryOption = { id: string; name: string; code: string };
@@ -64,6 +65,8 @@ export function ReviewPanel({
   const canSubmit = ["PROCUREMENT", "TECHNICAL_OFFICE", "ADMIN"].includes(userRole);
   // PHASE 3 (D-09): القرار = محمد حسام (REVIEW) — لا مدير المعاينات
   const canDecide = ["REVIEW", "ADMIN"].includes(userRole);
+  // D-12: تعيين المصنع/التاريخ = شكري (PROCUREMENT)
+  const canAssignFactory = ["PROCUREMENT", "ADMIN"].includes(userRole);
 
   const [confirmed, setConfirmed] = useState<Set<MatchItem>>(new Set(confirmedItems));
   const [factoryId, setFactoryId] = useState("");
@@ -231,7 +234,50 @@ export function ReviewPanel({
           </Button>
         )}
 
+        {/* D-12: REVIEW يعتمد بالمطابقة فقط — لا مصنع/تاريخ (نُقلا لـ PROCUREMENT) */}
         {canDecide && status === "UNDER_REVIEW" && (
+          <>
+            <Button
+              type="button"
+              // الاعتماد محجوب حتى تكتمل التأكيدات الثلاثة (تعزيز UI؛ الحجب الحقيقي server-side)
+              disabled={busy || !allConfirmed}
+              title={!allConfirmed ? t("manufacturing.matchIncompleteHint") : undefined}
+              onClick={() =>
+                run(
+                  () => approveOrderAction({ id: orderId }),
+                  "manufacturing.approved"
+                ).then((ok) => ok && router.refresh())
+              }
+            >
+              {t("manufacturing.approve")}
+            </Button>
+            <div className="space-y-1">
+              <Label htmlFor="reject-reason">{t("manufacturing.rejectReason")}</Label>
+              <Input
+                id="reject-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-56"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busy}
+              onClick={() =>
+                run(
+                  () => rejectOrderAction({ id: orderId, reason: rejectReason }),
+                  "manufacturing.rejected"
+                ).then((ok) => ok && router.refresh())
+              }
+            >
+              {t("manufacturing.reject")}
+            </Button>
+          </>
+        )}
+
+        {/* D-12: PROCUREMENT (شكري) يعيّن المصنع + التاريخ على أمر معتمد (IN_PRODUCTION) */}
+        {canAssignFactory && status === "IN_PRODUCTION" && (
           <>
             <div className="space-y-1">
               <Label>{t("manufacturing.factory")}</Label>
@@ -265,9 +311,7 @@ export function ReviewPanel({
             </div>
             <Button
               type="button"
-              // الاعتماد محجوب حتى تكتمل التأكيدات الثلاثة (تعزيز UI؛ الحجب الحقيقي server-side)
-              disabled={busy || !allConfirmed}
-              title={!allConfirmed ? t("manufacturing.matchIncompleteHint") : undefined}
+              disabled={busy}
               onClick={() => {
                 if (!factoryId || !expectedInput) {
                   setError(t("errors.invalidInput"));
@@ -275,38 +319,16 @@ export function ReviewPanel({
                 }
                 run(
                   () =>
-                    approveOrderAction({
+                    assignFactoryAction({
                       id: orderId,
                       factoryId,
                       expectedAt: expectedInput,
                     }),
-                  "manufacturing.approved"
+                  "manufacturing.factoryAssigned"
                 ).then((ok) => ok && router.refresh());
               }}
             >
-              {t("manufacturing.approve")}
-            </Button>
-            <div className="space-y-1">
-              <Label htmlFor="reject-reason">{t("manufacturing.rejectReason")}</Label>
-              <Input
-                id="reject-reason"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className="w-56"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={busy}
-              onClick={() =>
-                run(
-                  () => rejectOrderAction({ id: orderId, reason: rejectReason }),
-                  "manufacturing.rejected"
-                ).then((ok) => ok && router.refresh())
-              }
-            >
-              {t("manufacturing.reject")}
+              {t("manufacturing.assignFactory")}
             </Button>
           </>
         )}

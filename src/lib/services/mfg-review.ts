@@ -99,13 +99,13 @@ export async function submitForReview(orderId: string, actorId: string) {
   return updated;
 }
 
-/** الموافقة (مدير المعاينات) = إفراج للتصنيع + اختيار مصنع نشط + تاريخ متوقع */
-export async function approveOrder(
-  orderId: string,
-  factoryId: string,
-  expectedAt: Date,
-  actorId: string
-) {
+/**
+ * الاعتماد (REVIEW = محمد حسام) = المطابقة الثلاثية فقط (D-09).
+ * D-12: **لا يختار مصنعًا ولا تاريخًا** — ذلك دور PROCUREMENT (شكري) لاحقًا (assignFactory).
+ * IN_PRODUCTION تُكتب بـ factoryId=null · expectedAt=null، دلالتها: "معتمد ومسلَّم
+ * لـ PROCUREMENT للتنفيذ". إلزامية المصنع تُفرض عند بوابة READY لا هنا (قرار ب).
+ */
+export async function approveOrder(orderId: string, actorId: string) {
   const order = await prisma.manufacturingOrder.findUnique({ where: { id: orderId } });
   if (!order) throw new MfgReviewError("errors.notFound");
   if (order.status !== "UNDER_REVIEW")
@@ -116,15 +116,10 @@ export async function approveOrder(
   if (confirmed.length < MATCH_ITEMS.length)
     throw new MfgReviewError("errors.matchIncomplete");
 
-  const factory = await prisma.factory.findUnique({ where: { id: factoryId } });
-  if (!factory || !factory.isActive) throw new MfgReviewError("errors.factoryInactive");
-
   const updated = await prisma.manufacturingOrder.update({
     where: { id: orderId },
     data: {
       status: "IN_PRODUCTION",
-      factoryId,
-      expectedAt,
       rejectionReason: null,
     },
   });
@@ -135,7 +130,43 @@ export async function approveOrder(
       action: "MFG_REVIEW_APPROVED",
       entity: "ManufacturingOrder",
       entityId: orderId,
-      details: `اعتُمد أمر التصنيع وأُرسل لمصنع ${factory.code} — تسليم متوقع ${expectedAt.toISOString().slice(0, 10)}`,
+      details: `اعتُمد أمر التصنيع (مطابقة ثلاثية) — بانتظار توجيه PROCUREMENT للمصنع`,
+    },
+  });
+
+  return updated;
+}
+
+/**
+ * D-12: PROCUREMENT (شكري) يعيّن المصنع النشط + التاريخ المتوقع على أمر IN_PRODUCTION.
+ * منفصل عن اعتماد REVIEW — لا جمود (REVIEW يعتمد مستقلًا، شكري يوجّه بعده).
+ */
+export async function assignFactory(
+  orderId: string,
+  factoryId: string,
+  expectedAt: Date,
+  actorId: string
+) {
+  const order = await prisma.manufacturingOrder.findUnique({ where: { id: orderId } });
+  if (!order) throw new MfgReviewError("errors.notFound");
+  if (order.status !== "IN_PRODUCTION")
+    throw new MfgReviewError("errors.illegalStatusTransition");
+
+  const factory = await prisma.factory.findUnique({ where: { id: factoryId } });
+  if (!factory || !factory.isActive) throw new MfgReviewError("errors.factoryInactive");
+
+  const updated = await prisma.manufacturingOrder.update({
+    where: { id: orderId },
+    data: { factoryId, expectedAt },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "MFG_FACTORY_ASSIGNED",
+      entity: "ManufacturingOrder",
+      entityId: orderId,
+      details: `عيّن PROCUREMENT المصنع ${factory.code} — تسليم متوقع ${expectedAt.toISOString().slice(0, 10)}`,
     },
   });
 

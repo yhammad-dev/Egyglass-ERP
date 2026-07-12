@@ -200,7 +200,9 @@
     "matchConfirmed": "تم تأكيد المطابقة",
     "matchIncompleteHint": "أكّد المطابقات الثلاث لتفعيل الاعتماد",
     "noInspection": "لا توجد معاينة مرتبطة",
-    "noEngineeringDrawing": "لا توجد رسمة معتمدة فنيًا"
+    "noEngineeringDrawing": "لا توجد رسمة معتمدة فنيًا",
+    "assignFactory": "تعيين المصنع",
+    "factoryAssigned": "تم تعيين المصنع والتاريخ"
   },
   "extraItems": {
     "title": "بطاقة الإكسسوار (البنود الإضافية)",
@@ -746,7 +748,8 @@
     "noContractForManufacturing": "لا يمكن إصدار أمر تصنيع لمشروع بلا عقد",
     "matchIncomplete": "يجب تأكيد المطابقات الثلاث قبل الاعتماد",
     "socialContractAutoOnly": "عقد السوشيال يُنشأ تلقائيًا من الحسابات عند أول دفعة — لا يُنشأ يدويًا",
-    "noPaymentForManufacturing": "لا يمكن إصدار أمر تصنيع بلا دفعة مسجّلة (الدفع شرط قبل التصنيع)"
+    "noPaymentForManufacturing": "لا يمكن إصدار أمر تصنيع بلا دفعة مسجّلة (الدفع شرط قبل التصنيع)",
+    "factoryNotAssigned": "لا يمكن الانتقال إلى READY قبل تعيين المصنع والتاريخ المتوقع (شكري)"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",

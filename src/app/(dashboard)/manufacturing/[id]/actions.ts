@@ -11,6 +11,7 @@ import {
 import {
   submitForReview,
   approveOrder,
+  assignFactory,
   rejectOrder,
   confirmMatchItem,
   MATCH_ITEMS,
@@ -19,6 +20,8 @@ import {
 
 // PHASE 3 (D-09): بوابة محمد حسام على أمر التصنيع — قسم الجودة والمراجعة الفنية
 const MFG_REVIEW_ROLES = ["REVIEW", "ADMIN"];
+// D-12: تعيين المصنع/التاريخ = PROCUREMENT (شكري)
+const FACTORY_ASSIGN_ROLES = ["PROCUREMENT", "ADMIN"];
 
 // دفعة أ — W-04: الحراسة لكل ضلع من الدورة الثلاثية بدوره الصحيح
 const EXTRA_ITEM_TYPES = [
@@ -107,6 +110,11 @@ export async function submitForReviewAction(input: unknown) {
 
 const approveSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
+});
+
+// D-12: PROCUREMENT يعيّن المصنع + التاريخ (منفصل عن اعتماد REVIEW)
+const assignFactorySchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
   factoryId: z.string().min(1, "errors.invalidInput"),
   expectedAt: z.coerce.date(),
 });
@@ -134,7 +142,7 @@ export async function confirmMatchAction(input: unknown) {
   }
 }
 
-/** الاعتماد = محمد حسام (REVIEW) بعد مطابقة الثلاثة — مع مصنع نشط وتاريخ متوقع */
+/** الاعتماد = محمد حسام (REVIEW) بمطابقة الثلاثة فقط — D-12: بلا مصنع/تاريخ */
 export async function approveOrderAction(input: unknown) {
   try {
     const roleCheck = await requireRole(MFG_REVIEW_ROLES);
@@ -143,7 +151,25 @@ export async function approveOrderAction(input: unknown) {
     const parsed = approveSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
-    await approveOrder(
+    await approveOrder(parsed.data.id, roleCheck.userId);
+    return { success: true as const };
+  } catch (e) {
+    if (e instanceof MfgReviewError) return { error: e.message };
+    console.error("[approveOrderAction]", e);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+/** D-12: PROCUREMENT (شكري) يعيّن المصنع + التاريخ على أمر IN_PRODUCTION */
+export async function assignFactoryAction(input: unknown) {
+  try {
+    const roleCheck = await requireRole(FACTORY_ASSIGN_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = assignFactorySchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    await assignFactory(
       parsed.data.id,
       parsed.data.factoryId,
       parsed.data.expectedAt,
@@ -152,7 +178,7 @@ export async function approveOrderAction(input: unknown) {
     return { success: true as const };
   } catch (e) {
     if (e instanceof MfgReviewError) return { error: e.message };
-    console.error("[approveOrderAction]", e);
+    console.error("[assignFactoryAction]", e);
     return { error: "errors.serverError" as const };
   }
 }
