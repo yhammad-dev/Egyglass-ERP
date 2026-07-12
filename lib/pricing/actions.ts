@@ -7,8 +7,14 @@ import { requireRole } from "@/lib/rbac";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
 import { sendNotification } from "../notifications/send";
+import {
+  recomputeQuotationRequestStatus,
+  recomputeCustomerStage,
+} from "@/lib/services/status-derivation";
 
-const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
+// دفعة هـ (W-01): التسعير للمكتب الفني حصرًا. المندوب يطلب لا يسعّر.
+// SALES_MANAGER يبقى (إشراف/حالات مباشرة) — SALES_REP سُحب.
+const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
 // RR-2: the low-factor floor is no longer hardcoded. It is read from
 // SystemSettings.factorMinimum (SCR-008) and enforced server-side below.
 const FACTOR_MINIMUM_FALLBACK = 1.5;
@@ -205,6 +211,8 @@ const createQuotationSchema = z.object({
   needsApproval: z.boolean().optional(),
   pricingFactor: z.coerce.number().positive().optional(),
   discountPct: z.coerce.number().min(0, "errors.invalidInput").max(100, "errors.invalidInput").optional(),
+  // دفعة هـ (W-01): ربط العرض بطلب التسعير الذي أنشأه المندوب — يرث المسار
+  quotationRequestId: z.string().optional(),
 });
 
 export async function createQuotation(
@@ -217,10 +225,23 @@ export async function createQuotation(
     const parsed = createQuotationSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" };
 
-    const { customerId, title, items, needsApproval, pricingFactor } = parsed.data;
+    const { customerId, title, items, needsApproval, pricingFactor, quotationRequestId } =
+      parsed.data;
 
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) return { error: "errors.notFound" };
+
+    // دفعة هـ (W-01+W-02): لو العرض ناشئ عن طلب تسعير —
+    // طلب بلا عرض = عرض أولي (INITIAL) · طلب له عرض = إعادة تسعير (FINAL) بسلسلة محفوظة
+    let previousQuotationId: string | null = null;
+    if (quotationRequestId) {
+      const req = await prisma.quotationRequest.findUnique({
+        where: { id: quotationRequestId },
+        select: { id: true, quotationId: true },
+      });
+      if (!req) return { error: "errors.notFound" };
+      previousQuotationId = req.quotationId; // null للأولي، العرض السابق لإعادة التسعير
+    }
 
     const settings = await getSystemSettings();
     const validDays = settings?.quotationValidDays ?? 3;
@@ -269,6 +290,10 @@ export async function createQuotation(
         number,
         customerId,
         createdById: roleCheck.userId,
+        // W-02: إعادة التسعير = FINAL بسلسلة previousQuotationId (التاريخ محفوظ)
+        ...(previousQuotationId
+          ? { quotationType: "FINAL" as const, previousQuotationId }
+          : {}),
         subtotal,
         discountPct,
         discountAmount,
@@ -290,13 +315,25 @@ export async function createQuotation(
       },
     });
 
+    // دفعة هـ (W-01): الطلب يشير دائمًا للعرض النافذ (الأحدث) — العروض القديمة تبقى بالسلسلة.
+    // الحالة تُشتق لا تُكتب يدويًا (Phase 4): نربط العرض فقط ثم نعيد الاشتقاق المركزي.
+    if (quotationRequestId) {
+      await prisma.quotationRequest.update({
+        where: { id: quotationRequestId },
+        data: { quotationId: quotation.id },
+      });
+      await recomputeQuotationRequestStatus(quotationRequestId, roleCheck.userId);
+    }
+    // مرحلة العميل تُشتق (طلب مسعّر الآن → PRICED)
+    await recomputeCustomerStage(customerId, roleCheck.userId);
+
     await prisma.activityLog.create({
       data: {
         userId: roleCheck.userId,
         action: "CREATE",
         entity: "Quotation",
         entityId: quotation.id,
-        details: `تم إنشاء عرض سعر "${title}" للعميل ${customer.name} برقم ${number}`,
+        details: `تم إنشاء عرض سعر "${title}" للعميل ${customer.name} برقم ${number}${quotationRequestId ? ` (من طلب ${quotationRequestId})` : ""}`,
       },
     });
 

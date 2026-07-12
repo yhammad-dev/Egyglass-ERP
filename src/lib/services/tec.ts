@@ -27,8 +27,8 @@ export interface TecJobRow {
   summary: string | null;
   customerName: string;
   customerId: string;
-  quotationId: string;
-  quotationNumber: string;
+  quotationId: string | null;
+  quotationNumber: string | null;
   engineerName: string | null;
   engineerId: string | null;
   salesOwnerName: string | null;
@@ -58,18 +58,25 @@ export interface EngineerOption {
 function buildWhere(userId: string, role: string, filters?: TecFilters) {
   const where: Record<string, any> = { deletedAt: null };
 
+  const and: Record<string, any>[] = [];
+
   if (role === "TECHNICAL_OFFICE") {
-    where.engineerId = userId;
+    // دفعة هـ: المهندس يرى طلباته + الطلبات غير المُسنَدة (كي يلتقطها/يوزّعها المدير)
+    and.push({ OR: [{ engineerId: userId }, { engineerId: null }] });
   }
 
   if (filters?.route) where.technicalRoute = filters.route;
   if (filters?.status) where.status = filters.status;
   if (filters?.search) {
-    where.OR = [
-      { code: { contains: filters.search, mode: "insensitive" } },
-      { customer: { name: { contains: filters.search, mode: "insensitive" } } },
-    ];
+    and.push({
+      OR: [
+        { code: { contains: filters.search, mode: "insensitive" } },
+        { customer: { name: { contains: filters.search, mode: "insensitive" } } },
+      ],
+    });
   }
+
+  if (and.length) where.AND = and;
 
   return where;
 }
@@ -102,8 +109,8 @@ export async function getTecJobs(
     summary: j.summary,
     customerName: j.customer.name,
     customerId: j.customer.id,
-    quotationId: j.quotation.id,
-    quotationNumber: j.quotation.number,
+    quotationId: j.quotation?.id ?? null,
+    quotationNumber: j.quotation?.number ?? null,
     engineerName: j.engineer?.name ?? null,
     engineerId: j.engineer?.id ?? null,
     salesOwnerName: j.salesOwner?.name ?? null,
@@ -152,8 +159,8 @@ export async function getTecJobDetail(
     notes: job.notes,
     customerName: job.customer.name,
     customerId: job.customer.id,
-    quotationId: job.quotation.id,
-    quotationNumber: job.quotation.number,
+    quotationId: job.quotation?.id ?? null,
+    quotationNumber: job.quotation?.number ?? null,
     engineerName: job.engineer?.name ?? null,
     engineerId: job.engineer?.id ?? null,
     salesOwnerName: job.salesOwner?.name ?? null,

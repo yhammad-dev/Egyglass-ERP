@@ -46,6 +46,19 @@ export const navRegistry: NavItem[] = [
     icon: "payments",
     roles: ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"],
   },
+  // دفعة هـ (سد انقطاع #2): المستخلصات والفواتير كانتا شاشتين بلا مدخل قائمة
+  {
+    labelKey: "nav.statements",
+    href: "/statements",
+    icon: "request_quote",
+    roles: ["ADMIN", "ACCOUNTING"],
+  },
+  {
+    labelKey: "nav.invoices",
+    href: "/invoices",
+    icon: "receipt_long",
+    roles: ["ADMIN", "ACCOUNTING"],
+  },
   {
     labelKey: "nav.hr",
     href: "/hr",

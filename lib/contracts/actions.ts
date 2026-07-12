@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
 import { notifyRole } from "@/lib/notifications/send";
+import {
+  recomputeCustomerStage,
+  recomputeQuotationRequestStatus,
+} from "@/lib/services/status-derivation";
 import { z } from "zod";
 
 const CONTRACT_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
@@ -50,11 +54,39 @@ export async function createContract(input: unknown) {
       },
     });
 
-    // Advance customer stage to CONTRACT
-    await prisma.customer.update({
-      where: { id: customerId },
-      data: { stage: "CONTRACT" },
+    // دفعة هـ · Phase 4: المرحلة تُشتق لا تُكتب يدويًا — وجود العقد الآن يشتق CONTRACT.
+    await recomputeCustomerStage(customerId, roleCheck.userId);
+
+    // طلب التسعير المربوط بهذا العرض يُشتق DONE (اكتملت دورة المكتب الفني).
+    const linkedRequest = await prisma.quotationRequest.findFirst({
+      where: { quotationId },
+      select: { id: true },
     });
+    if (linkedRequest) {
+      await recomputeQuotationRequestStatus(linkedRequest.id, roleCheck.userId);
+    }
+
+    // دفعة هـ: اشتقاق isRepeat (إغلاق ثغرة مالية) — العميل يصبح "مكرر" حقيقةً
+    // عند أول تعاقد، وهو شرط أهلية الكاش باك. ActivityLog للأثر المالي.
+    const cust = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { isRepeat: true, name: true },
+    });
+    if (cust && !cust.isRepeat) {
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { isRepeat: true },
+      });
+      await prisma.activityLog.create({
+        data: {
+          userId: roleCheck.userId,
+          action: "CUSTOMER_BECAME_REPEAT",
+          entity: "Customer",
+          entityId: customerId,
+          details: `أصبح العميل ${cust.name} "مكرّرًا" بعد أول تعاقد — صار مؤهلًا للكاش باك`,
+        },
+      });
+    }
 
     await prisma.activityLog.create({
       data: {

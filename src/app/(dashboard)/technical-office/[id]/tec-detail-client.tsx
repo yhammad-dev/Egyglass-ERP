@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -56,6 +57,7 @@ export function TecDetailClient({
   currentUserId: string;
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const [drawings, setDrawings] = useState<DrawingRow[]>(initialJob.drawings);
   const [notes, setNotes] = useState(initialJob.notes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -241,6 +243,22 @@ export function TecDetailClient({
             {initialJob.quotationNumber}
           </p>
         </div>
+
+        {/* دفعة هـ (W-01): المكتب الفني ينشئ العرض من الطلب (يرث المسار) */}
+        {(canUpload || canApprove) && (
+          <Button
+            type="button"
+            onClick={() =>
+              router.push(
+                `/quotations/new?customerId=${initialJob.customerId}&requestId=${initialJob.id}`
+              )
+            }
+          >
+            {initialJob.quotationNumber
+              ? t("tec.reprice")
+              : t("tec.createQuotation")}
+          </Button>
+        )}
       </div>
 
       {/* Info Card */}

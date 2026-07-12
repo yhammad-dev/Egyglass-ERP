@@ -98,13 +98,15 @@ export async function assignEngineerAction(input: unknown) {
 
     const job = await prisma.quotationRequest.findUnique({
       where: { id },
+      // دفعة هـ: العرض nullable — الطلب المُسنَد لا عرض له بعد (W-01). لا تفترض وجوده.
       include: { quotation: { select: { number: true } } },
     });
     if (!job) return { error: "errors.notFound" as const };
 
+    // الإسناد يسجّل المهندس فقط — الحالة تبقى مشتقّة (Phase 4)، لا تُكتب يدويًا.
     await prisma.quotationRequest.update({
       where: { id },
-      data: { engineerId, status: "IN_PROGRESS" },
+      data: { engineerId },
     });
 
     await prisma.activityLog.create({
@@ -120,7 +122,8 @@ export async function assignEngineerAction(input: unknown) {
     await sendNotification({
       userId: engineerId,
       title: "tec.assignedTitle",
-      body: job.quotation.number,
+      // العرض قد لا يوجد بعد — استخدم كود الطلب كمرجع بديل آمن
+      body: job.quotation?.number ?? job.code,
       type: "TEC_ASSIGNED",
       entityId: id,
       entityType: "QuotationRequest",

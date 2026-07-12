@@ -120,9 +120,34 @@ export function TecClient({
     day: "2-digit",
   });
 
+  // دفعة هـ: الطلبات غير المُسنَدة (engineerId=null) — بارزة كي لا تتراكم بلا مالك
+  const unassigned = jobs.filter((j) => !j.engineerId && j.status !== "DONE");
+
   return (
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-bold">{t("tec.title")}</h1>
+
+      {/* دفعة هـ: قسم "طلبات تحتاج إسنادًا" بارز أعلى الشاشة */}
+      {unassigned.length > 0 && (
+        <div className="rounded-md border-2 border-amber-300 bg-amber-50 p-4">
+          <p className="font-semibold text-amber-900 mb-2">
+            {t("tec.unassignedTitle")} ({unassigned.length})
+          </p>
+          <div className="space-y-1">
+            {unassigned.map((j) => (
+              <div key={j.id} className="flex items-center justify-between text-sm py-1">
+                <span dir="ltr">
+                  {j.code} · {j.customerName} ·{" "}
+                  {t(j.technicalRoute === "PROJECTS" ? "tec.projects" : "tec.socialMedia")}
+                </span>
+                <a href={`/technical-office/${j.id}`} className="underline text-amber-800">
+                  {t("tec.assignNow")}
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b">

@@ -23,6 +23,33 @@ const PROJECTS_PREFIX = "EG";
 const SOCIAL_PREFIX = "C3_";
 const PROJECT_SEQ_PAD = 4;
 
+// ── دفعة هـ: ترقيم طلبات التسعير (TEC) — معزول هنا كباقي المستندات (قاعدة SCR-015) ──
+const REQ_PROJECTS_PREFIX = "TEC-PRJ-";
+const REQ_SOCIAL_PREFIX = "TEC-SOC-";
+const REQ_SEQ_PAD = 4;
+
+/**
+ * كود طلب التسعير: TEC-PRJ-{seq} / TEC-SOC-{seq} حسب المسار.
+ * max(numeric seq)+1 — يقاوم الحذف (لا يتكرر رقم لو حُذف طلب)، ويتجاهل الأكواد غير الرقمية
+ * (مثل بذور DEV القديمة TEC-PRJ-B1). قابل للتعديل هنا وحده.
+ */
+export async function generateRequestCode(
+  db: Db,
+  route: "PROJECTS" | "SOCIAL_MEDIA"
+): Promise<string> {
+  const prefix = route === "PROJECTS" ? REQ_PROJECTS_PREFIX : REQ_SOCIAL_PREFIX;
+  const rows = await db.quotationRequest.findMany({
+    where: { technicalRoute: route, code: { startsWith: prefix } },
+    select: { code: true },
+  });
+  const max = rows.reduce((m, r) => {
+    const numPart = r.code.slice(prefix.length);
+    const n = /^\d+$/.test(numPart) ? parseInt(numPart, 10) : 0;
+    return n > m ? n : m;
+  }, 0);
+  return `${prefix}${String(max + 1).padStart(REQ_SEQ_PAD, "0")}`;
+}
+
 /** يستخرج رقم المشروع من documentNumber بصيغة المشروعات (EG0233/... → 233) */
 function parseProjectSeq(documentNumber: string): number | null {
   const m = documentNumber.match(/^EG(\d+)\//);

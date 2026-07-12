@@ -633,16 +633,8 @@ export function CustomersClient({
               <FieldError message={fe(errors.notes)} />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="isRepeat"
-                checked={isRepeatValue}
-                onCheckedChange={(v) => setValue("isRepeat", v === true)}
-              />
-              <Label htmlFor="isRepeat" className="cursor-pointer">
-                {t("customers.isRepeat")}
-              </Label>
-            </div>
+            {/* دفعة هـ: isRepeat لم يعد يُدخَل يدويًا — يُشتق تلقائيًا عند أول تعاقد
+                (إغلاق ثغرة مالية: كان مربعًا يفتح أهلية كاش باك بلا شراء). */}
 
             {isAdminOrManager && (
               <div className="space-y-1">

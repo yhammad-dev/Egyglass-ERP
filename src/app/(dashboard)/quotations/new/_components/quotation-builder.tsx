@@ -31,6 +31,7 @@ export function QuotationBuilder({
   mode = "create",
   quotationId,
   initialCustomerId,
+  quotationRequestId,
   initialTitle,
   initialItems,
   discountBasePct = 18,
@@ -41,6 +42,7 @@ export function QuotationBuilder({
   mode?: "create" | "edit";
   quotationId?: string;
   initialCustomerId?: string;
+  quotationRequestId?: string;
   initialTitle?: string;
   initialItems?: { description: string; quantity: number; unitPrice: number }[];
   discountBasePct?: number;
@@ -165,6 +167,8 @@ export function QuotationBuilder({
       needsApproval: anyNeedsApproval,
       pricingFactor: lowestFactor,
       discountPct: discountValue,
+      // دفعة هـ (W-01): ربط العرض بطلب التسعير الذي أنشأه المندوب (يرث المسار)
+      ...(quotationRequestId ? { quotationRequestId } : {}),
     });
     setSubmitting(false);
 

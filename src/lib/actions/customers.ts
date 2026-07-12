@@ -23,7 +23,9 @@ const stageChangeSchema = z.object({
 export async function changeCustomerStage(
   input: z.infer<typeof stageChangeSchema>
 ): Promise<{ success: true } | { error: string }> {
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
+  // دفعة هـ · Phase 4: المرحلة مشتقّة آليًا — التغيير اليدوي استثناء ADMIN فقط
+  // (override + قرار الرفض البشري). باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
+  const roleCheck = await requireRole(["ADMIN"]);
   if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
   const parsed = stageChangeSchema.safeParse(input);

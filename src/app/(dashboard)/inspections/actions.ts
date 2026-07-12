@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { createInspection, scheduleInspection } from "@/lib/services/inspections";
 import { sendNotification, notifyRole } from "@/lib/notifications/send";
+import { recomputeQuotationRequestStatus } from "@/lib/services/status-derivation";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
@@ -196,6 +197,15 @@ export async function addMeasurements(input: unknown) {
         entityId: inspection.id,
         entityType: "InspectionRequest",
       });
+    }
+
+    // دفعة هـ · Phase 4: المقاسات وصلت → اشتقاق حالة الطلب المربوط (ON_HOLD → IN_PROGRESS)
+    const linkedRequest = await prisma.quotationRequest.findFirst({
+      where: { inspectionRequestId: parsed.data.id },
+      select: { id: true },
+    });
+    if (linkedRequest) {
+      await recomputeQuotationRequestStatus(linkedRequest.id, auth.userId);
     }
 
     return { success: true as const };

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { InstStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { recomputeCustomerStage } from "@/lib/services/status-derivation";
 
 const INSTALLATION_ROLES = ["ADMIN", "INSTALLATIONS"];
 
@@ -122,6 +123,17 @@ export async function updateInstStatus(input: unknown) {
         details: `تم تغيير حالة أمر التركيب من ${order.status} إلى ${parsed.data.status}`,
       },
     });
+
+    // دفعة هـ · Phase 4: اكتمال التركيب حدث يشتق مرحلة العميل (CONTRACT → EXECUTION)
+    if (parsed.data.status === "COMPLETED") {
+      const mo = await prisma.manufacturingOrder.findUnique({
+        where: { id: order.manufacturingOrderId },
+        select: { quotation: { select: { customerId: true } } },
+      });
+      if (mo) {
+        await recomputeCustomerStage(mo.quotation.customerId, roleCheck.userId);
+      }
+    }
 
     return { success: true as const };
   } catch (error) {

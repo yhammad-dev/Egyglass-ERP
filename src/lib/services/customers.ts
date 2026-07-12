@@ -233,6 +233,16 @@ export interface CustomerProfileData {
     total: number;
     createdAt: Date;
   }>;
+  // دفعة هـ: طلبات التسعير (نقطة الدخول — تظهر بحالتها ومسارها ومسؤولها)
+  quotationRequests: Array<{
+    id: string;
+    code: string;
+    technicalRoute: string;
+    status: string;
+    engineerName: string | null;
+    quotationId: string | null;
+    createdAt: Date;
+  }>;
   inspections: Array<{
     id: string;
     status: string;
@@ -275,6 +285,18 @@ export async function getCustomerById(
           status: true,
           total: true,
           createdAt: true,
+        },
+      },
+      quotationRequests: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          code: true,
+          technicalRoute: true,
+          status: true,
+          quotationId: true,
+          createdAt: true,
+          engineer: { select: { name: true } },
         },
       },
       inspections: {
@@ -336,6 +358,15 @@ export async function getCustomerById(
       status: q.status,
       total: Number(q.total),
       createdAt: q.createdAt,
+    })),
+    quotationRequests: customer.quotationRequests.map((r) => ({
+      id: r.id,
+      code: r.code,
+      technicalRoute: r.technicalRoute,
+      status: r.status,
+      engineerName: r.engineer?.name ?? null,
+      quotationId: r.quotationId,
+      createdAt: r.createdAt,
     })),
     inspections: customer.inspections.map((ins) => ({
       id: ins.id,

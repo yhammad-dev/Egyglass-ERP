@@ -992,7 +992,8 @@ model QuotationRequest {
   summary             String?        @db.Text
   notes               String?        @db.Text
   customerId          String
-  quotationId         String         @unique
+  // دفعة هـ: nullable — الطلب يُنشأ أولًا (بلا عرض)، المكتب الفني يُنشئ العرض ويربطه (W-01)
+  quotationId         String?        @unique
   inspectionRequestId String?        @unique
   engineerId          String?
   salesOwnerId        String?
@@ -1002,7 +1003,7 @@ model QuotationRequest {
   deletedAt           DateTime?
 
   customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  quotation         Quotation          @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  quotation         Quotation?         @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   inspectionRequest InspectionRequest? @relation(fields: [inspectionRequestId], references: [id], onDelete: SetNull)
   engineer          User?              @relation("TecEngineer", fields: [engineerId], references: [id], onDelete: SetNull)
   salesOwner        User?              @relation("TecSalesOwner", fields: [salesOwnerId], references: [id], onDelete: SetNull)

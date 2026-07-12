@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
+import {
+  recomputeQuotationRequestStatus,
+  recomputeCustomerStage,
+} from "@/lib/services/status-derivation";
 
 export interface InspectionRow {
   id: string;
@@ -169,6 +173,27 @@ export async function createInspection(
   } catch {
     // notification failure must not block the operation
   }
+
+  // دفعة هـ · Phase 4: اربط المعاينة بطلب تسعير مفتوح لنفس العميل (إن وُجد بلا
+  // معاينة مربوطة) لتُشتق حالته ON_HOLD، ثم أعِد اشتقاق مرحلة العميل → INSPECTION.
+  const openRequest = await prisma.quotationRequest.findFirst({
+    where: {
+      customerId: inspection.customerId,
+      deletedAt: null,
+      inspectionRequestId: null,
+      status: { not: "DONE" },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (openRequest) {
+    await prisma.quotationRequest.update({
+      where: { id: openRequest.id },
+      data: { inspectionRequestId: inspection.id },
+    });
+    await recomputeQuotationRequestStatus(openRequest.id, actorId);
+  }
+  await recomputeCustomerStage(inspection.customerId, actorId);
 
   const now = new Date();
   const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);

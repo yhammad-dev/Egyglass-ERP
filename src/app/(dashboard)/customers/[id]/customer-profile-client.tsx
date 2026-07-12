@@ -20,6 +20,7 @@ import { StageChangeDialog } from "./stage-change-dialog";
 import { AssignOwnerDialog } from "./assign-owner-dialog";
 import { SetCoverageDialog } from "./set-coverage-dialog";
 import { RequestInspectionDialog } from "./request-inspection-dialog";
+import { RequestQuotationDialog } from "./request-quotation-dialog";
 import { PostInstallTab } from "./_components/post-install-tab";
 import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
 import type { PostInstallReviewRow } from "@/lib/actions/post-install";
@@ -77,7 +78,10 @@ export function CustomerProfileClient({
   }, [router]);
 
   const isViewer = currentRole === "VIEWER";
-  const canChangeStage = !isViewer;
+  // دفعة هـ · Phase 4: المرحلة تُشتق من الأحداث آليًا — لا زر يدوي للتقدّم العادي.
+  // يبقى الزر لـ ADMIN فقط كاستثناء override + قرار الرفض (REJECTED) البشري
+  // الذي لا يُشتق من حدث. باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
+  const canChangeStage = currentRole === "ADMIN";
   const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
   const canCreateInspection = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
   const canCreateQuotation =
@@ -156,14 +160,7 @@ export function CustomerProfileClient({
             />
           )}
           {canCreateQuotation && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/quotations/new?customerId=${customer.id}`)}
-            >
-              طلب تسعير
-            </Button>
+            <RequestQuotationDialog customerId={customer.id} onCreated={refresh} />
           )}
         </div>
       </div>
@@ -185,10 +182,13 @@ export function CustomerProfileClient({
             <DetailRow label={t("customers.coveredBy")} value={customer.coveredByName} />
           )}
           <DetailRow label={t("customers.address")} value={customer.address || "—"} />
-          <DetailRow
-            label={t("customers.isRepeat")}
-            value={customer.isRepeat ? "✓" : "—"}
-          />
+          {/* دفعة هـ: شارة مشتقّة — "عميل سابق" مؤهل للكاش باك (لا حقل إدخال) */}
+          {customer.isRepeat && (
+            <DetailRow
+              label={t("customers.isRepeat")}
+              value={t("customers.repeatBadge")}
+            />
+          )}
           <DetailRow
             label={t("customers.createdAt")}
             value={new Date(customer.createdAt).toLocaleDateString("ar-EG")}
@@ -320,7 +320,35 @@ export function CustomerProfileClient({
 
           {/* Quotations Tab (stub) */}
           {activeTab === "quotations" && (
-            <div>
+            <div className="space-y-6">
+              {/* دفعة هـ: طلبات التسعير — نقطة الدخول (المسار + الحالة + المهندس) */}
+              <div>
+                <p className="text-sm font-semibold mb-2">{t("quotationRequest.title")}</p>
+                {customer.quotationRequests.length === 0 ? (
+                  <p className="text-xs text-gray-500 py-2">{t("quotationRequest.none")}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {customer.quotationRequests.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between py-2 border rounded-md px-3">
+                        <div>
+                          <p className="text-sm font-medium" dir="ltr">
+                            {r.code}{" "}
+                            <span className="text-xs text-muted-foreground">
+                              · {t(`quotationRequest.route_${r.technicalRoute}`)}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {t(`tec.status_${r.status}`)} ·{" "}
+                            {r.engineerName ?? t("quotationRequest.unassigned")}
+                            {r.quotationId ? " · ✅" : ""}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {customer.quotations.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">{t("customers.noQuotations")}</p>
               ) : (

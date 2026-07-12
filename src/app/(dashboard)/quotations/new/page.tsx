@@ -8,12 +8,12 @@ import { getPricingFactors, getProductTypes } from "../../../../../lib/pricing/a
 import { QuotationBuilder } from "./_components/quotation-builder";
 
 export default async function NewQuotationPage(props: {
-  searchParams: Promise<{ customerId?: string }>;
+  searchParams: Promise<{ customerId?: string; requestId?: string }>;
 }) {
   const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "REVIEW"]);
   if (!roleCheck.authorized) redirect("/customers");
 
-  const { customerId } = await props.searchParams;
+  const { customerId, requestId } = await props.searchParams;
 
   const customerWhere: Prisma.CustomerWhereInput = { deletedAt: null };
   if (roleCheck.role === "SALES_REP") {
@@ -44,6 +44,7 @@ export default async function NewQuotationPage(props: {
         value: f.value.toNumber(),
       }))}
       initialCustomerId={customerId}
+      quotationRequestId={requestId}
       discountBasePct={settings?.discountBasePct.toNumber() ?? 18}
     />
   );
