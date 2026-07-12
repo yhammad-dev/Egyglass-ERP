@@ -68,6 +68,13 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "HR"],
   },
   {
+    // BL-74 (PHASE E): مدخل "بانتظار اعتمادك" — ADMIN فقط
+    labelKey: "nav.approvals",
+    href: "/approvals",
+    icon: "inbox",
+    roles: ["ADMIN"],
+  },
+  {
     labelKey: "nav.executive",
     href: "/executive",
     icon: "analytics",

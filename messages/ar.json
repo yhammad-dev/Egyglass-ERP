@@ -819,7 +819,8 @@
     "coverageEdits": "تعديلات التغطية",
     "import": "استيراد البيانات",
     "statements": "المستخلصات",
-    "invoices": "الفواتير"
+    "invoices": "الفواتير",
+    "approvals": "بانتظار اعتمادك"
   },
   "coverageEdits": {
     "title": "تعديلات التغطية",
@@ -1140,5 +1141,24 @@
     "success": "تم الاستيراد بنجاح",
     "records": "سجل",
     "noValidRows": "لا توجد صفوف صالحة في الملف"
+  },
+  "approvals": {
+    "title": "بانتظار اعتمادك",
+    "empty": "لا شيء بانتظارك",
+    "discountsSection": "طلبات الخصم",
+    "invoicesSection": "فواتير بانتظار الإصدار",
+    "quotation": "العرض",
+    "customer": "العميل",
+    "pct": "النسبة",
+    "reason": "السبب",
+    "waiting": "عمر الانتظار",
+    "daysAgo": "{days} يوم",
+    "amount": "المبلغ",
+    "approve": "اعتماد",
+    "reject": "رفض",
+    "confirmReject": "تأكيد الرفض",
+    "rejectReason": "سبب الرفض",
+    "issue": "إصدار",
+    "done": "تم"
   }
 }

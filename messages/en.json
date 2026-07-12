@@ -820,7 +820,8 @@
     "coverageEdits": "Coverage Edits",
     "import": "Import Data",
     "statements": "Statements",
-    "invoices": "Invoices"
+    "invoices": "Invoices",
+    "approvals": "Awaiting Approval"
   },
   "coverageEdits": {
     "title": "Coverage Edits",
@@ -1141,5 +1142,24 @@
     "success": "Import successful",
     "records": "records",
     "noValidRows": "No valid rows found in file"
+  },
+  "approvals": {
+    "title": "Awaiting your approval",
+    "empty": "Nothing awaiting you",
+    "discountsSection": "Discount requests",
+    "invoicesSection": "Invoices awaiting issue",
+    "quotation": "Quotation",
+    "customer": "Customer",
+    "pct": "Percent",
+    "reason": "Reason",
+    "waiting": "Waiting",
+    "daysAgo": "{days}d",
+    "amount": "Amount",
+    "approve": "Approve",
+    "reject": "Reject",
+    "confirmReject": "Confirm reject",
+    "rejectReason": "Rejection reason",
+    "issue": "Issue",
+    "done": "Done"
   }
 }
