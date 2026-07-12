@@ -76,79 +76,38 @@ export async function addInstallationItem(
     },
   });
 
-  // ── W-06: أنواع الخطأ/الكسر تولّد أمر تصنيع بديلًا تلقائيًا ──
+  // ── D-18 / BL-60: الباب مقفول — لا أمر تصنيع بديل تلقائي (كان يتخطّى الدور
+  // والعقد والدفعة والرسمة وبوابة REVIEW). أنواع الخطأ/الكسر تُبلَّغ فقط:
+  // INSTALLATIONS (المدير) + REVIEW، وموديول التحقيق (BL-63) يتولّى المتابعة
+  // قبل أي تصنيع بديل. لا `createManufacturingOrder`، لا كتابة مباشرة. ──
   const mapping = REPLACEMENT_MAP[input.type];
-  let replacementOrderId: string | null = null;
   if (mapping) {
-    const replacement = await createReplacementOrder(
-      input.installationOrderId,
-      mapping,
-      input.description ?? input.type,
-      actorId
-    );
-    replacementOrderId = replacement.id;
+    await prisma.activityLog.create({
+      data: {
+        userId: actorId,
+        action: "REPLACEMENT_REQUESTED",
+        entity: "InstallationItem",
+        entityId: item.id,
+        details: `طلب بديل (${mapping.faultType}) على أمر ${input.installationOrderId} — السبب: ${input.description ?? input.type}`,
+      },
+    });
+    for (const role of ["INSTALLATIONS", "REVIEW"] as const) {
+      await notifyRole(role, {
+        title: "notifications.replacementRequestedTitle",
+        body: `طلب بديل (${mapping.faultType}) — السبب: ${input.description ?? input.type}`,
+        type: "REPLACEMENT_REQUESTED",
+        entityId: item.id,
+        entityType: "InstallationItem",
+      });
+    }
   }
 
-  return { item, replacementOrderId };
+  // replacementOrderId يبقى null دائمًا — لا أمر تلقائي بعد الآن (يحفظ توقيع المُستدعي)
+  return { item, replacementOrderId: null as string | null };
 }
 
-/**
- * W-06 — الأمر البديل: يرث العرض/المصنع من الأصلي · parentOrderId + faultType ·
- * Fast-track: يدخل IN_PRODUCTION مباشرة (الرسمة معتمدة سلفًا — يتخطّى UNDER_REVIEW).
- */
-async function createReplacementOrder(
-  installationOrderId: string,
-  mapping: { faultType: string; notify: string },
-  reason: string,
-  actorId: string
-) {
-  const installation = await prisma.installationOrder.findUnique({
-    where: { id: installationOrderId },
-    select: {
-      manufacturingOrder: {
-        select: {
-          id: true,
-          quotationId: true,
-          factoryId: true,
-          quotation: { select: { number: true, customer: { select: { name: true } } } },
-        },
-      },
-    },
-  });
-  if (!installation) throw new InstallationExtrasError("errors.notFound");
-  const original = installation.manufacturingOrder;
-
-  const replacement = await prisma.manufacturingOrder.create({
-    data: {
-      quotationId: original.quotationId, // يرث العرض (ومعه العميل/الطلب)
-      factoryId: original.factoryId, // يرث المصنع إن وُجد
-      parentOrderId: original.id,
-      faultType: mapping.faultType as never,
-      status: "IN_PRODUCTION", // Fast-track — بلا بوابة مراجعة
-      notes: `أمر بديل (W-06) عن ${original.id} — السبب: ${reason}`,
-    },
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      userId: actorId,
-      action: "REPLACEMENT_ORDER_CREATED",
-      entity: "ManufacturingOrder",
-      entityId: replacement.id,
-      details: `أمر تصنيع بديل عن ${original.id} (عرض ${original.quotation.number}) — النوع: ${mapping.faultType} — السبب: ${reason}`,
-    },
-  });
-
-  await notifyRole(mapping.notify, {
-    title: "notifications.replacementOrderTitle",
-    body: `أمر تصنيع بديل (${mapping.faultType}) للعميل ${original.quotation.customer.name} — السبب: ${reason}`,
-    type: "REPLACEMENT_ORDER_CREATED",
-    entityId: replacement.id,
-    entityType: "ManufacturingOrder",
-  });
-
-  return replacement;
-}
+// D-18/BL-60: createReplacementOrder (الإنشاء التلقائي المباشر IN_PRODUCTION) حُذف.
+// البديل لا يُصنَّع إلا بعد تحقيق REVIEW (BL-63) وطلب PROCUREMENT صريح.
 
 export async function addInstallationPhoto(
   input: { installationOrderId: string; url: string; caption?: string },

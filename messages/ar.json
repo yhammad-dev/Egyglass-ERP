@@ -159,7 +159,8 @@
     "inspectionScheduledTitle": "تم جدولة معاينة",
     "stageInspectionTitle": "نقل إلى مرحلة المعاينة",
     "stagePricedTitle": "نقل إلى مرحلة التسعير",
-    "quotationReadyTitle": "عرض السعر جاهز"
+    "quotationReadyTitle": "عرض السعر جاهز",
+    "replacementRequestedTitle": "طلب بديل — بانتظار تحقيق REVIEW"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
