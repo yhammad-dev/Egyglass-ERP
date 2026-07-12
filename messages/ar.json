@@ -492,7 +492,9 @@
     "cancelReason": "سبب الإلغاء",
     "confirmCancel": "تأكيد الإلغاء",
     "linkedToContract": "مشروعات — ستُربط الفاتورة بالعقد تلقائيًا",
-    "directNoContract": "سوشيال ميديا — فاتورة مباشرة بلا عقد"
+    "directNoContract": "سوشيال ميديا — فاتورة مباشرة بلا عقد",
+    "awaitingApprovalTitle": "فاتورة بانتظار اعتماد الإدارة",
+    "issuedTitle": "صدرت الفاتورة"
   },
   "quotationRequest": {
     "title": "طلبات التسعير",

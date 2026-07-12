@@ -49,6 +49,7 @@ export default async function InvoicesPage() {
 
   return (
     <InvoicesClient
+      userRole={roleCheck.role}
       initialInvoices={invoices.map((i) => ({
         id: i.id,
         documentNumber: i.documentNumber,

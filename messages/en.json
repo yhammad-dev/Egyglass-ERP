@@ -493,7 +493,9 @@
     "cancelReason": "Cancellation reason",
     "confirmCancel": "Confirm cancellation",
     "linkedToContract": "Projects — invoice will be linked to the contract automatically",
-    "directNoContract": "Social media — direct invoice, no contract"
+    "directNoContract": "Social media — direct invoice, no contract",
+    "awaitingApprovalTitle": "Invoice awaiting management approval",
+    "issuedTitle": "Invoice issued"
   },
   "quotationRequest": {
     "title": "Quotation requests",

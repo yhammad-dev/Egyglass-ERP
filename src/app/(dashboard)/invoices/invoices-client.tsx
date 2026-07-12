@@ -67,16 +67,20 @@ const STATUS_VARIANT: Record<
 };
 
 export function InvoicesClient({
+  userRole,
   initialInvoices,
   quotations,
   statements,
 }: {
+  userRole: string;
   initialInvoices: InvoiceRow[];
   quotations: QuotationOption[];
   statements: StatementOption[];
 }) {
   const t = useTranslations();
   const router = useRouter();
+  // D-21: الإصدار (= الاعتماد) بيد ADMIN وحده. ACCOUNTING تُجهّز المسودة فقط.
+  const canIssue = userRole === "ADMIN";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [quotationId, setQuotationId] = useState("");
@@ -210,7 +214,7 @@ export function InvoicesClient({
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      {inv.status === "DRAFT" && (
+                      {inv.status === "DRAFT" && canIssue && (
                         <Button
                           type="button"
                           variant="outline"
