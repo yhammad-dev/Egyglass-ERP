@@ -17,10 +17,12 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
   },
   {
+    // PHASE 2 (D-03): شاشة اعتماد عروض الأسعار = المدير التنفيذي (TEC_APPROVER)،
+    // لا محمد حسام. دور REVIEW الحقيقي على أمر التصنيع (PHASE 3).
     labelKey: "nav.review",
     href: "/review",
     icon: "fact_check",
-    roles: ["ADMIN", "REVIEW"],
+    roles: ["ADMIN", "TEC_APPROVER"],
   },
   {
     labelKey: "nav.manufacturing",

@@ -190,7 +190,17 @@
     "rejectReason": "سبب الرفض",
     "rejectionReason": "سبب الرفض",
     "daysLeft": "متبقٍ {days} يوم",
-    "daysOverdue": "متأخر {days} يوم"
+    "daysOverdue": "متأخر {days} يوم",
+    "matchInstruction": "طابِق الأضلاع الثلاثة يدويًا ثم أكّد كل ضلع — الاعتماد محجوب حتى اكتمالها",
+    "matchCustomerRequest": "طلب العميل",
+    "matchInspection": "مقاسات ورسم المعاينات",
+    "matchEngineering": "رسم المكتب الهندسي",
+    "confirmMatch": "تأكيد المطابقة",
+    "confirmed": "مؤكَّد",
+    "matchConfirmed": "تم تأكيد المطابقة",
+    "matchIncompleteHint": "أكّد المطابقات الثلاث لتفعيل الاعتماد",
+    "noInspection": "لا توجد معاينة مرتبطة",
+    "noEngineeringDrawing": "لا توجد رسمة معتمدة فنيًا"
   },
   "extraItems": {
     "title": "بطاقة الإكسسوار (البنود الإضافية)",
@@ -730,7 +740,11 @@
     "rejectReasonRequired": "سبب الرفض مطلوب عند تغيير الحالة إلى رفض",
     "serverError": "حدث خطأ في الخادم، يرجى المحاولة مرة أخرى",
     "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا",
-    "cannotApproveSelf": "لا يمكن اعتماد رسم رفعته بنفسك"
+    "cannotApproveSelf": "لا يمكن اعتماد رسم رفعته بنفسك",
+    "gateRemoved": "بوابة ملغاة — لم تعد جزءًا من سلسلة الاعتماد",
+    "noApprovedDrawing": "لا يمكن إصدار أمر تصنيع بلا رسمة معتمدة فنيًا",
+    "noContractForManufacturing": "لا يمكن إصدار أمر تصنيع لمشروع بلا عقد",
+    "matchIncomplete": "يجب تأكيد المطابقات الثلاث قبل الاعتماد"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",
@@ -1086,7 +1100,13 @@
     "cat_APPROVALS": "اعتمادات",
     "noDrawings": "لا توجد رسوم في هذا التصنيف",
     "selectFile": "اختر ملف",
-    "back": "رجوع"
+    "back": "رجوع",
+    "issueMfgOrder": "إصدار أمر تصنيع",
+    "mfgIssued": "صدر أمر التصنيع",
+    "mfgAlreadyIssued": "أمر التصنيع صادر بالفعل",
+    "mfgNoQuotation": "لا يوجد عرض سعر بعد",
+    "mfgNoApprovedDrawing": "الرسمة غير معتمدة",
+    "mfgNoContract": "لا يوجد عقد"
   },
   "import": {
     "title": "استيراد البيانات",

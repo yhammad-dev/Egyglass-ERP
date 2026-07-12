@@ -20,9 +20,7 @@ export type SystemConfig = {
   warrantyProjectsOnQuotation: boolean;
   warrantyProjectsOnContract: boolean;
   warrantySocialOnQuotation: boolean;
-  ceoDrawingApprovalThreshold: number | null;
   managerApprovalCeilingPct: number | null;
-  reviewGatePosition: number | null;
   satisfactionSurveyDelayDays: number;
   quotationValidDays: number;
   vatPct: number;
@@ -52,10 +50,8 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
   const [wpQ, setWpQ] = useState(initial.warrantyProjectsOnQuotation);
   const [wpC, setWpC] = useState(initial.warrantyProjectsOnContract);
   const [wsQ, setWsQ] = useState(initial.warrantySocialOnQuotation);
-  // ── السياسات ──
-  const [ceoThr, setCeoThr] = useState(initial.ceoDrawingApprovalThreshold?.toString() ?? "");
+  // ── السياسات ── (عتبة CEO وموضع REVIEW أُزيلا — PHASE 1، بوابتان مخترَعتان D-02/D-05)
   const [mgrCeil, setMgrCeil] = useState(initial.managerApprovalCeilingPct?.toString() ?? "");
-  const [reviewPos, setReviewPos] = useState(initial.reviewGatePosition?.toString() ?? "");
   const [surveyDays, setSurveyDays] = useState(String(initial.satisfactionSurveyDelayDays));
   const [validDays, setValidDays] = useState(String(initial.quotationValidDays));
   const [vat, setVat] = useState(String(initial.vatPct));
@@ -147,19 +143,9 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
       <Section title={t("settings.policySection")}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <Label htmlFor="ceoThr">{t("settings.ceoThreshold")}</Label>
-            <Input id="ceoThr" dir="ltr" value={ceoThr} onChange={(e) => setCeoThr(e.target.value)} className="w-40" />
-            <Hint text={t("settings.ceoThresholdHint")} />
-          </div>
-          <div className="space-y-1">
             <Label htmlFor="mgrCeil">{t("settings.managerCeiling")}</Label>
             <Input id="mgrCeil" dir="ltr" value={mgrCeil} onChange={(e) => setMgrCeil(e.target.value)} className="w-40" />
             <Hint text={t("settings.managerCeilingHint")} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="reviewPos">{t("settings.reviewGatePosition")}</Label>
-            <Input id="reviewPos" dir="ltr" value={reviewPos} onChange={(e) => setReviewPos(e.target.value)} className="w-40" />
-            <Hint text={t("settings.reviewGatePositionHint")} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="surveyDays">{t("settings.surveyDelayDays")}</Label>
@@ -183,9 +169,7 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
           onClick={() =>
             save("p", () =>
               updatePolicySettings({
-                ceoDrawingApprovalThreshold: ceoThr.trim() === "" ? null : Number(ceoThr),
                 managerApprovalCeilingPct: mgrCeil.trim() === "" ? null : Number(mgrCeil),
-                reviewGatePosition: reviewPos.trim() === "" ? null : Number(reviewPos),
                 satisfactionSurveyDelayDays: Number(surveyDays),
                 quotationValidDays: Number(validDays),
                 vatPct: Number(vat),

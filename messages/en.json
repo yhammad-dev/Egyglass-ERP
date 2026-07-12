@@ -191,7 +191,17 @@
     "rejectReason": "Rejection reason",
     "rejectionReason": "Rejection reason",
     "daysLeft": "{days} days left",
-    "daysOverdue": "{days} days overdue"
+    "daysOverdue": "{days} days overdue",
+    "matchInstruction": "Manually match the three artifacts and confirm each — approval is blocked until all are confirmed",
+    "matchCustomerRequest": "Customer Request",
+    "matchInspection": "Inspection Measurements & Drawing",
+    "matchEngineering": "Engineering Office Drawing",
+    "confirmMatch": "Confirm match",
+    "confirmed": "Confirmed",
+    "matchConfirmed": "Match confirmed",
+    "matchIncompleteHint": "Confirm all three matches to enable approval",
+    "noInspection": "No linked inspection",
+    "noEngineeringDrawing": "No technically approved drawing"
   },
   "extraItems": {
     "title": "Accessory card (extra items)",
@@ -731,7 +741,11 @@
     "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected",
     "serverError": "A server error occurred, please try again",
     "rateLimited": "Too many requests, please try again later",
-    "cannotApproveSelf": "Cannot approve your own drawing"
+    "cannotApproveSelf": "Cannot approve your own drawing",
+    "gateRemoved": "Gate removed — no longer part of the approval chain",
+    "noApprovedDrawing": "Cannot issue a manufacturing order without a technically approved drawing",
+    "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",
+    "matchIncomplete": "All three matches must be confirmed before approval"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
@@ -1087,7 +1101,13 @@
     "cat_APPROVALS": "Approvals",
     "noDrawings": "No drawings in this category",
     "selectFile": "Select file",
-    "back": "Back"
+    "back": "Back",
+    "issueMfgOrder": "Issue Manufacturing Order",
+    "mfgIssued": "Manufacturing order issued",
+    "mfgAlreadyIssued": "Manufacturing order already issued",
+    "mfgNoQuotation": "No quotation yet",
+    "mfgNoApprovedDrawing": "Drawing not approved",
+    "mfgNoContract": "No contract"
   },
   "import": {
     "title": "Import Data",

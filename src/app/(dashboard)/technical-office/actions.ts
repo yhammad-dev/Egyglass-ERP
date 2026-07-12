@@ -287,58 +287,24 @@ export async function approveDrawingAction(input: unknown) {
   }
 }
 
-// ── دفعة ب — بوابتا G2/G3 (المنطق وقرارات التخطي في services/drawing-approval.ts) ──
+// ── دفعة هـ · PHASE 1 — بوابتا G2/G3 مُعطَّلتان (كانتا مخترَعتين — D-02/D-05) ──
 
-const gateSchema = z.object({ drawingId: z.string().min(1) });
-
-/** G2 — تحقق مدير المعاينات (TEC_APPROVED → INS_VERIFIED → إفراج أو بوابة CEO حسب العتبة) */
-export async function verifyDrawingAction(input: unknown) {
-  try {
-    const auth = await requireRole(["INSPECTION_MANAGER", "ADMIN"]);
-    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
-
-    const parsed = gateSchema.safeParse(input);
-    if (!parsed.success) return { error: "errors.invalidInput" as const };
-
-    const { verifyDrawing, DrawingGateError } = await import(
-      "@/lib/services/drawing-approval"
-    );
-    try {
-      const result = await verifyDrawing(parsed.data.drawingId, auth.userId, auth.role);
-      return { success: true as const, released: result.released };
-    } catch (e) {
-      if (e instanceof DrawingGateError) return { error: e.message };
-      throw e;
-    }
-  } catch (e) {
-    console.error("[verifyDrawingAction]", e);
-    return { error: "errors.serverError" as const };
-  }
+/**
+ * G2 — بوابة تحقق المعاينات: **مُعطَّلة (PHASE 1 · BL-03 · D-05).**
+ * حسن بهاء (INSPECTION_MANAGER) بلا بوابة اعتماد على الرسمة. سلسلة الرسمة الصحيحة
+ * = DRAFT → TEC_APPROVED وانتهى. حذف الحالة/العمود = SCR منفصل ليوسف (BL-20).
+ */
+export async function verifyDrawingAction(_input: unknown) {
+  return { error: "errors.gateRemoved" as const };
 }
 
-/** G3 — اعتماد CEO (ADMIN): مطلوب فقط فوق العتبة (INS_VERIFIED → CEO_APPROVED → إفراج) */
-export async function ceoApproveDrawingAction(input: unknown) {
-  try {
-    const auth = await requireRole(["ADMIN"]);
-    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
-
-    const parsed = gateSchema.safeParse(input);
-    if (!parsed.success) return { error: "errors.invalidInput" as const };
-
-    const { ceoApproveDrawing, DrawingGateError } = await import(
-      "@/lib/services/drawing-approval"
-    );
-    try {
-      await ceoApproveDrawing(parsed.data.drawingId, auth.userId, auth.role);
-      return { success: true as const };
-    } catch (e) {
-      if (e instanceof DrawingGateError) return { error: e.message };
-      throw e;
-    }
-  } catch (e) {
-    console.error("[ceoApproveDrawingAction]", e);
-    return { error: "errors.serverError" as const };
-  }
+/**
+ * G3 — بوابة اعتماد CEO: **مُعطَّلة (PHASE 1 · BL-02 · D-02).**
+ * عمرو (ADMIN) خارج سلسلة اعتماد الرسومات تمامًا — البوابة كانت اختراعًا.
+ * حذف الحالة/العتبة = SCR منفصل ليوسف (BL-20).
+ */
+export async function ceoApproveDrawingAction(_input: unknown) {
+  return { error: "errors.gateRemoved" as const };
 }
 
 const updateNotesSchema = z.object({

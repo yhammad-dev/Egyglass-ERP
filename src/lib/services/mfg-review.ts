@@ -11,6 +11,70 @@ export class MfgReviewError extends Error {
   }
 }
 
+// PHASE 3 (D-09): المطابقة الثلاثية اليدوية — النظام يعرض ويُلزِم ويسجّل، لا يقارن.
+// التأكيدات تُخزَّن كـ ActivityLog (append-only، بلا تغيير schema) وتُحسب منذ آخر
+// دخول للمراجعة (MFG_SUBMITTED_FOR_REVIEW) لتُعاد الحالة الصفرية عند كل إعادة تقديم.
+export const MATCH_ITEMS = ["CUSTOMER_REQUEST", "INSPECTION", "ENGINEERING"] as const;
+export type MatchItem = (typeof MATCH_ITEMS)[number];
+
+/** يعيد قائمة العناصر المؤكَّدة منذ آخر دخول لبوابة المراجعة (distinct) */
+export async function getConfirmedMatchItems(orderId: string): Promise<MatchItem[]> {
+  const lastSubmit = await prisma.activityLog.findFirst({
+    where: {
+      entity: "ManufacturingOrder",
+      entityId: orderId,
+      action: "MFG_SUBMITTED_FOR_REVIEW",
+    },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (!lastSubmit) return [];
+
+  const confirms = await prisma.activityLog.findMany({
+    where: {
+      entity: "ManufacturingOrder",
+      entityId: orderId,
+      action: "MFG_MATCH_CONFIRMED",
+      createdAt: { gte: lastSubmit.createdAt },
+    },
+    select: { details: true },
+  });
+
+  const set = new Set<MatchItem>();
+  for (const c of confirms) {
+    try {
+      const item = JSON.parse(c.details ?? "{}").item as MatchItem;
+      if ((MATCH_ITEMS as readonly string[]).includes(item)) set.add(item);
+    } catch {
+      /* سجل قديم بصيغة غير JSON — يُتجاهل */
+    }
+  }
+  return [...set];
+}
+
+/** REVIEW يؤكّد مطابقة عنصر واحد من الثلاثة (الأمر قيد المراجعة فقط) */
+export async function confirmMatchItem(
+  orderId: string,
+  item: MatchItem,
+  actorId: string
+) {
+  const order = await prisma.manufacturingOrder.findUnique({ where: { id: orderId } });
+  if (!order) throw new MfgReviewError("errors.notFound");
+  if (order.status !== "UNDER_REVIEW")
+    throw new MfgReviewError("errors.illegalStatusTransition");
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "MFG_MATCH_CONFIRMED",
+      entity: "ManufacturingOrder",
+      entityId: orderId,
+      details: JSON.stringify({ item }),
+    },
+  });
+  return getConfirmedMatchItems(orderId);
+}
+
 export async function submitForReview(orderId: string, actorId: string) {
   const order = await prisma.manufacturingOrder.findUnique({ where: { id: orderId } });
   if (!order) throw new MfgReviewError("errors.notFound");
@@ -46,6 +110,11 @@ export async function approveOrder(
   if (!order) throw new MfgReviewError("errors.notFound");
   if (order.status !== "UNDER_REVIEW")
     throw new MfgReviewError("errors.illegalStatusTransition");
+
+  // PHASE 3 (D-09): حجب server-side — لا اعتماد قبل تأكيد المطابقات الثلاث كلها
+  const confirmed = await getConfirmedMatchItems(orderId);
+  if (confirmed.length < MATCH_ITEMS.length)
+    throw new MfgReviewError("errors.matchIncomplete");
 
   const factory = await prisma.factory.findUnique({ where: { id: factoryId } });
   if (!factory || !factory.isActive) throw new MfgReviewError("errors.factoryInactive");
@@ -95,7 +164,8 @@ export async function rejectOrder(orderId: string, reason: string, actorId: stri
     },
   });
 
-  await notifyRole("TECHNICAL_OFFICE", {
+  // PHASE 3: الرفض يرجع للمكتب الهندسي — إشعار المدير التنفيذي (مُصدِر الأمر) TEC_APPROVER
+  await notifyRole("TEC_APPROVER", {
     title: "notifications.mfgRejectedTitle",
     body: `أمر تصنيع مردود من المراجعة — السبب: ${reason}`,
     type: "MFG_REVIEW_REJECTED",

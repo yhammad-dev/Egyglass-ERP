@@ -4,13 +4,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { sendNotification } from "../notifications/send";
-import { createManufacturingOrder } from "../manufacturing/actions";
 
-const REVIEW_ROLES = ["ADMIN", "REVIEW"];
+// PHASE 2 (D-03): اعتماد عرض السعر ملك المدير التنفيذي (مدير المكتب الهندسي = TEC_APPROVER).
+// محمد حسام (REVIEW) لا علاقة له بالتسعير — دوره على أمر التصنيع (PHASE 3).
+const QUOTATION_APPROVAL_ROLES = ["TEC_APPROVER", "ADMIN"];
 
 export async function getPendingReviewQuotations() {
   try {
-    const roleCheck = await requireRole(REVIEW_ROLES);
+    const roleCheck = await requireRole(QUOTATION_APPROVAL_ROLES);
     if (!roleCheck.authorized) return [];
 
     const quotations = await prisma.quotation.findMany({
@@ -38,7 +39,7 @@ export async function getPendingReviewQuotations() {
 
 export async function getReviewQuotationDetail(id: string) {
   try {
-    const roleCheck = await requireRole(REVIEW_ROLES);
+    const roleCheck = await requireRole(QUOTATION_APPROVAL_ROLES);
     if (!roleCheck.authorized) return null;
 
     const quotation = await prisma.quotation.findUnique({
@@ -84,7 +85,7 @@ const approveSchema = z.object({
 
 export async function approveQuotationAction(input: unknown) {
   try {
-    const roleCheck = await requireRole(REVIEW_ROLES);
+    const roleCheck = await requireRole(QUOTATION_APPROVAL_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = approveSchema.safeParse(input);
@@ -101,6 +102,8 @@ export async function approveQuotationAction(input: unknown) {
         reviewStatus: "APPROVED",
         reviewedAt: new Date(),
         reviewedById: roleCheck.userId,
+        // BL-16 (د): المعتمِد الفعلي = المدير التنفيذي — يظهر في قالب الطباعة
+        approvedById: roleCheck.userId,
       },
     });
 
@@ -139,25 +142,10 @@ export async function approveQuotationAction(input: unknown) {
       });
     }
 
-    const mfgOrder = await createManufacturingOrder(quotation.id);
-
-    const procurementUsers = await prisma.user.findMany({
-      where: { role: "PROCUREMENT", isActive: true },
-      select: { id: true },
-    });
-
-    await Promise.all(
-      procurementUsers.map((user) =>
-        sendNotification({
-          userId: user.id,
-          title: "notifications.newMfgOrderTitle",
-          body: `أمر تصنيع جديد لعرض السعر ${quotation.number}`,
-          type: "MFG_ORDER_CREATED",
-          entityId: mfgOrder.id,
-          entityType: "ManufacturingOrder",
-        })
-      )
-    );
+    // PHASE 2 (أ · D-04): أُلغي التوليد التلقائي لأمر التصنيع من اعتماد العرض.
+    // أمر التصنيع يُصدره المدير التنفيذي (TEC_APPROVER) كخطوة مستقلة عبر
+    // createManufacturingOrder المحروسة (رسمة TEC_APPROVED + التزام تعاقدي)،
+    // ثم يعتمده محمد حسام (REVIEW) في PHASE 3.
 
     return { success: true as const };
   } catch (error) {
@@ -173,7 +161,7 @@ const rejectSchema = z.object({
 
 export async function rejectQuotationAction(input: unknown) {
   try {
-    const roleCheck = await requireRole(REVIEW_ROLES);
+    const roleCheck = await requireRole(QUOTATION_APPROVAL_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = rejectSchema.safeParse(input);

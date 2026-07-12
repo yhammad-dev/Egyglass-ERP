@@ -9,7 +9,7 @@ export default async function ReviewDetailPage(props: {
 }) {
   const { id } = await props.params;
 
-  const roleCheck = await requireRole(["ADMIN", "REVIEW"]);
+  const roleCheck = await requireRole(["ADMIN", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const quotation = await getReviewQuotationDetail(id);

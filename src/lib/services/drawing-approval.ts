@@ -4,6 +4,14 @@ import { getSystemSettings } from "@/lib/config";
 import { notifyRole } from "@/lib/notifications/send";
 
 /**
+ * ⛔ مُعطَّل بالكامل — PHASE 1 (دفعة هـ · 2026-07-12).
+ * بوابتا G2 (verifyDrawing) وG3 (ceoApproveDrawing) كانتا مخترَعتين (D-02/D-05):
+ * حسن بهاء بلا بوابة، وعمرو خارج سلسلة الرسومات. لا مستهلِك لهذا الملف بعد الآن
+ * (action-ا البوابتين يرفضان بـ errors.gateRemoved). الكود باقٍ ميتًا حتى حذفه
+ * في SCR منفصل ليوسف (BL-20 — مصير RELEASED_TO_FACTORY/INS_VERIFIED/CEO_APPROVED).
+ * الإفراج للمصنع صار خاصية أمر التصنيع بعد اعتماد REVIEW (PHASE 3)، لا حالة على الرسمة.
+ *
+ * ── التوثيق التاريخي للسلسلة الملغاة ──
  * دفعة ب — سلسلة اعتماد الرسومات W-05 (آلة الحالة الكاملة):
  *   DRAFT → TEC_APPROVED (G1: TEC_APPROVER)
  *         → INS_VERIFIED (G2: INSPECTION_MANAGER)

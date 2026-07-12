@@ -270,9 +270,7 @@ export async function getSystemConfig() {
       warrantyProjectsOnQuotation: s?.warrantyProjectsOnQuotation ?? true,
       warrantyProjectsOnContract: s?.warrantyProjectsOnContract ?? true,
       warrantySocialOnQuotation: s?.warrantySocialOnQuotation ?? true,
-      ceoDrawingApprovalThreshold: s?.ceoDrawingApprovalThreshold?.toNumber() ?? null,
       managerApprovalCeilingPct: s?.managerApprovalCeilingPct?.toNumber() ?? null,
-      reviewGatePosition: s?.reviewGatePosition ?? null,
       satisfactionSurveyDelayDays: s?.satisfactionSurveyDelayDays ?? 3,
       quotationValidDays: s?.quotationValidDays ?? 3,
       vatPct: s?.vatPct.toNumber() ?? 14,
@@ -345,14 +343,13 @@ export async function updateWarrantySettings(input: unknown) {
 }
 
 const policySchema = z.object({
-  // nullable: الحقل الفارغ = NULL = "غير مضبوط/يُتخطّى" (دلالة موثقة في دفعة ب)
-  ceoDrawingApprovalThreshold: z.coerce.number().positive("errors.invalidInput").nullable(),
+  // PHASE 1: عتبة CEO وموضع REVIEW أُزيلا من الإدخال (بوابتان مخترَعتان D-02/D-05).
+  // العمودان يبقيان بالـ schema (ميتان) حتى حذفهما في SCR ليوسف (BL-20).
   managerApprovalCeilingPct: z.coerce
     .number()
     .positive("errors.invalidInput")
     .max(100, "errors.invalidInput")
     .nullable(),
-  reviewGatePosition: z.coerce.number().int().positive("errors.invalidInput").nullable(),
   satisfactionSurveyDelayDays: z.coerce.number().int().positive("errors.invalidInput"),
   quotationValidDays: z.coerce.number().int().positive("errors.invalidInput"),
   vatPct: z.coerce.number().positive("errors.invalidInput").max(100, "errors.invalidInput"),
@@ -371,7 +368,7 @@ export async function updatePolicySettings(input: unknown) {
       roleCheck.userId,
       "UPDATE_POLICY_SETTINGS",
       { ...parsed.data },
-      `تحديث السياسات — عتبة CEO: ${old?.ceoDrawingApprovalThreshold ?? "NULL"}→${parsed.data.ceoDrawingApprovalThreshold ?? "NULL"} · سقف المدير: ${old?.managerApprovalCeilingPct ?? "NULL"}→${parsed.data.managerApprovalCeilingPct ?? "NULL"} · موضع REVIEW: ${old?.reviewGatePosition ?? "NULL"}→${parsed.data.reviewGatePosition ?? "NULL"} · استطلاع: ${old?.satisfactionSurveyDelayDays}→${parsed.data.satisfactionSurveyDelayDays} · صلاحية العرض: ${old?.quotationValidDays}→${parsed.data.quotationValidDays} · ضريبة: ${old?.vatPct}→${parsed.data.vatPct}`
+      `تحديث السياسات — سقف المدير: ${old?.managerApprovalCeilingPct ?? "NULL"}→${parsed.data.managerApprovalCeilingPct ?? "NULL"} · استطلاع: ${old?.satisfactionSurveyDelayDays}→${parsed.data.satisfactionSurveyDelayDays} · صلاحية العرض: ${old?.quotationValidDays}→${parsed.data.quotationValidDays} · ضريبة: ${old?.vatPct}→${parsed.data.vatPct}`
     );
     return { success: true as const };
   } catch (error) {

@@ -5,6 +5,7 @@ import { MfgStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { sendNotification } from "../notifications/send";
+import { notifyRole } from "@/lib/notifications/send";
 import { createInstallationOrder } from "../installations/actions";
 
 const MFG_ROLES = ["ADMIN", "PROCUREMENT"];
@@ -42,20 +43,76 @@ export async function getMfgOrders() {
   }
 }
 
+// PHASE 2 (ج): إصدار أمر التصنيع = المدير التنفيذي (TEC_APPROVER) حصرًا (BL-01)،
+// محكوم بـ: رسمة TEC_APPROVED على نفس الطلب (BL-08) + التزام تعاقدي (مشروعات: عقد؛
+// السوشيال: بلا حارس — لا حقل يسجّل موافقة العميل، BL-18 مفتوح).
 export async function createManufacturingOrder(quotationId: string) {
   try {
-    // "أمر أصلي واحد لكل عرض" يُفرض هنا منطقيًا (القيد الصلب رُفع لتمكين بدائل W-06)
+    const roleCheck = await requireRole(["TEC_APPROVER", "ADMIN"]);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: quotationId },
+      select: {
+        id: true,
+        number: true,
+        contract: { select: { id: true } },
+        quotationRequest: {
+          select: {
+            id: true,
+            technicalRoute: true,
+            drawings: { where: { status: "TEC_APPROVED" }, select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!quotation) return { error: "errors.notFound" as const };
+
+    // BL-08: لا أمر تصنيع بلا رسمة معتمدة فنيًا (TEC_APPROVED) على نفس الطلب
+    const hasApprovedDrawing =
+      (quotation.quotationRequest?.drawings.length ?? 0) > 0;
+    if (!hasApprovedDrawing) return { error: "errors.noApprovedDrawing" as const };
+
+    // حارس الالتزام: المشروعات تتطلب عقدًا. السوشيال بلا حارس (BL-18 — لا حقل موافقة عميل).
+    const route = quotation.quotationRequest?.technicalRoute ?? "PROJECTS";
+    if (route === "PROJECTS" && !quotation.contract) {
+      return { error: "errors.noContractForManufacturing" as const };
+    }
+
+    // "أمر أصلي واحد لكل عرض" يُفرض منطقيًا (القيد الصلب رُفع لتمكين بدائل W-06)
     const existing = await prisma.manufacturingOrder.findFirst({
       where: { quotationId, parentOrderId: null },
+      select: { id: true },
     });
-    if (existing) return existing;
+    if (existing) return { success: true as const, id: existing.id };
 
-    return await prisma.manufacturingOrder.create({
+    const order = await prisma.manufacturingOrder.create({
       data: { quotationId },
     });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "MFG_ORDER_CREATED",
+        entity: "ManufacturingOrder",
+        entityId: order.id,
+        details: `أصدر المدير التنفيذي أمر تصنيع لعرض السعر ${quotation.number}`,
+      },
+    });
+
+    // إشعار PROCUREMENT (شكري) — الأمر جاهز لدخول بوابة المراجعة
+    await notifyRole("PROCUREMENT", {
+      title: "notifications.newMfgOrderTitle",
+      body: `أمر تصنيع جديد لعرض السعر ${quotation.number}`,
+      type: "MFG_ORDER_CREATED",
+      entityId: order.id,
+      entityType: "ManufacturingOrder",
+    });
+
+    return { success: true as const, id: order.id };
   } catch (error) {
     console.error("[createManufacturingOrder]", error);
-    throw error;
+    return { error: "errors.serverError" as const };
   }
 }
 

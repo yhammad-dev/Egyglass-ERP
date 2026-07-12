@@ -12,8 +12,13 @@ import {
   submitForReview,
   approveOrder,
   rejectOrder,
+  confirmMatchItem,
+  MATCH_ITEMS,
   MfgReviewError,
 } from "@/lib/services/mfg-review";
+
+// PHASE 3 (D-09): بوابة محمد حسام على أمر التصنيع — قسم الجودة والمراجعة الفنية
+const MFG_REVIEW_ROLES = ["REVIEW", "ADMIN"];
 
 // دفعة أ — W-04: الحراسة لكل ضلع من الدورة الثلاثية بدوره الصحيح
 const EXTRA_ITEM_TYPES = [
@@ -106,10 +111,33 @@ const approveSchema = z.object({
   expectedAt: z.coerce.date(),
 });
 
-/** الموافقة = مدير المعاينات (إجابة شكري BRD-11) — مع مصنع نشط وتاريخ متوقع */
+const matchConfirmSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  item: z.enum(MATCH_ITEMS),
+});
+
+/** PHASE 3 (D-09): REVIEW يؤكّد مطابقة أحد العناصر الثلاثة (تأكيد صريح، أثر مسجّل) */
+export async function confirmMatchAction(input: unknown) {
+  try {
+    const roleCheck = await requireRole(MFG_REVIEW_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = matchConfirmSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const confirmed = await confirmMatchItem(parsed.data.id, parsed.data.item, roleCheck.userId);
+    return { success: true as const, confirmed };
+  } catch (e) {
+    if (e instanceof MfgReviewError) return { error: e.message };
+    console.error("[confirmMatchAction]", e);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+/** الاعتماد = محمد حسام (REVIEW) بعد مطابقة الثلاثة — مع مصنع نشط وتاريخ متوقع */
 export async function approveOrderAction(input: unknown) {
   try {
-    const roleCheck = await requireRole(["INSPECTION_MANAGER", "ADMIN"]);
+    const roleCheck = await requireRole(MFG_REVIEW_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = approveSchema.safeParse(input);
@@ -136,7 +164,7 @@ const rejectSchema = z.object({
 
 export async function rejectOrderAction(input: unknown) {
   try {
-    const roleCheck = await requireRole(["INSPECTION_MANAGER", "ADMIN"]);
+    const roleCheck = await requireRole(MFG_REVIEW_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = rejectSchema.safeParse(input);

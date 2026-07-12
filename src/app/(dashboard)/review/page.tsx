@@ -5,7 +5,7 @@ import { getPendingReviewQuotations } from "../../../../lib/review/actions";
 import { ReviewClient } from "./review-client";
 
 export default async function ReviewPage() {
-  const roleCheck = await requireRole(["ADMIN", "REVIEW"]);
+  const roleCheck = await requireRole(["ADMIN", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const quotations = await getPendingReviewQuotations();

@@ -14,6 +14,7 @@ const ORDER_VIEW_ROLES = [
   "TECHNICAL_OFFICE",
   "INSPECTION_MANAGER",
   "INSPECTION_REP",
+  "REVIEW", // PHASE 3 (D-09): محمد حسام يفتح الأمر ليطابق ويعتمد
 ];
 
 export default async function ManufacturingOrderPage(props: {
@@ -32,10 +33,15 @@ export default async function ManufacturingOrderPage(props: {
         quotation: {
           select: {
             number: true,
+            total: true,
             customer: { select: { name: true } },
+            items: { select: { description: true, quantity: true, unitPrice: true } },
             quotationRequest: {
               select: {
                 code: true,
+                summary: true,
+                technicalRoute: true,
+                inspectionRequestId: true,
                 drawings: {
                   select: {
                     id: true,
@@ -43,6 +49,7 @@ export default async function ManufacturingOrderPage(props: {
                     originalName: true,
                     url: true,
                     revision: true,
+                    status: true,
                   },
                   orderBy: { createdAt: "desc" },
                 },
@@ -62,7 +69,55 @@ export default async function ManufacturingOrderPage(props: {
 
   if (!order) notFound();
 
-  const drawings = order.quotation.quotationRequest?.drawings ?? [];
+  const req = order.quotation.quotationRequest;
+  const drawings = req?.drawings ?? [];
+
+  // PHASE 3 (D-09): الأضلاع الثلاثة للمطابقة اليدوية + العناصر المؤكَّدة
+  const { getConfirmedMatchItems } = await import("@/lib/services/mfg-review");
+  const confirmedItems = await getConfirmedMatchItems(order.id);
+
+  // ضلع المعاينات: المقاسات مخزّنة كـ ActivityLog (دَين تقني موثّق InspectionMeasurement)
+  const measurementLogs = req?.inspectionRequestId
+    ? await prisma.activityLog.findMany({
+        where: {
+          entity: "InspectionRequest",
+          entityId: req.inspectionRequestId,
+          action: "MEASUREMENTS_RECORDED",
+        },
+        orderBy: { createdAt: "asc" },
+        select: { details: true, createdAt: true },
+      })
+    : [];
+
+  const threeWay = {
+    customerRequest: {
+      code: req?.code ?? "—",
+      summary: req?.summary ?? null,
+      items: order.quotation.items.map((i) => ({
+        description: i.description,
+        quantity: i.quantity.toNumber(),
+      })),
+    },
+    inspection: {
+      hasInspection: !!req?.inspectionRequestId,
+      measurements: measurementLogs.map((m) => {
+        try {
+          const d = JSON.parse(m.details ?? "{}");
+          return { width: d.width ?? null, height: d.height ?? null, notes: d.notes ?? null };
+        } catch {
+          return { width: null, height: null, notes: m.details };
+        }
+      }),
+      drawings: drawings
+        .filter((d) => d.category === "DRAWINGS")
+        .map((d) => ({ name: d.originalName, url: d.url })),
+    },
+    engineering: {
+      drawings: drawings
+        .filter((d) => d.status === "TEC_APPROVED")
+        .map((d) => ({ name: d.originalName, url: d.url, revision: d.revision })),
+    },
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -93,6 +148,8 @@ export default async function ManufacturingOrderPage(props: {
         userRole={roleCheck.role}
         factories={factories}
         expectedAt={order.expectedAt?.toISOString() ?? null}
+        threeWay={threeWay}
+        confirmedItems={confirmedItems}
       />
 
       {/* ── رسومات الطلب (PRC-R01 — روابط عبر Drawing→QuotationRequest) ── */}

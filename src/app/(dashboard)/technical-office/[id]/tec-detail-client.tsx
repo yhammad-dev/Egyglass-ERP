@@ -24,8 +24,6 @@ import {
   updateJobNotesAction,
   uploadDrawingAction,
   approveDrawingAction,
-  verifyDrawingAction,
-  ceoApproveDrawingAction,
 } from "../actions";
 
 type TecJobStatus = "NEW" | "IN_PROGRESS" | "ON_HOLD" | "DONE";
@@ -65,9 +63,8 @@ export function TecDetailClient({
 
   const canUpload = currentRole === "ADMIN" || currentRole === "TECHNICAL_OFFICE";
   const canApprove = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
-  // دفعة ب — بوابتا G2/G3 (W-05)
-  const canVerify = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
-  const canCeoApprove = currentRole === "ADMIN";
+  // PHASE 1 (دفعة هـ): بوابتا G2/G3 أُلغيتا (D-02/D-05) — سلسلة الرسمة = DRAFT → TEC_APPROVED.
+  // لا بوابة تحقق لحسن بهاء، ولا اعتماد CEO. الإفراج صار خاصية أمر التصنيع (PHASE 3).
 
   // Upload form state
   const [uploadCategory, setUploadCategory] = useState<DrawingCategory>("DRAWINGS");
@@ -185,35 +182,32 @@ export function TecDetailClient({
     toast.success(t("tec.drawingApproved"));
   }
 
-  // دفعة ب — G2: تحقق مدير المعاينات (قد يُفرج مباشرة تحت العتبة)
-  async function handleVerify(drawing: DrawingRow) {
-    setApprovingId(drawing.id);
-    const result = await verifyDrawingAction({ drawingId: drawing.id });
-    setApprovingId(null);
-    if ("error" in result) {
-      toast.error(t(result.error ?? "errors.serverError"));
-      return;
-    }
-    const newStatus = result.released ? "RELEASED_TO_FACTORY" : "INS_VERIFIED";
-    setDrawings((prev) =>
-      prev.map((d) => (d.id === drawing.id ? { ...d, status: newStatus } : d))
-    );
-    toast.success(t(result.released ? "tec.drawingReleased" : "tec.drawingVerified"));
-  }
+  // PHASE 2 (BL-32): إصدار أمر التصنيع — بيت المدير التنفيذي (TEC_APPROVER/ADMIN).
+  // الحارس النهائي server-side؛ هنا زر بسبب صريح لا صامت.
+  const [issuingMfg, setIssuingMfg] = useState(false);
+  const canIssueMfg = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
+  const hasApprovedDrawing = drawings.some((d) => d.status === "TEC_APPROVED");
+  let mfgDisabledReason: string | null = null;
+  if (initialJob.hasManufacturingOrder) mfgDisabledReason = t("tec.mfgAlreadyIssued");
+  else if (!initialJob.quotationId) mfgDisabledReason = t("tec.mfgNoQuotation");
+  else if (!hasApprovedDrawing) mfgDisabledReason = t("tec.mfgNoApprovedDrawing");
+  else if (initialJob.technicalRoute === "PROJECTS" && !initialJob.hasContract)
+    mfgDisabledReason = t("tec.mfgNoContract");
 
-  // دفعة ب — G3: اعتماد CEO (فوق العتبة) ثم إفراج
-  async function handleCeoApprove(drawing: DrawingRow) {
-    setApprovingId(drawing.id);
-    const result = await ceoApproveDrawingAction({ drawingId: drawing.id });
-    setApprovingId(null);
+  async function handleIssueMfg() {
+    if (!initialJob.quotationId) return;
+    setIssuingMfg(true);
+    const { createManufacturingOrder } = await import(
+      "../../../../../lib/manufacturing/actions"
+    );
+    const result = await createManufacturingOrder(initialJob.quotationId);
+    setIssuingMfg(false);
     if ("error" in result) {
-      toast.error(t(result.error ?? "errors.serverError"));
+      toast.error(t(result.error));
       return;
     }
-    setDrawings((prev) =>
-      prev.map((d) => (d.id === drawing.id ? { ...d, status: "RELEASED_TO_FACTORY" } : d))
-    );
-    toast.success(t("tec.drawingReleased"));
+    toast.success(t("tec.mfgIssued"));
+    router.refresh();
   }
 
   const categoryDrawings = drawings.filter((d) => d.category === activeCategory);
@@ -258,6 +252,22 @@ export function TecDetailClient({
               ? t("tec.reprice")
               : t("tec.createQuotation")}
           </Button>
+        )}
+        {/* PHASE 2 (BL-32): إصدار أمر التصنيع — TEC_APPROVER/ADMIN فقط، معطّل بسبب صريح */}
+        {canIssueMfg && (
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              type="button"
+              variant="default"
+              disabled={mfgDisabledReason !== null || issuingMfg}
+              onClick={handleIssueMfg}
+            >
+              {issuingMfg ? t("app.loading") : t("tec.issueMfgOrder")}
+            </Button>
+            {mfgDisabledReason && (
+              <span className="text-xs text-amber-600">{mfgDisabledReason}</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -345,10 +355,6 @@ export function TecDetailClient({
               );
               const canApproveThis =
                 canApprove && drawing.status === "DRAFT" && notSelf;
-              const canVerifyThis =
-                canVerify && drawing.status === "TEC_APPROVED" && notSelf;
-              const canCeoThis =
-                canCeoApprove && drawing.status === "INS_VERIFIED" && notSelf;
 
               return (
                 <div key={drawing.id} className="border rounded-lg p-4 space-y-2">
@@ -392,30 +398,6 @@ export function TecDetailClient({
                           {approvingId === drawing.id
                             ? t("app.loading")
                             : t("tec.approveDrawing")}
-                        </Button>
-                      )}
-                      {canVerifyThis && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          className="text-xs"
-                          disabled={approvingId === drawing.id}
-                          onClick={() => handleVerify(drawing)}
-                        >
-                          {t("tec.verifyDrawing")}
-                        </Button>
-                      )}
-                      {canCeoThis && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          className="text-xs"
-                          disabled={approvingId === drawing.id}
-                          onClick={() => handleCeoApprove(drawing)}
-                        >
-                          {t("tec.ceoApproveDrawing")}
                         </Button>
                       )}
                     </div>
