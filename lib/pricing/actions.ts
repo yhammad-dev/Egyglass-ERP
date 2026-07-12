@@ -269,8 +269,8 @@ export async function createQuotation(
     const taxAmount = netAfterDiscount.mul(vatPct).div(100);
     const total = netAfterDiscount.add(taxAmount);
 
-    // A discount above the base cap requires management approval.
-    const discountNeedsApproval = discountPct.gt(discountBasePct);
+    // D-19 (قرار يوسف): **أي خصم > 0 = طلب** — لا تطبيق مباشر أيًا كانت النسبة.
+    const discountNeedsApproval = discountPct.gt(0);
     const requiresApproval = (needsApproval ?? false) || discountNeedsApproval;
 
     // RR-1 STEP-1.5 (cashback): referral cashback is a SEPARATE post-execution
@@ -367,22 +367,26 @@ export async function createQuotation(
       );
     }
 
-    // D-19: خصم فوق سقف التفاوض (discountBasePct) يفتح DiscountRequest (PENDING)
-    // و**يُشعر مدير المبيعات** (بداية السلسلة: يعتمد ويمرّر → الإدارة العليا تقرر).
-    // "طلب خصم استثنائي" لأنه فوق حد التفاوض. (السقف الصلب المطلق مفروض أعلاه — سطر 261.)
+    // D-19: أي خصم > 0 يفتح DiscountRequest (PENDING) و**يُشعر مدير المبيعات**
+    // (بداية السلسلة: يعتمد ويمرّر → الإدارة العليا تقرر). الوسم: فوق حد التفاوض
+    // (discountBasePct) = "استثنائي"، تحته = "عادي". (السقف الصلب مفروض أعلاه — سطر 261.)
     if (discountNeedsApproval) {
+      const isExceptional = discountPct.gt(discountBasePct);
+      const label = isExceptional ? "طلب خصم استثنائي" : "طلب خصم";
       await prisma.discountRequest.create({
         data: {
           quotationId: quotation.id,
           requestedById: roleCheck.userId,
           requestedPct: discountPct,
-          reason: `طلب خصم استثنائي ${discountPct}% (فوق حد التفاوض ${discountBasePct}%)`,
+          reason: isExceptional
+            ? `${label} ${discountPct}% (فوق حد التفاوض ${discountBasePct}%)`
+            : `${label} ${discountPct}%`,
         },
       });
 
       await notifyRole("SALES_MANAGER", {
         title: "discount.approvalRequestedTitle",
-        body: `طلب خصم استثنائي ${discountPct}% على عرض السعر ${number}`,
+        body: `${label} ${discountPct}% على عرض السعر ${number}`,
         type: "DISCOUNT_APPROVAL_REQUESTED",
         entityId: quotation.id,
         entityType: "Quotation",
