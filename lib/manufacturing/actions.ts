@@ -43,9 +43,9 @@ export async function getMfgOrders() {
   }
 }
 
-// PHASE 2 (ج): إصدار أمر التصنيع = المدير التنفيذي (TEC_APPROVER) حصرًا (BL-01)،
-// محكوم بـ: رسمة TEC_APPROVED على نفس الطلب (BL-08) + التزام تعاقدي (مشروعات: عقد؛
-// السوشيال: بلا حارس — لا حقل يسجّل موافقة العميل، BL-18 مفتوح).
+// PHASE 2 (ج + توحيد): إصدار أمر التصنيع = المدير التنفيذي (TEC_APPROVER) حصرًا (BL-01)،
+// محكوم بـ: رسمة TEC_APPROVED على نفس الطلب (BL-08) + **عقد إلزامي للمسارين** (BL-44)
+// + **بوابة الدفع: دفعة واحدة على الأقل** (D-10/BL-41 — لا عتبة، لا نسبة، الخطة حرة).
 export async function createManufacturingOrder(quotationId: string) {
   try {
     const roleCheck = await requireRole(["TEC_APPROVER", "ADMIN"]);
@@ -57,6 +57,7 @@ export async function createManufacturingOrder(quotationId: string) {
         id: true,
         number: true,
         contract: { select: { id: true } },
+        _count: { select: { payments: true } },
         quotationRequest: {
           select: {
             id: true,
@@ -73,10 +74,14 @@ export async function createManufacturingOrder(quotationId: string) {
       (quotation.quotationRequest?.drawings.length ?? 0) > 0;
     if (!hasApprovedDrawing) return { error: "errors.noApprovedDrawing" as const };
 
-    // حارس الالتزام: المشروعات تتطلب عقدًا. السوشيال بلا حارس (BL-18 — لا حقل موافقة عميل).
-    const route = quotation.quotationRequest?.technicalRoute ?? "PROJECTS";
-    if (route === "PROJECTS" && !quotation.contract) {
+    // BL-44: عقد إلزامي للمسارين (السوشيال يُنشأ آليًا عند أول دفعة — D-14).
+    if (!quotation.contract) {
       return { error: "errors.noContractForManufacturing" as const };
+    }
+
+    // D-10 (BL-41): بوابة الدفع — دفعة واحدة على الأقل مسجّلة. لا عتبة، لا نسبة.
+    if (quotation._count.payments === 0) {
+      return { error: "errors.noPaymentForManufacturing" as const };
     }
 
     // "أمر أصلي واحد لكل عرض" يُفرض منطقيًا (القيد الصلب رُفع لتمكين بدائل W-06)

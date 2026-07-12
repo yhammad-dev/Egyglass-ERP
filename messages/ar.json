@@ -744,7 +744,9 @@
     "gateRemoved": "بوابة ملغاة — لم تعد جزءًا من سلسلة الاعتماد",
     "noApprovedDrawing": "لا يمكن إصدار أمر تصنيع بلا رسمة معتمدة فنيًا",
     "noContractForManufacturing": "لا يمكن إصدار أمر تصنيع لمشروع بلا عقد",
-    "matchIncomplete": "يجب تأكيد المطابقات الثلاث قبل الاعتماد"
+    "matchIncomplete": "يجب تأكيد المطابقات الثلاث قبل الاعتماد",
+    "socialContractAutoOnly": "عقد السوشيال يُنشأ تلقائيًا من الحسابات عند أول دفعة — لا يُنشأ يدويًا",
+    "noPaymentForManufacturing": "لا يمكن إصدار أمر تصنيع بلا دفعة مسجّلة (الدفع شرط قبل التصنيع)"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",
@@ -1106,7 +1108,8 @@
     "mfgAlreadyIssued": "أمر التصنيع صادر بالفعل",
     "mfgNoQuotation": "لا يوجد عرض سعر بعد",
     "mfgNoApprovedDrawing": "الرسمة غير معتمدة",
-    "mfgNoContract": "لا يوجد عقد"
+    "mfgNoContract": "لا يوجد عقد",
+    "mfgNoPayment": "لا توجد دفعة مسجّلة"
   },
   "import": {
     "title": "استيراد البيانات",

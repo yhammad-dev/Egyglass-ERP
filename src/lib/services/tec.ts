@@ -42,6 +42,7 @@ export interface TecJobDetail extends TecJobRow {
   notes: string | null;
   inspectionRequestId: string | null;
   hasContract: boolean;
+  hasPayment: boolean;
   hasManufacturingOrder: boolean;
   drawings: DrawingRow[];
 }
@@ -139,8 +140,9 @@ export async function getTecJobDetail(
         select: {
           id: true,
           number: true,
-          // PHASE 2 (BL-32): بيانات حارس إصدار أمر التصنيع (عقد + أمر سابق)
+          // PHASE 2 (BL-32/44): بيانات حارس إصدار أمر التصنيع (عقد + دفعة + أمر سابق)
           contract: { select: { id: true } },
+          _count: { select: { payments: true } },
           manufacturingOrders: {
             where: { parentOrderId: null },
             select: { id: true },
@@ -175,6 +177,7 @@ export async function getTecJobDetail(
     quotationId: job.quotation?.id ?? null,
     quotationNumber: job.quotation?.number ?? null,
     hasContract: !!job.quotation?.contract,
+    hasPayment: (job.quotation?._count.payments ?? 0) > 0,
     hasManufacturingOrder: (job.quotation?.manufacturingOrders.length ?? 0) > 0,
     engineerName: job.engineer?.name ?? null,
     engineerId: job.engineer?.id ?? null,

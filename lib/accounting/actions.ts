@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
+import { createContractCore } from "@/lib/services/contract-core";
 
 // R-03: read-only financial visibility, least-privilege scoped by getFinanceScope.
 const ACCOUNTING_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"];
@@ -205,28 +206,68 @@ export async function addPayment(input: unknown) {
 
     const quotation = await prisma.quotation.findUnique({
       where: { id: parsed.data.quotationId },
+      select: {
+        id: true,
+        number: true,
+        customerId: true,
+        reviewStatus: true,
+        contract: { select: { id: true } },
+        quotationRequest: { select: { technicalRoute: true } },
+      },
     });
     if (!quotation) return { error: "errors.notFound" as const };
 
-    const payment = await prisma.payment.create({
-      data: {
-        quotationId: parsed.data.quotationId,
-        amount: parsed.data.amount,
-        paidAt: new Date(parsed.data.paidAt),
-        method: parsed.data.method,
-        notes: parsed.data.notes,
-        createdById: roleCheck.userId,
-      },
-    });
+    // D-14: عقد السوشيال يُنشأ آليًا عند أول دفعة (لا عقد له بعد + مساره سوشيال +
+    // التسعير معتمد نهائيًا). العقد والدفعة في **transaction واحدة** — لا حالة فاسدة.
+    const shouldAutoCreateContract =
+      !quotation.contract &&
+      quotation.quotationRequest?.technicalRoute === "SOCIAL_MEDIA" &&
+      quotation.reviewStatus === "APPROVED"; // Q1: نهائية التسعير المعتمدة
 
-    await prisma.activityLog.create({
-      data: {
-        userId: roleCheck.userId,
-        action: "CREATE",
-        entity: "Payment",
-        entityId: payment.id,
-        details: `تم تسجيل دفعة بقيمة ${parsed.data.amount} لعرض السعر ${quotation.number}`,
-      },
+    await prisma.$transaction(async (tx) => {
+      if (shouldAutoCreateContract) {
+        const contractResult = await createContractCore(
+          { customerId: quotation.customerId, quotationId: quotation.id },
+          roleCheck.userId, // createdById = المحاسب المسجِّل، لا المندوب (D-14)
+          tx
+        );
+        if ("error" in contractResult) {
+          // يفشل كامل الـ transaction — لا دفعة بلا عقد
+          throw new Error(`AUTO_CONTRACT_FAILED:${contractResult.error}`);
+        }
+        await tx.activityLog.create({
+          data: {
+            userId: roleCheck.userId,
+            action: "CONTRACT_AUTO_CREATED",
+            entity: "Contract",
+            entityId: contractResult.contract.id,
+            details: `عقد سوشيال أُنشئ تلقائيًا عند أول دفعة على عرض ${quotation.number} (بيد الحسابات — D-14)`,
+          },
+        });
+      }
+
+      const created = await tx.payment.create({
+        data: {
+          quotationId: parsed.data.quotationId,
+          amount: parsed.data.amount,
+          paidAt: new Date(parsed.data.paidAt),
+          method: parsed.data.method,
+          notes: parsed.data.notes,
+          createdById: roleCheck.userId,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: roleCheck.userId,
+          action: "CREATE",
+          entity: "Payment",
+          entityId: created.id,
+          details: `تم تسجيل دفعة بقيمة ${parsed.data.amount} لعرض السعر ${quotation.number}`,
+        },
+      });
+
+      return created;
     });
 
     return { success: true as const };

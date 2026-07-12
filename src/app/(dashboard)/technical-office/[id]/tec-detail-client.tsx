@@ -191,8 +191,9 @@ export function TecDetailClient({
   if (initialJob.hasManufacturingOrder) mfgDisabledReason = t("tec.mfgAlreadyIssued");
   else if (!initialJob.quotationId) mfgDisabledReason = t("tec.mfgNoQuotation");
   else if (!hasApprovedDrawing) mfgDisabledReason = t("tec.mfgNoApprovedDrawing");
-  else if (initialJob.technicalRoute === "PROJECTS" && !initialJob.hasContract)
-    mfgDisabledReason = t("tec.mfgNoContract");
+  // BL-44: عقد إلزامي للمسارين · D-10: دفعة واحدة على الأقل
+  else if (!initialJob.hasContract) mfgDisabledReason = t("tec.mfgNoContract");
+  else if (!initialJob.hasPayment) mfgDisabledReason = t("tec.mfgNoPayment");
 
   async function handleIssueMfg() {
     if (!initialJob.quotationId) return;

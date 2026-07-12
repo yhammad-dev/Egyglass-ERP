@@ -3,11 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
-import { notifyRole } from "@/lib/notifications/send";
-import {
-  recomputeCustomerStage,
-  recomputeQuotationRequestStatus,
-} from "@/lib/services/status-derivation";
+import { createContractCore } from "@/lib/services/contract-core";
 import { z } from "zod";
 
 const CONTRACT_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP"];
@@ -31,83 +27,22 @@ export async function createContract(input: unknown) {
 
     const { customerId, quotationId, signedAt, notes } = parsed.data;
 
-    const existing = await prisma.contract.findUnique({ where: { quotationId } });
-    if (existing) return { error: "يوجد عقد مرتبط بهذا العرض بالفعل" };
-
-    // SCR-014: fetch the quotation to snapshot its total as the frozen contract
-    // value (official rule: value freezes at issuance; later changes = new
-    // contract/annex, never a live read of the mutable quotation).
-    const quotation = await prisma.quotation.findUnique({
+    // BL-45 (D-14/D-15): عقد السوشيال يُنشأ حصريًا آليًا من الحسابات عند أول دفعة
+    // (addPayment → createContractCore). المسار اليدوي هنا مرفوض لمسار السوشيال
+    // **لكل الأدوار بما فيها ADMIN** — لا نيابة عن الحسابات، ولا عقد بلا مال.
+    const routeCheck = await prisma.quotation.findUnique({
       where: { id: quotationId },
-      select: { id: true, number: true, total: true, customer: { select: { name: true } } },
+      select: { quotationRequest: { select: { technicalRoute: true } } },
     });
-    if (!quotation) return { error: "عرض السعر غير موجود" };
-
-    const contract = await prisma.contract.create({
-      data: {
-        customerId,
-        quotationId,
-        signedAt: signedAt ? new Date(signedAt) : null,
-        notes: notes || null,
-        createdById: roleCheck.userId,
-        totalValue: quotation.total, // snapshot — frozen at issuance (Decimal, no float)
-      },
-    });
-
-    // دفعة هـ · Phase 4: المرحلة تُشتق لا تُكتب يدويًا — وجود العقد الآن يشتق CONTRACT.
-    await recomputeCustomerStage(customerId, roleCheck.userId);
-
-    // طلب التسعير المربوط بهذا العرض يُشتق DONE (اكتملت دورة المكتب الفني).
-    const linkedRequest = await prisma.quotationRequest.findFirst({
-      where: { quotationId },
-      select: { id: true },
-    });
-    if (linkedRequest) {
-      await recomputeQuotationRequestStatus(linkedRequest.id, roleCheck.userId);
+    if (routeCheck?.quotationRequest?.technicalRoute === "SOCIAL_MEDIA") {
+      return { error: "errors.socialContractAutoOnly" };
     }
 
-    // دفعة هـ: اشتقاق isRepeat (إغلاق ثغرة مالية) — العميل يصبح "مكرر" حقيقةً
-    // عند أول تعاقد، وهو شرط أهلية الكاش باك. ActivityLog للأثر المالي.
-    const cust = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { isRepeat: true, name: true },
-    });
-    if (cust && !cust.isRepeat) {
-      await prisma.customer.update({
-        where: { id: customerId },
-        data: { isRepeat: true },
-      });
-      await prisma.activityLog.create({
-        data: {
-          userId: roleCheck.userId,
-          action: "CUSTOMER_BECAME_REPEAT",
-          entity: "Customer",
-          entityId: customerId,
-          details: `أصبح العميل ${cust.name} "مكرّرًا" بعد أول تعاقد — صار مؤهلًا للكاش باك`,
-        },
-      });
-    }
-
-    await prisma.activityLog.create({
-      data: {
-        userId: roleCheck.userId,
-        action: "CONTRACT_CREATED",
-        entity: "Contract",
-        entityId: contract.id,
-        details: `تم إنشاء عقد لعرض السعر ${quotation.number} بقيمة مجمّدة ${quotation.total.toFixed(2)}`,
-      },
-    });
-
-    // دفعة د — ACC-R01: الحسابات تُخطَر فور التعاقد (لا تنتظر فتح الشاشة)
-    await notifyRole("ACCOUNTING", {
-      title: "notifications.contractCreatedTitle",
-      body: `عقد جديد — العميل ${quotation.customer.name} · عرض ${quotation.number} · قيمة مجمّدة ${quotation.total.toFixed(2)} جنيه`,
-      type: "CONTRACT_CREATED",
-      entityId: contract.id,
-      entityType: "Contract",
-    });
-
-    return { success: true, contract };
+    const result = await createContractCore(
+      { customerId, quotationId, signedAt, notes },
+      roleCheck.userId
+    );
+    return result;
   } catch (e) {
     console.error(e);
     return { error: "فشل إنشاء العقد" };

@@ -745,7 +745,9 @@
     "gateRemoved": "Gate removed — no longer part of the approval chain",
     "noApprovedDrawing": "Cannot issue a manufacturing order without a technically approved drawing",
     "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",
-    "matchIncomplete": "All three matches must be confirmed before approval"
+    "matchIncomplete": "All three matches must be confirmed before approval",
+    "socialContractAutoOnly": "Social contracts are auto-created by accounting on first payment — not created manually",
+    "noPaymentForManufacturing": "Cannot issue a manufacturing order without a recorded payment (payment precedes manufacturing)"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
@@ -1107,7 +1109,8 @@
     "mfgAlreadyIssued": "Manufacturing order already issued",
     "mfgNoQuotation": "No quotation yet",
     "mfgNoApprovedDrawing": "Drawing not approved",
-    "mfgNoContract": "No contract"
+    "mfgNoContract": "No contract",
+    "mfgNoPayment": "No payment recorded"
   },
   "import": {
     "title": "Import Data",
