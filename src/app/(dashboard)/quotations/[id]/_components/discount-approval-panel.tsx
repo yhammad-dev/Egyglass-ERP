@@ -38,9 +38,9 @@ export function DiscountApprovalPanel({ discountRequest, currentRole, discountMa
   const isSalesManager = currentRole === "SALES_MANAGER";
   const isSalesRep = currentRole === "SALES_REP";
 
-  // SALES_MANAGER can only decide if requestedPct ≤ discountMaxReqPct
-  const canDecide =
-    isAdmin || (isSalesManager && requestedPct <= discountMaxReqPct);
+  // D-19: القرار النهائي = ADMIN فقط. مدير المبيعات يعتمد ويمرّر (لا يقرر).
+  const canDecide = isAdmin;
+  const canPass = isSalesManager;
 
   const dateFormat = new Intl.DateTimeFormat("ar-EG", {
     year: "numeric",
@@ -87,6 +87,21 @@ export function DiscountApprovalPanel({ discountRequest, currentRole, discountMa
     });
   }
 
+  // D-19: مدير المبيعات يعتمد ويمرّر للإدارة العليا (لا قرار نهائي)
+  function passToAdmin() {
+    setError(null);
+    startTransition(async () => {
+      const { passDiscountAction } = await import("@/lib/actions/discount");
+      const result = await passDiscountAction({ discountRequestId: id });
+      if ("error" in result) {
+        setError(t(result.error));
+        return;
+      }
+      toast.success(t("discount.panel.passed"));
+      router.refresh();
+    });
+  }
+
   return (
     <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-4 space-y-4">
       <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
@@ -110,16 +125,33 @@ export function DiscountApprovalPanel({ discountRequest, currentRole, discountMa
         <dd>{dateFormat.format(new Date(createdAt))}</dd>
       </dl>
 
-      {/* Read-only view for SALES_REP or SALES_MANAGER without authority */}
-      {(isSalesRep || (!canDecide && !isAdmin)) && (
+      {/* SALES_REP: عرض فقط بانتظار النتيجة */}
+      {isSalesRep && (
         <p className="text-xs text-muted-foreground">
-          {isSalesRep
-            ? t("discount.panel.awaitingApproval")
-            : t("discount.panel.noPermission")}
+          {t("discount.panel.awaitingApproval")}
         </p>
       )}
 
-      {/* Decision controls */}
+      {/* D-19: مدير المبيعات — اعتماد وتمرير للإدارة العليا (لا قرار نهائي) */}
+      {canPass && (
+        <div className="space-y-2">
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          <Button
+            type="button"
+            size="sm"
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={isPending}
+            onClick={passToAdmin}
+          >
+            {isPending ? t("app.loading") : t("discount.panel.approveAndPass")}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {t("discount.panel.passHint")}
+          </p>
+        </div>
+      )}
+
+      {/* Decision controls — الإدارة العليا فقط */}
       {canDecide && (
         <div className="space-y-3">
           {/* Adjust mode: show adjustedPct input */}

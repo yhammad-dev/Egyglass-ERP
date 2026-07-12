@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getSystemSettings } from "@/lib/config";
-import { notifyRole } from "@/lib/notifications/send";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 
 const DISCOUNT_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 
@@ -70,37 +70,19 @@ export async function requestDiscountAction(
 
     const { discountBasePct, discountMaxReqPct } = await getSettings();
 
-    const { discountAmount, taxAmount, total } = recomputeTotals(
-      quotation.subtotal,
-      requestedPct,
-      quotation.taxPct
-    );
-
-    if (requestedPct.lte(discountBasePct)) {
-      // Within base threshold — apply directly, no approval needed
-      await prisma.quotation.update({
-        where: { id: quotationId },
-        data: { discountPct: requestedPct, discountAmount, taxAmount, total },
-      });
-
-      await prisma.activityLog.create({
-        data: {
-          userId: roleCheck.userId,
-          action: "UPDATE",
-          entity: "Quotation",
-          entityId: quotationId,
-          details: `تم تطبيق خصم ${requestedPct}% مباشرة على عرض السعر ${quotation.number} (ضمن الحد الأساسي ${discountBasePct}%)`,
-        },
-      });
-
-      return { success: true };
+    // D-19: السقف الصلب المطلق يُفرض على مسار الطلب أيضًا (لا خصم أعلى منه إطلاقًا)
+    if (requestedPct.gt(discountMaxReqPct)) {
+      return { error: "errors.discountExceedsMax" };
     }
 
-    // Above base threshold — requires approval
-    const approverRole = requestedPct.gt(discountMaxReqPct) ? "ADMIN" : "SALES_MANAGER";
+    // D-19: **كل خصم = طلب** (لا تطبيق مباشر — أُلغي مسار ≤18). فوق discountBasePct
+    // (سقف تفاوض المدير) → "طلب خصم استثنائي". السلسلة ثابتة: مدير المبيعات يمرّر → الإدارة العليا تقرر.
+    const isExceptional = requestedPct.gt(discountBasePct);
     const resolvedReason =
       reason?.trim() ||
-      `خصم ${requestedPct}% يتجاوز الحد الأساسي (${discountBasePct}%)`;
+      (isExceptional
+        ? `طلب خصم استثنائي ${requestedPct}% (فوق حد التفاوض ${discountBasePct}%)`
+        : `طلب خصم ${requestedPct}%`);
 
     await prisma.$transaction([
       prisma.quotation.update({
@@ -121,14 +103,15 @@ export async function requestDiscountAction(
           action: "CREATE",
           entity: "DiscountRequest",
           entityId: quotationId,
-          details: `طلب خصم ${requestedPct}% على عرض السعر ${quotation.number} — في انتظار موافقة ${approverRole === "ADMIN" ? "الإدارة العليا" : "مدير المبيعات"}`,
+          details: `طلب خصم ${requestedPct}%${isExceptional ? " — استثنائي" : ""} على عرض السعر ${quotation.number} — بانتظار اعتماد مدير المبيعات ثم الإدارة العليا`,
         },
       }),
     ]);
 
-    await notifyRole(approverRole, {
+    // السلسلة تبدأ بمدير المبيعات (يعتمد ويمرّر) — الإدارة العليا هي القرار النهائي
+    await notifyRole("SALES_MANAGER", {
       title: "discount.approvalRequestedTitle",
-      body: `طلب خصم ${requestedPct}% على عرض السعر ${quotation.number}`,
+      body: `طلب خصم ${requestedPct}%${isExceptional ? " (استثنائي)" : ""} على عرض السعر ${quotation.number}`,
       type: "DISCOUNT_APPROVAL_REQUESTED",
       entityId: quotationId,
       entityType: "Quotation",
@@ -141,7 +124,64 @@ export async function requestDiscountAction(
   }
 }
 
-// ─── PHASE 2: Decide on a pending discount request ───────────────────────────
+// ─── PHASE 2a: SALES_MANAGER يعتمد ويمرّر للإدارة العليا (D-19) — لا قرار نهائي ───
+
+const passSchema = z.object({ discountRequestId: z.string().min(1) });
+
+export async function passDiscountAction(
+  input: unknown
+): Promise<{ success: true } | { error: string }> {
+  try {
+    const roleCheck = await requireRole(["SALES_MANAGER"]);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
+
+    const parsed = passSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" };
+
+    const req = await prisma.discountRequest.findUnique({
+      where: { id: parsed.data.discountRequestId },
+      select: { id: true, quotationId: true, requestedPct: true, status: true, requestedById: true },
+    });
+    if (!req) return { error: "errors.notFound" };
+    if (req.status !== "PENDING") return { error: "errors.invalidInput" };
+
+    // D-20: منع اعتماد الذات — مدير المبيعات لا يمرّر خصمًا طلبه هو
+    if (req.requestedById === roleCheck.userId) {
+      return { error: "errors.cannotApproveSelf" };
+    }
+
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: req.quotationId },
+      select: { number: true },
+    });
+
+    // لا تغيير للحالة — يبقى PENDING بانتظار قرار الإدارة العليا. تسجيل التمرير + إشعار ADMIN.
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "DISCOUNT_MANAGER_PASSED",
+        entity: "DiscountRequest",
+        entityId: req.id,
+        details: `اعتمد مدير المبيعات ومرّر طلب خصم ${req.requestedPct}% على عرض ${quotation?.number ?? req.quotationId} إلى الإدارة العليا`,
+      },
+    });
+
+    await notifyRole("ADMIN", {
+      title: "discount.approvalRequestedTitle",
+      body: `طلب خصم ${req.requestedPct}% مرّره مدير المبيعات — بانتظار القرار النهائي`,
+      type: "DISCOUNT_APPROVAL_REQUESTED",
+      entityId: req.quotationId,
+      entityType: "Quotation",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("[passDiscountAction]", error);
+    return { error: "errors.serverError" };
+  }
+}
+
+// ─── PHASE 2b: الإدارة العليا (ADMIN) تقرر النهائي على كل خصم — أي نسبة (D-19) ───
 
 const decideDiscountSchema = z.object({
   discountRequestId: z.string().min(1),
@@ -154,7 +194,8 @@ export async function decideDiscountAction(
   input: unknown
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const roleCheck = await requireRole(["SALES_MANAGER", "ADMIN"]);
+    // D-19: القرار النهائي = الإدارة العليا فقط. مدير المبيعات لا ينهي السلسلة أبدًا.
+    const roleCheck = await requireRole(["ADMIN"]);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
     const parsed = decideDiscountSchema.safeParse(input);
@@ -169,18 +210,13 @@ export async function decideDiscountAction(
         quotationId: true,
         requestedPct: true,
         status: true,
+        requestedById: true,
       },
     });
     if (!discountRequest) return { error: "errors.notFound" };
     if (discountRequest.status !== "PENDING") return { error: "errors.invalidInput" };
 
-    const { discountMaxReqPct } = await getSettings();
     const requestedPct = discountRequest.requestedPct;
-
-    // SALES_MANAGER cannot decide requests that exceed discountMaxReqPct
-    if (roleCheck.role === "SALES_MANAGER" && requestedPct.gt(discountMaxReqPct)) {
-      return { error: "errors.notAuthorized" };
-    }
 
     const quotation = await prisma.quotation.findUnique({
       where: { id: discountRequest.quotationId },
@@ -215,6 +251,16 @@ export async function decideDiscountAction(
           },
         }),
       ]);
+
+      // D-19: إشعار مُقدِّم الطلب بالنتيجة ليبلّغ العميل
+      await sendNotification({
+        userId: discountRequest.requestedById,
+        title: "discount.decisionTitle",
+        body: `رُفض طلب خصم ${requestedPct}% على عرض ${quotation.number}${rejectNote ? ` — ${rejectNote}` : ""}`,
+        type: "DISCOUNT_DECIDED",
+        entityId: quotation.id,
+        entityType: "Quotation",
+      });
 
       return { success: true };
     }
@@ -266,6 +312,19 @@ export async function decideDiscountAction(
         },
       }),
     ]);
+
+    // D-19: إشعار مُقدِّم الطلب بالنتيجة (approved/adjusted + النسبة) ليبلّغ العميل
+    await sendNotification({
+      userId: discountRequest.requestedById,
+      title: "discount.decisionTitle",
+      body:
+        decision === "ADJUSTED"
+          ? `اعتُمد خصم معدّل ${finalPct}% (بدل ${requestedPct}%) على عرض ${quotation.number}`
+          : `اعتُمد خصم ${finalPct}% على عرض ${quotation.number}`,
+      type: "DISCOUNT_DECIDED",
+      entityId: quotation.id,
+      entityType: "Quotation",
+    });
 
     return { success: true };
   } catch (error) {

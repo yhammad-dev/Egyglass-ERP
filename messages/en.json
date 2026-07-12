@@ -774,8 +774,12 @@
       "confirmReject": "Confirm Rejection",
       "awaitingApproval": "Discount request is under review by the relevant manager",
       "noPermission": "You do not have authority to decide on this discount — requires senior management approval",
-      "success": "Decision executed successfully"
-    }
+      "success": "Decision executed successfully",
+      "passed": "Approved and passed to executive management",
+      "approveAndPass": "Approve & pass to management",
+      "passHint": "Final decision is executive management's"
+    },
+    "decisionTitle": "Discount request result"
   },
   "cashback": {
     "linked": "Cashback linked successfully",

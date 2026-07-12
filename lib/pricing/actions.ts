@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/rbac";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
 import { sendNotification } from "../notifications/send";
+import { notifyRole } from "@/lib/notifications/send";
 import {
   recomputeQuotationRequestStatus,
   recomputeCustomerStage,
@@ -366,35 +367,26 @@ export async function createQuotation(
       );
     }
 
-    // RR-1 STEP-1.4: a discount above the base cap opens a DiscountRequest (PENDING)
-    // and notifies ADMINs for a decision.
+    // D-19: خصم فوق سقف التفاوض (discountBasePct) يفتح DiscountRequest (PENDING)
+    // و**يُشعر مدير المبيعات** (بداية السلسلة: يعتمد ويمرّر → الإدارة العليا تقرر).
+    // "طلب خصم استثنائي" لأنه فوق حد التفاوض. (السقف الصلب المطلق مفروض أعلاه — سطر 261.)
     if (discountNeedsApproval) {
       await prisma.discountRequest.create({
         data: {
           quotationId: quotation.id,
           requestedById: roleCheck.userId,
           requestedPct: discountPct,
-          reason: `خصم ${discountPct}% يتجاوز الحد الأساسي (${discountBasePct}%)`,
+          reason: `طلب خصم استثنائي ${discountPct}% (فوق حد التفاوض ${discountBasePct}%)`,
         },
       });
 
-      const discountAdmins = await prisma.user.findMany({
-        where: { role: "ADMIN", isActive: true },
-        select: { id: true },
+      await notifyRole("SALES_MANAGER", {
+        title: "discount.approvalRequestedTitle",
+        body: `طلب خصم استثنائي ${discountPct}% على عرض السعر ${number}`,
+        type: "DISCOUNT_APPROVAL_REQUESTED",
+        entityId: quotation.id,
+        entityType: "Quotation",
       });
-
-      await Promise.all(
-        discountAdmins.map((user) =>
-          sendNotification({
-            userId: user.id,
-            title: "notifications.lowFactorApprovalTitle",
-            body: `طلب موافقة على خصم ${discountPct}% لعرض السعر ${number}`,
-            type: "DISCOUNT_APPROVAL_REQUESTED",
-            entityId: quotation.id,
-            entityType: "Quotation",
-          })
-        )
-      );
     }
 
     return { success: true, data: { id: quotation.id } };
