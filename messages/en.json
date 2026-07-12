@@ -753,7 +753,8 @@
     "matchIncomplete": "All three matches must be confirmed before approval",
     "socialContractAutoOnly": "Social contracts are auto-created by accounting on first payment — not created manually",
     "noPaymentForManufacturing": "Cannot issue a manufacturing order without a recorded payment (payment precedes manufacturing)",
-    "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)"
+    "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)",
+    "discountRequestPending": "A discount request is already pending on this quotation"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
@@ -781,7 +782,15 @@
       "approveAndPass": "Approve & pass to management",
       "passHint": "Final decision is executive management's"
     },
-    "decisionTitle": "Discount request result"
+    "decisionTitle": "Discount request result",
+    "request": {
+      "button": "Request discount",
+      "title": "Request discount on quotation",
+      "pct": "Discount %",
+      "reason": "Reason (optional)",
+      "submit": "Send request",
+      "success": "Discount request sent"
+    }
   },
   "cashback": {
     "linked": "Cashback linked successfully",

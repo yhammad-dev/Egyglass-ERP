@@ -25,6 +25,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type QuotationStatus = "DRAFT" | "SENT" | "PENDING_APPROVAL" | "APPROVED" | "EXPIRED";
 
@@ -86,6 +94,44 @@ export function QuotationDetail({
   const [error, setError] = useState<string | null>(null);
 
   const canEdit = ["ADMIN", "SALES_MANAGER", "SALES_REP"].includes(currentRole);
+
+  // PHASE C (D-23/BL-71): طلب خصم على عرض قائم — نفس السلسلة، requestDiscountAction القائم.
+  // يظهر لأدوار الخصم على عرض DRAFT/SENT بلا طلب معلّق (الحارس النهائي server-side).
+  const canRequestDiscount =
+    ["ADMIN", "SALES_MANAGER", "SALES_REP"].includes(currentRole) &&
+    ["DRAFT", "SENT"].includes(status) &&
+    !discountRequest;
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountPct, setDiscountPct] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
+  const [requestingDiscount, setRequestingDiscount] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+
+  async function handleRequestDiscount() {
+    setDiscountError(null);
+    const pct = Number(discountPct);
+    if (Number.isNaN(pct) || pct <= 0) {
+      setDiscountError(t("errors.invalidInput"));
+      return;
+    }
+    setRequestingDiscount(true);
+    const { requestDiscountAction } = await import("@/lib/actions/discount");
+    const result = await requestDiscountAction({
+      quotationId: quotation.id,
+      requestedPct: pct,
+      reason: discountReason.trim() || undefined,
+    });
+    setRequestingDiscount(false);
+    if ("error" in result) {
+      setDiscountError(t(result.error));
+      return;
+    }
+    toast.success(t("discount.request.success"));
+    setDiscountOpen(false);
+    setDiscountPct("");
+    setDiscountReason("");
+    router.refresh();
+  }
 
   const numberFormat = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -171,6 +217,16 @@ export function QuotationDetail({
               📝 إنشاء عقد
             </Button>
           )}
+          {canRequestDiscount && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDiscountOpen(true)}
+            >
+              {t("discount.request.button")}
+            </Button>
+          )}
           {canEdit && (
             <Button
               type="button"
@@ -182,6 +238,44 @@ export function QuotationDetail({
           )}
         </div>
       </div>
+
+      {/* PHASE C: نافذة طلب خصم على عرض قائم */}
+      <Dialog open={discountOpen} onOpenChange={setDiscountOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("discount.request.title")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="req-pct">{t("discount.request.pct")}</Label>
+              <Input
+                id="req-pct"
+                type="number"
+                dir="ltr"
+                min={0}
+                step="0.01"
+                value={discountPct}
+                onChange={(e) => setDiscountPct(e.target.value)}
+                className="w-32"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="req-reason">{t("discount.request.reason")}</Label>
+              <Input
+                id="req-reason"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+              />
+            </div>
+            {discountError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{discountError}</p>
+            )}
+            <Button type="button" onClick={handleRequestDiscount} disabled={requestingDiscount}>
+              {requestingDiscount ? t("app.loading") : t("discount.request.submit")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {quotation.status === "PENDING_APPROVAL" && discountRequest && (
         <DiscountApprovalPanel

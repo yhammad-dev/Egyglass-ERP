@@ -70,9 +70,23 @@ export async function requestDiscountAction(
 
     const { discountBasePct, discountMaxReqPct } = await getSettings();
 
+    // D-19: أي خصم = طلب — النسبة يجب أن تكون > 0 (لا معنى لطلب خصم 0%)
+    if (requestedPct.lte(0)) {
+      return { error: "errors.invalidInput" };
+    }
+
     // D-19: السقف الصلب المطلق يُفرض على مسار الطلب أيضًا (لا خصم أعلى منه إطلاقًا)
     if (requestedPct.gt(discountMaxReqPct)) {
       return { error: "errors.discountExceedsMax" };
+    }
+
+    // BL-71: طلب خصم معلّق قائم على نفس العرض → لا طلب ثانٍ
+    const existingPending = await prisma.discountRequest.findFirst({
+      where: { quotationId, status: "PENDING" },
+      select: { id: true },
+    });
+    if (existingPending) {
+      return { error: "errors.discountRequestPending" };
     }
 
     // D-19: **كل خصم = طلب** (لا تطبيق مباشر — أُلغي مسار ≤18). فوق discountBasePct
