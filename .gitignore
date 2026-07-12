@@ -9,3 +9,6 @@ debug-*
 
 # stray shell artifact
 e exec app npx prisma validate
+
+# uploaded files (runtime artifacts — not source)
+public/uploads/
