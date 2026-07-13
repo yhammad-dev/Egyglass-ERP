@@ -80,3 +80,36 @@ export async function openFaultInvestigation(installationItemId: string, actorId
 
   return investigation;
 }
+
+/**
+ * PHASE 2 — REVIEW تكتب ملاحظات الأثر المُجمَّع (evidenceNotes).
+ * لا قفل بعد JUDGED — غير منصوص عليه (سؤال مفتوح في BACKLOG، يُحسم مع PHASE 3).
+ */
+export async function saveEvidenceNotes(
+  investigationId: string,
+  notes: string,
+  actorId: string
+) {
+  const investigation = await prisma.faultInvestigation.findUnique({
+    where: { id: investigationId },
+    select: { id: true },
+  });
+  if (!investigation) throw new FaultInvestigationError("errors.notFound");
+
+  const updated = await prisma.faultInvestigation.update({
+    where: { id: investigationId },
+    data: { evidenceNotes: notes },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "INVESTIGATION_EVIDENCE_SAVED",
+      entity: "FaultInvestigation",
+      entityId: investigationId,
+      details: `حُفظت ملاحظات الأثر — ${notes.length} حرفًا: ${notes.slice(0, 300)}${notes.length > 300 ? "…" : ""}`,
+    },
+  });
+
+  return updated;
+}

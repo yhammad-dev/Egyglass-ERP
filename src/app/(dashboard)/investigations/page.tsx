@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -139,7 +140,9 @@ export default async function InvestigationsPage() {
                 {investigations.map((inv) => (
                   <tr key={inv.id}>
                     <td className="px-3 py-2" dir="ltr">
-                      {inv.manufacturingOrder.quotation.number}
+                      <Link href={`/investigations/${inv.id}`} className="underline">
+                        {inv.manufacturingOrder.quotation.number}
+                      </Link>
                     </td>
                     <td className="px-3 py-2">
                       {inv.manufacturingOrder.quotation.customer.name}
