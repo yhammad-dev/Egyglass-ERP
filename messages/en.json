@@ -733,6 +733,8 @@
     "investigationExists": "An investigation already exists for this item",
     "verdictNotesRequired": "Verdict notes are required",
     "investigationLocked": "Investigation judged — evidence notes are locked",
+    "investigationNotJudged": "No replacement before the management verdict — investigation still open",
+    "replacementAlreadyIssued": "A replacement order has already been issued for this investigation",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",
@@ -759,6 +761,7 @@
     "matchIncomplete": "All three matches must be confirmed before approval",
     "socialContractAutoOnly": "Social contracts are auto-created by accounting on first payment — not created manually",
     "noPaymentForManufacturing": "Cannot issue a manufacturing order without a recorded payment (payment precedes manufacturing)",
+    "reviewNotApproved": "Quotation is not approved — no contract, payment, or manufacturing before the pricing is finally approved",
     "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)",
     "discountRequestPending": "A discount request is already pending on this quotation"
   },
@@ -880,7 +883,12 @@
     "verdictNotes": "Verdict notes",
     "verdictNotesHint": "Verdict reasoning — required",
     "judgeBtn": "Issue verdict",
-    "judged": "Verdict issued"
+    "judged": "Verdict issued",
+    "replacementTitle": "Replacement manufacturing order",
+    "replacementHint": "Verdict issued ({fault}) — the replacement is issued by the executive manager (TEC_APPROVER) and enters the review gate like any order: same guards, no exception",
+    "issueReplacementBtn": "Issue replacement order",
+    "replacementIssued": "Replacement order issued and entered the review gate",
+    "replacementExisting": "Replacement order issued:"
   },
   "coverageEdits": {
     "title": "Coverage Edits",
@@ -1172,6 +1180,7 @@
     "drawingReleased": "Drawing released to factory",
     "dstatus_DRAFT": "Draft",
     "dstatus_TEC_APPROVED": "Technically approved",
+    "dstatus_SUPERSEDED": "Superseded by a newer drawing",
     "dstatus_INS_VERIFIED": "Verified (Inspections)",
     "dstatus_CEO_APPROVED": "Approved (Executive)",
     "dstatus_RELEASED_TO_FACTORY": "Released to factory",

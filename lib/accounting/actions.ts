@@ -217,6 +217,13 @@ export async function addPayment(input: unknown) {
     });
     if (!quotation) return { error: "errors.notFound" as const };
 
+    // PHASE 3.5 (BL-88/STD-15): المال لا يتحرك ضد سعر غير معتمد — حارس server-side
+    // لكل الدفعات (سوشيال ومشروعات)، لا فرع السوشيال وحده. شاشة الحسابات تُخفي غير
+    // المعتمد لكن الإخفاء ليس حارسًا (STD-15) — الأكشن نفسه يرفض.
+    if (quotation.reviewStatus !== "APPROVED") {
+      return { error: "errors.reviewNotApproved" as const };
+    }
+
     // D-14: عقد السوشيال يُنشأ آليًا عند أول دفعة (لا عقد له بعد + مساره سوشيال +
     // التسعير معتمد نهائيًا). العقد والدفعة في **transaction واحدة** — لا حالة فاسدة.
     const shouldAutoCreateContract =

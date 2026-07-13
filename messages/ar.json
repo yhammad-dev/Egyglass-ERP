@@ -732,6 +732,8 @@
     "investigationExists": "يوجد تحقيق مفتوح على هذا البند بالفعل",
     "verdictNotesRequired": "تعليل الحكم إلزامي",
     "investigationLocked": "التحقيق محكوم — ملاحظات الأثر مقفلة",
+    "investigationNotJudged": "لا بديل قبل حكم الإدارة — التحقيق ما زال مفتوحًا",
+    "replacementAlreadyIssued": "أمر البديل صادر بالفعل لهذا التحقيق",
     "required": "الحقل مطلوب",
     "emailInvalid": "بريد إلكتروني غير صالح",
     "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
@@ -758,6 +760,7 @@
     "matchIncomplete": "يجب تأكيد المطابقات الثلاث قبل الاعتماد",
     "socialContractAutoOnly": "عقد السوشيال يُنشأ تلقائيًا من الحسابات عند أول دفعة — لا يُنشأ يدويًا",
     "noPaymentForManufacturing": "لا يمكن إصدار أمر تصنيع بلا دفعة مسجّلة (الدفع شرط قبل التصنيع)",
+    "reviewNotApproved": "عرض السعر غير معتمد — لا عقد ولا دفعة ولا تصنيع قبل اعتماد التسعير نهائيًا",
     "factoryNotAssigned": "لا يمكن الانتقال إلى READY قبل تعيين المصنع والتاريخ المتوقع (شكري)",
     "discountRequestPending": "يوجد طلب خصم معلّق على هذا العرض بالفعل"
   },
@@ -879,7 +882,12 @@
     "selectVerdictFault": "اختر فئة العطل",
     "verdictNotesHint": "تعليل الحكم — إلزامي",
     "judgeBtn": "إصدار الحكم",
-    "judged": "صدر الحكم"
+    "judged": "صدر الحكم",
+    "replacementTitle": "أمر التصنيع البديل",
+    "replacementHint": "الحكم صدر ({fault}) — إصدار البديل بيد المدير التنفيذي (TEC_APPROVER)، ويدخل بوابة المراجعة كأي أمر: نفس الحراس، لا استثناء",
+    "issueReplacementBtn": "إصدار أمر البديل",
+    "replacementIssued": "صدر أمر البديل ودخل بوابة المراجعة",
+    "replacementExisting": "أمر البديل صادر:"
   },
   "coverageEdits": {
     "title": "تعديلات التغطية",
@@ -1171,6 +1179,7 @@
     "drawingReleased": "أُفرج عن الرسمة للتصنيع",
     "dstatus_DRAFT": "مسودة",
     "dstatus_TEC_APPROVED": "معتمدة فنيًا",
+    "dstatus_SUPERSEDED": "مُلغاة برسمة أحدث",
     "dstatus_INS_VERIFIED": "متحقَّق منها (معاينات)",
     "dstatus_CEO_APPROVED": "معتمدة (إدارة عليا)",
     "dstatus_RELEASED_TO_FACTORY": "مُفرَج للتصنيع",

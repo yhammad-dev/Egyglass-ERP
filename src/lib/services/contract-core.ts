@@ -32,9 +32,21 @@ export async function createContractCore(
   // SCR-014: snapshot لإجمالي العرض كقيمة العقد المجمّدة (تُجمَّد عند الإصدار).
   const quotation = await db.quotation.findUnique({
     where: { id: quotationId },
-    select: { id: true, number: true, total: true, customer: { select: { name: true } } },
+    select: {
+      id: true,
+      number: true,
+      total: true,
+      reviewStatus: true,
+      customer: { select: { name: true } },
+    },
   });
   if (!quotation) return { error: "عرض السعر غير موجود" as const };
+
+  // PHASE 3.5 (BL-88/STD-15): لا عقد ضد سعر غير معتمد — الحارس server-side لا واجهة.
+  // الاعتماد النهائي للتسعير = approveQuotationAction (TEC_APPROVER/ADMIN، route-agnostic).
+  if (quotation.reviewStatus !== "APPROVED") {
+    return { error: "errors.reviewNotApproved" as const };
+  }
 
   const contract = await db.contract.create({
     data: {

@@ -56,6 +56,7 @@ export async function createManufacturingOrder(quotationId: string) {
       select: {
         id: true,
         number: true,
+        reviewStatus: true,
         contract: { select: { id: true } },
         _count: { select: { payments: true } },
         quotationRequest: {
@@ -68,6 +69,12 @@ export async function createManufacturingOrder(quotationId: string) {
       },
     });
     if (!quotation) return { error: "errors.notFound" as const };
+
+    // PHASE 3.5 (BL-88/STD-15): دفاع عمق — لا أمر تصنيع ضد سعر غير معتمد.
+    // (الحارس الأساسي عند العقد والدفعة، لكن الحالة الفاسدة القديمة تُثبت الحاجة للطبقات.)
+    if (quotation.reviewStatus !== "APPROVED") {
+      return { error: "errors.reviewNotApproved" as const };
+    }
 
     // BL-08: لا أمر تصنيع بلا رسمة معتمدة فنيًا (TEC_APPROVED) على نفس الطلب
     const hasApprovedDrawing =
