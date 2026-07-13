@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Look ONLY at the assistant's final message. If it claims a task is done, complete, fixed, working, verified, passing, or ready WITHOUT including at least one of: (a) real command output, (b) a file:line reference, or (c) an HTTP status from an actual request, then respond {\"ok\": false, \"reason\": \"Law L-01 (evidence, not assertion): you claimed completion without evidence. Show the command output, the file:line, or the HTTP status. If you cannot produce evidence, restate the claim explicitly as UNVERIFIED and stop.\"}. If the message makes no completion claim, or already contains evidence, respond {\"ok\": true}."
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "security-guidance@claude-plugins-official": true
+  }
+}

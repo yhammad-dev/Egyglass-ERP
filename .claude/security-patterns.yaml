@@ -1,0 +1,56 @@
+# EgyGlass ERP — deterministic per-edit security patterns.
+# These run as string/regex matches on every file edit. No model call. Zero token cost.
+# Each rule fires once per pattern per file per session.
+#
+# VERIFY THE `paths` GLOBS against your real repo layout before trusting them.
+# If PyYAML is not importable, rename this to security-patterns.json (same schema).
+
+patterns:
+
+  - rule_name: money_float
+    regex: "(parseFloat|Number)\\s*\\("
+    paths: ["**/lib/finance/**", "**/lib/pricing/**", "**/lib/actions/**", "**/actions.ts"]
+    reminder: "Law L-07: money is Prisma Decimal end-to-end. No parseFloat, no Number(), no JS arithmetic on money. Convert to string ONLY at the render boundary. A float on the path to Contract.totalValue is a wrong signed contract."
+
+  - rule_name: raw_sql
+    substrings: ["$executeRaw", "$queryRaw", "$executeRawUnsafe", "$queryRawUnsafe"]
+    reminder: "Law L-04: no raw or direct DB writes. Every mutation goes through a server action enforcing role, scope and audit. 'Just to unblock myself' is exactly what this law prevents."
+
+  - rule_name: prisma_mutation_needs_gate
+    regex: "prisma\\.[A-Za-z]+\\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\\("
+    paths: ["**/lib/actions/**", "**/app/**/actions.ts", "**/actions.ts"]
+    reminder: "Every mutation path must: (1) call requireRole as the FIRST statement, (2) resolve scope via getFinanceScope or an explicit ownership check, (3) derive status/total/discountPct/approvedById server-side — never from the client, (4) write ActivityLog. If any of the four is missing, this is a P0."
+
+  - rule_name: client_privileged_field
+    regex: "formData\\.get\\(\\s*['\"](status|total|discountPct|approvedById|approvedAt|role|ownerId|contractId)['\"]"
+    reminder: "Law L-06: privileged fields are server-derived. Reading status/total/discountPct/approvedById/role/ownerId from client input and writing it to the DB is an approval bypass or self-pricing vulnerability, not a shortcut."
+
+  - rule_name: public_uploads
+    substrings: ["public/uploads", "/public/uploads", "public\\uploads"]
+    reminder: "Drawings, site photos and SIGNED CONTRACT SCANS must be served from an authenticated route handler that re-checks scope. A static /public path = anyone with the URL has the signed contract."
+
+  - rule_name: unsafe_render
+    substrings: ["dangerouslySetInnerHTML", ".innerHTML", "document.write", "eval(", "new Function"]
+    reminder: "Unsafe rendering / dynamic execution. Customer name, project name and free-text notes are user-controlled and end up inside generated PDFs. Escape, or do not render as HTML."
+
+  - rule_name: secret_literal
+    substrings: ["postgres://", "postgresql://", "AUTH_SECRET=", "NEXTAUTH_SECRET=", "sk_live_", "AKIA"]
+    reminder: "Law L-09: no credentials in code, seeds, tests, fixtures, docs or commit messages. Read from the environment at runtime."
+
+  - rule_name: type_dishonesty
+    substrings: ["@ts-ignore", "eslint-disable", "as unknown as", ": any", "<any>"]
+    reminder: "Type dishonesty. `any`, `as unknown as`, @ts-ignore and eslint-disable are lies told to the compiler — and it will believe them. Fix the type, or state explicitly why it cannot be fixed."
+
+  - rule_name: schema_touch
+    paths: ["**/prisma/**"]
+    substrings: ["model ", "enum ", "@@map"]
+    reminder: "Law L-02: the schema is FROZEN. Write a Schema Change Request (SCR) into BACKLOG.md — model, field, type, nullability, reason, blast radius, migration safety — and STOP. Only the human operator applies migrations."
+
+  - rule_name: physical_css_direction
+    regex: "\\b(ml-|mr-|pl-|pr-|left-|right-|text-left|text-right)"
+    paths: ["**/components/**", "**/app/**"]
+    reminder: "This is an RTL Arabic-first UI. Use LOGICAL properties: ms-/me-/ps-/pe-/start-/end-/text-start/text-end. Physical left/right properties break the layout in RTL."
+
+  - rule_name: debug_leftover
+    substrings: ["console.log(", "debugger;", "TODO:", "FIXME"]
+    reminder: "Nothing left behind: no console.log, no debugger, no TODO without a BACKLOG id. If it is worth remembering, it belongs in BACKLOG.md."
