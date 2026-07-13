@@ -152,6 +152,8 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-79** | 🟠 **دَين: `FaultType` و`InstallationItemType` enumان متوازيان** لنفس المفهوم (BREAKAGE↔BREAKAGE_REPLACEMENT · FACTORY_ERROR↔MFG_ERROR). التحقيق سيترجم بخريطة يدوية. التوحيد = SCR منفصل. ليس بلوكرًا. | يوسف (SCR) |
 | **BL-80** | 🟠 **لا granularity على القطعة** — `InstallationItem` يصل لأمر التصنيع كاملًا (عبر `InstallationOrder.manufacturingOrderId` 1:1)، لا للقطعة المكسورة بعينها. مقبول حاليًا. | يوسف |
 | **BL-81** | ❓ **`InspectionMeasurement` غير مستخدم** — المقاسات تُخزَّن كنص في ActivityLog. التحقيق سيقرأ نصًّا لا صفوفًا مهيكلة. دَين. هل يُهاجَر؟ | يوسف |
+| **BL-82** | ✅ **مُعاد توصيفه (قرار يوسف 2026-07-13): ترقية لطريقة الإثبات، لا عطل.** الوكيل لا يُدخل كلمات مرور (قاعدة أمان بيئته + STD-08). **الطريقة المعتمدة:** يوسف يسجّل الدخول في الـBrowser pane، الوكيل يقود الجلسة ويوثّق (لقطات + DOM + استعلامات قاعدة). دليل الواجهة أقوى من curl — يوسف في الحلقة عند كل جلسة إثبات. **أول تطبيق ناجح: دليل PHASE 1 للتحقيقات.** | مُعتمد كطريقة |
+| **BL-83** | ✅ **مُغلق (قرار يوسف 2026-07-13): البيئة سليمة.** التحقق أثبت: ما يخدم 3100 = حاوية `app` نفسها (أمر preview = `docker compose up` — مسار الإقلاع القياسي كاملًا: install → generate → migrate deploy 28 → `next start` production)، لا node خارج Docker على المنفذ، `docker compose exec` يعمل. الفرق الوحيد: عملية compose مملوكة لأداة preview بدل terminal. | مُغلق |
 | **BL-77** | ❓ **لا رابط `Invoice` ↔ `Payment`.** الدفعة على العرض لا على الفاتورة. النظام لا يعرف أي فاتورة سُدِّدت. مقصود أم فجوة؟ | يوسف |
 | **BL-76** | ❓ **حارس "طلب معلّق يمنع الثاني" لم يُثبَت مستقلًا** — حارس الحالة (`!DRAFT/SENT`) سبقه. النتيجة صحيحة، الآلية غير مؤكدة. يُتحقَّق لاحقًا. | يوسف |
 | **BL-74** | ✅ **مُغلق (PHASE E).** شاشة `/approvals` لـ ADMIN فقط تجمع: طلبات الخصم PENDING (المُمرَّرة من SALES_MANAGER) + الفواتير DRAFT، بالأقدم أولًا + عمر الانتظار، صفر → "لا شيء بانتظارك". **تستدعي `decideDiscountAction`/`issueInvoiceAction` القائمين بنفس الحرّاس — مدخل لا مصدر حقيقة ثانٍ.** مُثبت: نفس أثر الشاشة الأصلية · غير ADMIN مرفوض (307) · العنصر يختفي بعد الاعتماد. | مُغلق |
@@ -252,3 +254,22 @@ BACKLOG DISCIPLINE (إلزامي):
 - **مفتوح لقرار يوسف:** BL-18 (موافقة عميل السوشيال) · BL-31 (دفع السوشيال) · BL-33 (ملكية اختيار المصنع) · BL-20 (حذف أعمدة/enums الميتة، SCR).
 
 *آخر تحديث: 2026-07-12 — بعد إعادة إسناد السلسلة الحقيقية للأدوار (PHASE 1-4).*
+
+---
+
+## سجل التنفيذ — موديول التحقيق BL-63 (SCR-017، 2026-07-13)
+
+> schema مطبَّق سلفًا بيد يوسف (tag `schema-scr017a-done`، commit `0796a08`، migration 28). البناء app-layer فقط.
+
+- **PHASE 1 — فتح التحقيق (قيد التنفيذ):**
+  - خدمة `src/lib/services/fault-investigations.ts`: `openFaultInvestigation` — `claimedFault` بخريطة BL-79 اليدوية (`BREAKAGE_REPLACEMENT→BREAKAGE · MFG_ERROR→FACTORY_ERROR · TEC_ERROR→TEC_ERROR · MEASUREMENT_ERROR→MEASUREMENT_ERROR`؛ `CLIENT_DELAY/OTHER` غير قابلَين للتحقيق عمدًا — لا يولّدان بديلًا أصلًا). `manufacturingOrderId` عبر `InstallationItem → InstallationOrder.manufacturingOrderId` (1:1، BL-80 granularity الأمر لا القطعة — مقبول بقرار يوسف).
+  - action: `requireRole(["REVIEW","ADMIN"])` + zod + ActivityLog `INVESTIGATION_OPENED`.
+  - تحقيق واحد لكل بند: فحص مسبق + قيد `@unique` على `installationItemId` (P2002 → `errors.investigationExists`).
+  - نقطة الدخول (الدرس 2): شاشة `/investigations` جديدة (REVIEW/ADMIN) — قسم "بنود بلا تحقيق" بزر فتح + قائمة التحقيقات. مدخل قائمة جانبية `nav.investigations`. (إشعار REVIEW عند تسجيل البند قائم سلفًا في `installation-extras.ts`.)
+  - **لا إشعار جديد عند الفتح** — غير منصوص عليه في D-25..29، والتزامًا بـ STD-05 لم يُخترع.
+  - ✅ **مُثبَت بجلسة واجهة حقيقية (2026-07-13، طريقة BL-82: يوسف سجّل الدخول، الوكيل قاد الـpane):**
+    - build GREEN داخل Docker · بلا مصادقة → 307 · فحوص خدمة سلبية (tsx داخل الحاوية): `CLIENT_DELAY`/`OTHER`→`itemNotInvestigable` · وهمي→`notFound` · صفر كتابة.
+    - جلسة `dev-review-a` (REVIEW): الشاشة عرضت **4 بنود فقط** (CLIENT_DELAY/OTHER مستبعدان) والقائمة الجانبية بلا بنود ADMIN. زر "فتح تحقيق" على بند بدل كسر (Q-2026-00018) → الصف `cmrjdstmw0001mo3lof713bx3`: `claimedFault=BREAKAGE` (خريطة BL-79 صحيحة) · `manufacturingOrderId=cmri2pon9000jmo53mgjwf5uk` **مطابق للمشتق** من InstallationItem→InstallationOrder · `status=OPEN` · `verdictFault=NULL` · `openedBy=dev-review-a (REVIEW)` · ActivityLog `INVESTIGATION_OPENED` بنفس الفاعل.
+    - منع التكرار: 10+ نقرات على نفس البند من تاب ثانٍ قديم → toast خطأ حرفي من الـDOM: **"يوجد تحقيق مفتوح على هذا البند بالفعل"** — والقاعدة بقيت على **صف واحد وسجل واحد**.
+    - ملاحظة جلسة: كوكي ADMIN قديم كان عالقًا في الـpane واكتُشف قبل أي نقرة (الاسم في الترويسة) — سُجّل الخروج ودخل يوسف بـREVIEW. الفاعل الصحيح مثبت بالقاعدة.
+  - ⚠️ ملحوظة أثناء البناء: خطأ ESLint "circular structure" يظهر في `next build` (لا يكسر الـbuild) — **سابق لهذا التعديل**، يُقيَّد للتنظيف لاحقًا.
