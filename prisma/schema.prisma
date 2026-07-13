@@ -51,6 +51,8 @@ model User {
   issuedInvoices           Invoice[]               @relation("InvoiceIssuer")
   installationPhotos       InstallationPhoto[]     @relation("InstallationPhotoUploader")
   installationItems        InstallationItem[]      @relation("InstallationItemCreator")
+  investigationsOpened     FaultInvestigation[]    @relation("InvestigationOpenedBy")
+  investigationsJudged     FaultInvestigation[]    @relation("InvestigationVerdictBy")
 }
 
 model Customer {
@@ -291,6 +293,10 @@ model ManufacturingOrder {
   factory         Factory? @relation(fields: [factoryId], references: [id], onDelete: SetNull)
   rejectionReason String?  @db.Text
 
+  // ── التحقيق في العيوب (BL-78) ──
+  faultInvestigations        FaultInvestigation[] @relation("InvestigationOriginalOrder")
+  investigationAsReplacement FaultInvestigation?  @relation("InvestigationReplacementOrder")
+
   @@index([status])
   @@index([parentOrderId])
   @@index([factoryId])
@@ -367,6 +373,8 @@ model InstallationItem {
   createdById         String
   createdBy           User                 @relation("InstallationItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt           DateTime             @default(now())
+
+  faultInvestigation  FaultInvestigation?
 
   @@index([installationOrderId])
   @@index([type])
@@ -1058,6 +1066,46 @@ enum DrawingStatus {
   CEO_APPROVED
   RELEASED_TO_FACTORY
   REJECTED
+  SUPERSEDED   // رسمة أُلغيت بأخرى مصحَّحة (BL-78)
+}
+
+enum InvestigationStatus {
+  OPEN
+  JUDGED
+}
+
+model FaultInvestigation {
+  id                   String  @id @default(cuid())
+  manufacturingOrderId String            // الأمر الأصلي
+  installationItemId   String  @unique   // بند التركيبات = الادعاء
+
+  claimedFault  FaultType                // ادعاء INSTALLATIONS
+  verdictFault  FaultType?               // حُكم ADMIN — منفصل (D-27)
+
+  status        InvestigationStatus @default(OPEN)
+
+  openedById    String                   // REVIEW فتحه
+  openedAt      DateTime @default(now())
+  evidenceNotes String?  @db.Text        // الأثر المُجمَّع
+
+  verdictById   String?                  // ADMIN
+  verdictAt     DateTime?
+  verdictNotes  String?  @db.Text        // تعليل الحكم
+
+  replacementOrderId String? @unique     // البديل بعد صدوره
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  manufacturingOrder ManufacturingOrder  @relation("InvestigationOriginalOrder",    fields: [manufacturingOrderId], references: [id])
+  replacementOrder   ManufacturingOrder? @relation("InvestigationReplacementOrder", fields: [replacementOrderId],   references: [id])
+  installationItem   InstallationItem    @relation(fields: [installationItemId],    references: [id])
+  openedBy           User                @relation("InvestigationOpenedBy",  fields: [openedById],  references: [id])
+  verdictBy          User?               @relation("InvestigationVerdictBy", fields: [verdictById], references: [id])
+
+  @@index([status])
+  @@index([manufacturingOrderId])
+  @@map("fault_investigations")
 }
 
 model ExtraItem {
