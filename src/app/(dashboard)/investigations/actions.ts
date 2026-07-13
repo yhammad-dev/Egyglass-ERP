@@ -5,6 +5,8 @@ import { requireRole } from "@/lib/rbac";
 import {
   openFaultInvestigation,
   saveEvidenceNotes,
+  judgeFaultInvestigation,
+  FAULT_TYPES,
   FaultInvestigationError,
 } from "@/lib/services/fault-investigations";
 
@@ -52,6 +54,40 @@ export async function saveEvidenceNotesAction(input: unknown) {
   } catch (e) {
     if (e instanceof FaultInvestigationError) return { error: e.message };
     console.error("[saveEvidenceNotesAction]", e);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// PHASE 3 (D-25): الحُكم — ADMIN وحده. REVIEW طرف في السلسلة فلا تحكم على نفسها.
+const judgeSchema = z.object({
+  investigationId: z.string().min(1, "errors.invalidInput"),
+  verdictFault: z.enum(FAULT_TYPES),
+  verdictNotes: z.string().trim().min(1, "errors.verdictNotesRequired").max(10000),
+});
+
+export async function judgeFaultInvestigationAction(input: unknown) {
+  try {
+    const roleCheck = await requireRole(["ADMIN"]);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = judgeSchema.safeParse(input);
+    if (!parsed.success) {
+      const notesIssue = parsed.error.issues.some((i) => i.path[0] === "verdictNotes");
+      return {
+        error: (notesIssue ? "errors.verdictNotesRequired" : "errors.invalidInput") as string,
+      };
+    }
+
+    await judgeFaultInvestigation(
+      parsed.data.investigationId,
+      parsed.data.verdictFault,
+      parsed.data.verdictNotes,
+      roleCheck.userId
+    );
+    return { success: true as const };
+  } catch (e) {
+    if (e instanceof FaultInvestigationError) return { error: e.message };
+    console.error("[judgeFaultInvestigationAction]", e);
     return { error: "errors.serverError" as const };
   }
 }

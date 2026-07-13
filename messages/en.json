@@ -161,7 +161,8 @@
     "stageInspectionTitle": "Moved to Inspection Stage",
     "stagePricedTitle": "Moved to Pricing Stage",
     "quotationReadyTitle": "Quotation Ready",
-    "replacementRequestedTitle": "Replacement requested — awaiting REVIEW investigation"
+    "replacementRequestedTitle": "Replacement requested — awaiting REVIEW investigation",
+    "investigationJudgedTitle": "Management verdict issued on an investigation"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",
@@ -730,6 +731,8 @@
     "notTeamLead": "Only the team lead of this order can do this",
     "itemNotInvestigable": "This item is not a breakage or manufacturing fault — no investigation applies",
     "investigationExists": "An investigation already exists for this item",
+    "verdictNotesRequired": "Verdict notes are required",
+    "investigationLocked": "Investigation judged — evidence notes are locked",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",
@@ -869,7 +872,15 @@
     "evidenceNotes": "Evidence notes",
     "evidenceNotesHint": "Review notes on the gathered evidence — the system displays, humans judge",
     "saveNotes": "Save notes",
-    "notesSaved": "Notes saved"
+    "notesSaved": "Notes saved",
+    "notesLockedHint": "Investigation judged — evidence notes are locked (the verdict relied on them)",
+    "verdictTitle": "Verdict",
+    "verdictAdminOnly": "Judging is exclusive to management (ADMIN) — a fault category, not a person; cost is a separate decision",
+    "selectVerdictFault": "Select fault category",
+    "verdictNotes": "Verdict notes",
+    "verdictNotesHint": "Verdict reasoning — required",
+    "judgeBtn": "Issue verdict",
+    "judged": "Verdict issued"
   },
   "coverageEdits": {
     "title": "Coverage Edits",
@@ -1208,6 +1219,8 @@
     "confirmReject": "Confirm reject",
     "rejectReason": "Rejection reason",
     "issue": "Issue",
-    "done": "Done"
+    "done": "Done",
+    "investigationsSection": "Investigations awaiting verdict",
+    "openInvestigation": "Open investigation"
   }
 }

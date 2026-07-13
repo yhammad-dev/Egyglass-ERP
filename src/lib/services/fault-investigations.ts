@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { notifyRole } from "@/lib/notifications/send";
 
 // SCR-017 (BL-63، D-25..29) — موديول التحقيق في البديل:
 // INSTALLATIONS تدّعي (نوع البند) · REVIEW تفتح التحقيق وتجمّع الأثر · ADMIN يحكم.
@@ -83,7 +84,7 @@ export async function openFaultInvestigation(installationItemId: string, actorId
 
 /**
  * PHASE 2 — REVIEW تكتب ملاحظات الأثر المُجمَّع (evidenceNotes).
- * لا قفل بعد JUDGED — غير منصوص عليه (سؤال مفتوح في BACKLOG، يُحسم مع PHASE 3).
+ * D-30 (PHASE 3): تُقفل بعد JUDGED — الحُكم استند إليها، تعديلها بعده يُفرغ الأثر من معناه.
  */
 export async function saveEvidenceNotes(
   investigationId: string,
@@ -92,9 +93,11 @@ export async function saveEvidenceNotes(
 ) {
   const investigation = await prisma.faultInvestigation.findUnique({
     where: { id: investigationId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!investigation) throw new FaultInvestigationError("errors.notFound");
+  if (investigation.status === "JUDGED")
+    throw new FaultInvestigationError("errors.investigationLocked");
 
   const updated = await prisma.faultInvestigation.update({
     where: { id: investigationId },
@@ -110,6 +113,84 @@ export async function saveEvidenceNotes(
       details: `حُفظت ملاحظات الأثر — ${notes.length} حرفًا: ${notes.slice(0, 300)}${notes.length > 300 ? "…" : ""}`,
     },
   });
+
+  return updated;
+}
+
+/** كل قيم FaultType — الحُكم فئة عطل لا اسم شخص (D-26) */
+export const FAULT_TYPES = [
+  "BREAKAGE",
+  "FACTORY_ERROR",
+  "TEC_ERROR",
+  "MEASUREMENT_ERROR",
+  "CUSTOMER_DELAY",
+] as const;
+
+/**
+ * PHASE 3 — الحُكم (D-25: ADMIN وحده — الدور يُفرض في الـ action).
+ * D-27: claimedFault لا يُمَس أبدًا — الادعاء والحُكم حقلان منفصلان.
+ * D-30: بعد JUDGED تُقفل evidenceNotes (في saveEvidenceNotes) ولا حُكم ثانٍ (OPEN فقط).
+ * الإشعارات: REVIEW + INSTALLATIONS دائمًا · TECHNICAL_OFFICE لو الحُكم
+ * TEC_ERROR/MEASUREMENT_ERROR (D-28: تصحيح الرسمة = المكتب الفني في الحالتين).
+ */
+export async function judgeFaultInvestigation(
+  investigationId: string,
+  verdictFault: (typeof FAULT_TYPES)[number],
+  verdictNotes: string,
+  actorId: string
+) {
+  const trimmedNotes = verdictNotes.trim();
+  if (!trimmedNotes) throw new FaultInvestigationError("errors.verdictNotesRequired");
+
+  const investigation = await prisma.faultInvestigation.findUnique({
+    where: { id: investigationId },
+    select: {
+      id: true,
+      status: true,
+      claimedFault: true,
+      manufacturingOrder: { select: { quotation: { select: { number: true } } } },
+    },
+  });
+  if (!investigation) throw new FaultInvestigationError("errors.notFound");
+  if (investigation.status !== "OPEN")
+    throw new FaultInvestigationError("errors.illegalStatusTransition");
+
+  // D-27: الادعاء لا يُكتب هنا إطلاقًا — الحُكم في حقوله المنفصلة فقط
+  const updated = await prisma.faultInvestigation.update({
+    where: { id: investigationId },
+    data: {
+      verdictFault,
+      verdictNotes: trimmedNotes,
+      verdictById: actorId,
+      verdictAt: new Date(),
+      status: "JUDGED",
+    },
+  });
+
+  const quotationNumber = investigation.manufacturingOrder.quotation.number;
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "INVESTIGATION_JUDGED",
+      entity: "FaultInvestigation",
+      entityId: investigationId,
+      details: `حُكم التحقيق (${quotationNumber}) — الادعاء: ${investigation.claimedFault} · الحُكم: ${verdictFault} · التعليل: ${trimmedNotes.slice(0, 300)}${trimmedNotes.length > 300 ? "…" : ""}`,
+    },
+  });
+
+  const notifyRoles = ["REVIEW", "INSTALLATIONS"];
+  if (verdictFault === "TEC_ERROR" || verdictFault === "MEASUREMENT_ERROR") {
+    notifyRoles.push("TECHNICAL_OFFICE");
+  }
+  for (const role of notifyRoles) {
+    await notifyRole(role, {
+      title: "notifications.investigationJudgedTitle",
+      body: `حُكم تحقيق ${quotationNumber} — الحُكم: ${verdictFault} (الادعاء: ${investigation.claimedFault})`,
+      type: "INVESTIGATION_JUDGED",
+      entityId: investigationId,
+      entityType: "FaultInvestigation",
+    });
+  }
 
   return updated;
 }

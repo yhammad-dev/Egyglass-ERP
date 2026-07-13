@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/server-translations";
 import { EvidenceNotesForm } from "./evidence-notes-form";
+import { VerdictForm } from "./verdict-form";
 
 // SCR-017 PHASE 2 (D-25) — شاشة الأثر: الأضلاع الأربعة جنبًا إلى جنب.
 // 🔴 النظام يعرض — البشر يحكمون. صفر استنتاج آلي للسبب، صفر اقتراح متسبب.
@@ -177,18 +178,24 @@ export default async function InvestigationDetailPage(props: {
             {inv.openedBy.name} · {dateFmt.format(inv.openedAt)}
           </p>
           {inv.status === "JUDGED" && (
-            <p className="px-3 py-1.5">
-              <span className="text-muted-foreground">{t("investigations.verdictFault")}:</span>{" "}
-              {inv.verdictFault ? t(`investigations.fault_${inv.verdictFault}`) : dash}
-              {inv.verdictBy ? (
-                <>
-                  {" · "}
-                  <span className="text-muted-foreground">{t("investigations.judgedBy")}:</span>{" "}
-                  {inv.verdictBy.name}
-                  {inv.verdictAt ? ` · ${dateFmt.format(inv.verdictAt)}` : ""}
-                </>
-              ) : null}
-            </p>
+            <>
+              <p className="px-3 py-1.5">
+                <span className="text-muted-foreground">{t("investigations.verdictFault")}:</span>{" "}
+                {inv.verdictFault ? t(`investigations.fault_${inv.verdictFault}`) : dash}
+                {inv.verdictBy ? (
+                  <>
+                    {" · "}
+                    <span className="text-muted-foreground">{t("investigations.judgedBy")}:</span>{" "}
+                    {inv.verdictBy.name}
+                    {inv.verdictAt ? ` · ${dateFmt.format(inv.verdictAt)}` : ""}
+                  </>
+                ) : null}
+              </p>
+              <p className="px-3 py-1.5">
+                <span className="text-muted-foreground">{t("investigations.verdictNotes")}:</span>{" "}
+                {inv.verdictNotes ?? dash}
+              </p>
+            </>
           )}
         </div>
       </section>
@@ -301,8 +308,15 @@ export default async function InvestigationDetailPage(props: {
         </section>
       </div>
 
-      {/* ── ملاحظات الأثر (REVIEW تكتب — النظام لا يستنتج) ── */}
-      <EvidenceNotesForm investigationId={inv.id} initialNotes={inv.evidenceNotes ?? ""} />
+      {/* ── ملاحظات الأثر (REVIEW تكتب — النظام لا يستنتج) · D-30: مقفلة بعد الحكم ── */}
+      <EvidenceNotesForm
+        investigationId={inv.id}
+        initialNotes={inv.evidenceNotes ?? ""}
+        locked={inv.status === "JUDGED"}
+      />
+
+      {/* ── الحُكم (D-25: ADMIN فقط — الحارس server-side) ── */}
+      {inv.status === "OPEN" && <VerdictForm investigationId={inv.id} />}
     </div>
   );
 }

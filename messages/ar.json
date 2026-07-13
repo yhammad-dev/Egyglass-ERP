@@ -160,7 +160,8 @@
     "stageInspectionTitle": "نقل إلى مرحلة المعاينة",
     "stagePricedTitle": "نقل إلى مرحلة التسعير",
     "quotationReadyTitle": "عرض السعر جاهز",
-    "replacementRequestedTitle": "طلب بديل — بانتظار تحقيق REVIEW"
+    "replacementRequestedTitle": "طلب بديل — بانتظار تحقيق REVIEW",
+    "investigationJudgedTitle": "صدر حكم الإدارة في تحقيق"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -729,6 +730,8 @@
     "notTeamLead": "الصلاحية لقائد الفريق على هذا الأمر فقط",
     "itemNotInvestigable": "هذا البند ليس كسرًا أو خطأً تصنيعيًا — لا تحقيق فيه",
     "investigationExists": "يوجد تحقيق مفتوح على هذا البند بالفعل",
+    "verdictNotesRequired": "تعليل الحكم إلزامي",
+    "investigationLocked": "التحقيق محكوم — ملاحظات الأثر مقفلة",
     "required": "الحقل مطلوب",
     "emailInvalid": "بريد إلكتروني غير صالح",
     "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
@@ -868,7 +871,15 @@
     "evidenceNotes": "ملاحظات الأثر",
     "evidenceNotesHint": "ملاحظات المراجعة على الأثر المُجمَّع — النظام يعرض ولا يستنتج، الحكم للإدارة",
     "saveNotes": "حفظ الملاحظات",
-    "notesSaved": "حُفظت الملاحظات"
+    "notesSaved": "حُفظت الملاحظات",
+    "notesLockedHint": "التحقيق محكوم — ملاحظات الأثر مقفلة (الحُكم استند إليها)",
+    "verdictTitle": "الحُكم",
+    "verdictNotes": "تعليل الحكم",
+    "verdictAdminOnly": "الحُكم للإدارة العليا (ADMIN) حصريًا — فئة عطل لا اسم شخص، والتكلفة قرار منفصل",
+    "selectVerdictFault": "اختر فئة العطل",
+    "verdictNotesHint": "تعليل الحكم — إلزامي",
+    "judgeBtn": "إصدار الحكم",
+    "judged": "صدر الحكم"
   },
   "coverageEdits": {
     "title": "تعديلات التغطية",
@@ -1207,6 +1218,8 @@
     "confirmReject": "تأكيد الرفض",
     "rejectReason": "سبب الرفض",
     "issue": "إصدار",
-    "done": "تم"
+    "done": "تم",
+    "investigationsSection": "تحقيقات بانتظار الحكم",
+    "openInvestigation": "فتح التحقيق"
   }
 }

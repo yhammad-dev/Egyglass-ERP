@@ -11,7 +11,7 @@ export default async function ApprovalsPage() {
   const roleCheck = await requireRole(["ADMIN"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
-  const [pendingDiscounts, passedLogs, draftInvoices] = await Promise.all([
+  const [pendingDiscounts, passedLogs, draftInvoices, openInvestigations] = await Promise.all([
     // طلبات الخصم المعلّقة (DiscountRequest بلا علاقة quotation — نجلب العروض منفصلة)
     prisma.discountRequest.findMany({
       where: { status: "PENDING" },
@@ -39,6 +39,21 @@ export default async function ApprovalsPage() {
         totalAmount: true,
         createdAt: true,
         customer: { select: { name: true } },
+      },
+    }),
+    // SCR-017 PHASE 3: تحقيقات مفتوحة بانتظار حكم ADMIN (D-25) — مدخل للتفاصيل
+    prisma.faultInvestigation.findMany({
+      where: { status: "OPEN" },
+      orderBy: { openedAt: "asc" },
+      select: {
+        id: true,
+        claimedFault: true,
+        openedAt: true,
+        manufacturingOrder: {
+          select: {
+            quotation: { select: { number: true, customer: { select: { name: true } } } },
+          },
+        },
       },
     }),
   ]);
@@ -73,5 +88,15 @@ export default async function ApprovalsPage() {
     createdAt: i.createdAt.toISOString(),
   }));
 
-  return <ApprovalsClient discounts={discounts} invoices={invoices} />;
+  const investigations = openInvestigations.map((f) => ({
+    id: f.id,
+    claimedFault: f.claimedFault as string,
+    quotationNumber: f.manufacturingOrder.quotation.number,
+    customerName: f.manufacturingOrder.quotation.customer.name,
+    openedAt: f.openedAt.toISOString(),
+  }));
+
+  return (
+    <ApprovalsClient discounts={discounts} invoices={invoices} investigations={investigations} />
+  );
 }

@@ -12,9 +12,12 @@ import { saveEvidenceNotesAction } from "../actions";
 export function EvidenceNotesForm({
   investigationId,
   initialNotes,
+  locked = false,
 }: {
   investigationId: string;
   initialNotes: string;
+  /** D-30: بعد JUDGED — تنويه ظاهر، والرفض الفعلي server-side */
+  locked?: boolean;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -39,6 +42,9 @@ export function EvidenceNotesForm({
         {t("investigations.evidenceNotes")}
       </p>
       <div className="p-3 space-y-2">
+        {locked && (
+          <p className="text-amber-600 text-xs">{t("investigations.notesLockedHint")}</p>
+        )}
         <Label htmlFor="evidence-notes" className="text-muted-foreground">
           {t("investigations.evidenceNotesHint")}
         </Label>
