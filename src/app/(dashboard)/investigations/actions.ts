@@ -6,6 +6,7 @@ import {
   openFaultInvestigation,
   saveEvidenceNotes,
   judgeFaultInvestigation,
+  createReplacementOrder,
   FAULT_TYPES,
   FaultInvestigationError,
 } from "@/lib/services/fault-investigations";
@@ -88,6 +89,28 @@ export async function judgeFaultInvestigationAction(input: unknown) {
   } catch (e) {
     if (e instanceof FaultInvestigationError) return { error: e.message };
     console.error("[judgeFaultInvestigationAction]", e);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// PHASE 4 (D-29): إصدار أمر البديل — TEC_APPROVER (كأي أمر تصنيع)
+const replacementSchema = z.object({
+  investigationId: z.string().min(1, "errors.invalidInput"),
+});
+
+export async function createReplacementOrderAction(input: unknown) {
+  try {
+    const roleCheck = await requireRole(["TEC_APPROVER", "ADMIN"]);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = replacementSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const order = await createReplacementOrder(parsed.data.investigationId, roleCheck.userId);
+    return { success: true as const, orderId: order.id };
+  } catch (e) {
+    if (e instanceof FaultInvestigationError) return { error: e.message };
+    console.error("[createReplacementOrderAction]", e);
     return { error: "errors.serverError" as const };
   }
 }

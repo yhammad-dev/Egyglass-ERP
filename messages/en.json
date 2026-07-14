@@ -735,6 +735,7 @@
     "investigationLocked": "Investigation judged — evidence notes are locked",
     "investigationNotJudged": "No replacement before the management verdict — investigation still open",
     "replacementAlreadyIssued": "A replacement order has already been issued for this investigation",
+    "faultNotEligibleForReplacement": "This fault is client-caused — no company-cost replacement order.",
     "required": "This field is required",
     "emailInvalid": "Invalid email address",
     "passwordMinLength": "Password must be at least 6 characters",

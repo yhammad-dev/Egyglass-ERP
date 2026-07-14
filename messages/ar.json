@@ -734,6 +734,7 @@
     "investigationLocked": "التحقيق محكوم — ملاحظات الأثر مقفلة",
     "investigationNotJudged": "لا بديل قبل حكم الإدارة — التحقيق ما زال مفتوحًا",
     "replacementAlreadyIssued": "أمر البديل صادر بالفعل لهذا التحقيق",
+    "faultNotEligibleForReplacement": "هذا العطل ناتج عن العميل — لا يُصدَر أمر بديل على حساب الشركة.",
     "required": "الحقل مطلوب",
     "emailInvalid": "بريد إلكتروني غير صالح",
     "passwordMinLength": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",

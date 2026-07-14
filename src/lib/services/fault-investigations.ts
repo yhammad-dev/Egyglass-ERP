@@ -29,6 +29,11 @@ export const CLAIM_MAP: Record<
 
 export const INVESTIGABLE_ITEM_TYPES = Object.keys(CLAIM_MAP);
 
+// W-06 (CLAUDE.md:81): الأعطال المؤهلة لأمر بديل = قيم CLAIM_MAP الأربعة عينها
+// (تطابق REPLACEMENT_MAP). مشتقّة من مصدر واحد لا تُكرَّر يدويًا — CUSTOMER_DELAY
+// خارجها عمدًا: عطل العميل لا يولّد أمرًا بتكلفة الشركة.
+export const REPLACEMENT_ELIGIBLE_FAULTS = new Set<string>(Object.values(CLAIM_MAP));
+
 /**
  * REVIEW تفتح تحقيقًا على بند كسر/عيب مسجَّل من INSTALLATIONS.
  * الأمر الأصلي يُشتق ولا يُسأل (الدرس 4): InstallationItem → InstallationOrder →
@@ -193,4 +198,103 @@ export async function judgeFaultInvestigation(
   }
 
   return updated;
+}
+
+/**
+ * PHASE 4 — أمر التصنيع البديل (D-29): TEC_APPROVER يُصدره (الدور يُفرض في الـ action).
+ * حكم ADMIN هو الإشارة التي تفتح الإصدار، لا الإصدار نفسه — لذا يتطلب JUDGED.
+ * 🔴 نفس حراس الأمر الأصلي حرفيًا (رسمة TEC_APPROVED + عقد + دفعة≥1 — BL-08/BL-44/D-10)،
+ * منسوخة من `lib/manufacturing/actions.ts#createManufacturingOrder` — لا استثناء للبديل،
+ * ويدخل UNDER_REVIEW مباشرة كأي أمر (D-16) فتطابقه REVIEW وتعتمده.
+ * بديل واحد لكل تحقيق: فحص مسبق + قيد `@unique` على `replacementOrderId`.
+ */
+export async function createReplacementOrder(investigationId: string, actorId: string) {
+  const investigation = await prisma.faultInvestigation.findUnique({
+    where: { id: investigationId },
+    select: {
+      id: true,
+      status: true,
+      verdictFault: true,
+      replacementOrderId: true,
+      manufacturingOrderId: true,
+      manufacturingOrder: { select: { quotationId: true } },
+    },
+  });
+  if (!investigation) throw new FaultInvestigationError("errors.notFound");
+  if (investigation.status !== "JUDGED" || !investigation.verdictFault)
+    throw new FaultInvestigationError("errors.investigationNotJudged");
+  // W-06: البديل يُولَّد فقط للأعطال الأربعة (REPLACEMENT_ELIGIBLE_FAULTS). حُكم
+  // CUSTOMER_DELAY (عطل العميل) لا يولّد أمرًا بتكلفة الشركة — يُرفض صراحةً.
+  if (!REPLACEMENT_ELIGIBLE_FAULTS.has(investigation.verdictFault))
+    throw new FaultInvestigationError("errors.faultNotEligibleForReplacement");
+  if (investigation.replacementOrderId)
+    throw new FaultInvestigationError("errors.replacementAlreadyIssued");
+
+  const quotationId = investigation.manufacturingOrder.quotationId;
+  const quotation = await prisma.quotation.findUnique({
+    where: { id: quotationId },
+    select: {
+      number: true,
+      reviewStatus: true,
+      contract: { select: { id: true } },
+      _count: { select: { payments: true } },
+      quotationRequest: {
+        select: { drawings: { where: { status: "TEC_APPROVED" }, select: { id: true } } },
+      },
+    },
+  });
+  if (!quotation) throw new FaultInvestigationError("errors.notFound");
+
+  // PHASE 3.5 (BL-88/STD-15): دفاع عمق — البديل على نفس العرض؛ لا بديل ضد سعر غير معتمد.
+  if (quotation.reviewStatus !== "APPROVED")
+    throw new FaultInvestigationError("errors.reviewNotApproved");
+
+  // BL-08: رسمة معتمدة فنيًا (بعد BL-78 = الرسمة النافذة الوحيدة)
+  if ((quotation.quotationRequest?.drawings.length ?? 0) === 0)
+    throw new FaultInvestigationError("errors.noApprovedDrawing");
+  // BL-44: عقد إلزامي للمسارين
+  if (!quotation.contract)
+    throw new FaultInvestigationError("errors.noContractForManufacturing");
+  // D-10: دفعة واحدة على الأقل
+  if (quotation._count.payments === 0)
+    throw new FaultInvestigationError("errors.noPaymentForManufacturing");
+
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.manufacturingOrder.create({
+      data: {
+        quotationId,
+        status: "UNDER_REVIEW",
+        parentOrderId: investigation.manufacturingOrderId,
+        faultType: investigation.verdictFault,
+      },
+    });
+    // شرطي (سباق): لو سبقنا إصدارٌ آخر فالتحديث يصيب صفر صفوف → rollback للأمر المُنشأ
+    const linked = await tx.faultInvestigation.updateMany({
+      where: { id: investigationId, replacementOrderId: null },
+      data: { replacementOrderId: created.id },
+    });
+    if (linked.count === 0)
+      throw new FaultInvestigationError("errors.replacementAlreadyIssued");
+    return created;
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: actorId,
+      action: "REPLACEMENT_ORDER_ISSUED",
+      entity: "FaultInvestigation",
+      entityId: investigationId,
+      details: `أصدر المدير التنفيذي أمر البديل ${order.id} (faultType=${investigation.verdictFault}) عن الأمر الأصلي ${investigation.manufacturingOrderId} — عرض ${quotation.number}، دخل بوابة المراجعة مباشرة`,
+    },
+  });
+
+  await notifyRole("REVIEW", {
+    title: "notifications.newMfgOrderTitle",
+    body: `أمر تصنيع بديل لعرض السعر ${quotation.number} (تحقيق محكوم) — بانتظار المطابقة والاعتماد`,
+    type: "MFG_ORDER_CREATED",
+    entityId: order.id,
+    entityType: "ManufacturingOrder",
+  });
+
+  return order;
 }

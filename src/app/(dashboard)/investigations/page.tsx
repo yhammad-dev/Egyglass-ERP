@@ -9,7 +9,8 @@ import { OpenInvestigationButton } from "./open-investigation-button";
 
 // SCR-017 PHASE 1 (BL-63) — بيت التحقيقات: REVIEW تفتح وتجمّع، ADMIN يحكم (D-25)
 export default async function InvestigationsPage() {
-  const roleCheck = await requireRole(["REVIEW", "ADMIN"]);
+  // PHASE 4: TEC_APPROVER يقرأ القائمة ليصل للتحقيقات المحكومة (إصدار البديل — D-29)
+  const roleCheck = await requireRole(["REVIEW", "ADMIN", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const [pendingItems, investigations] = await Promise.all([

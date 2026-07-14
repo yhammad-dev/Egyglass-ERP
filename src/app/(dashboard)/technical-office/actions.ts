@@ -253,14 +253,35 @@ export async function approveDrawingAction(input: unknown) {
       return { error: "errors.cannotApproveSelf" as const };
     }
 
-    await prisma.drawing.update({
-      where: { id: drawingId },
-      data: {
-        approvedById: auth.userId,
-        approvedAt: new Date(),
+    // SCR-017 PHASE 4 (BL-78): رسمة نافذة واحدة — اعتماد رسمة يُلغي (SUPERSEDED)
+    // كل TEC_APPROVED أخرى على نفس الطلب، في transaction واحدة مع الاعتماد.
+    const superseded = await prisma.drawing.findMany({
+      where: {
+        quotationRequestId: drawing.quotationRequestId,
         status: "TEC_APPROVED",
+        id: { not: drawingId },
       },
+      select: { id: true, originalName: true },
     });
+
+    await prisma.$transaction([
+      prisma.drawing.update({
+        where: { id: drawingId },
+        data: {
+          approvedById: auth.userId,
+          approvedAt: new Date(),
+          status: "TEC_APPROVED",
+        },
+      }),
+      ...(superseded.length
+        ? [
+            prisma.drawing.updateMany({
+              where: { id: { in: superseded.map((d) => d.id) } },
+              data: { status: "SUPERSEDED" },
+            }),
+          ]
+        : []),
+    ]);
 
     await prisma.activityLog.create({
       data: {
@@ -271,6 +292,18 @@ export async function approveDrawingAction(input: unknown) {
         details: JSON.stringify({ drawingId }),
       },
     });
+
+    for (const old of superseded) {
+      await prisma.activityLog.create({
+        data: {
+          userId: auth.userId,
+          action: "DRAWING_SUPERSEDED",
+          entity: "Drawing",
+          entityId: old.id,
+          details: `أُلغيت الرسمة ${old.originalName} باعتماد رسمة أحدث (${drawingId}) — رسمة نافذة واحدة (BL-78)`,
+        },
+      });
+    }
 
     await notifyRole("TECHNICAL_OFFICE", {
       title: "tec.drawingApprovedTitle",

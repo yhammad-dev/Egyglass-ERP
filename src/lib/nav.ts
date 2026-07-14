@@ -37,11 +37,12 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "INSTALLATIONS"],
   },
   {
-    // SCR-017 (BL-63): بيت التحقيقات — REVIEW تفتح وتجمّع، ADMIN يحكم (D-25)
+    // SCR-017 (BL-63): بيت التحقيقات — REVIEW تفتح وتجمّع، ADMIN يحكم (D-25)،
+    // TEC_APPROVER يقرأ ويُصدر البديل بعد الحكم (D-29، PHASE 4)
     labelKey: "nav.investigations",
     href: "/investigations",
     icon: "gavel",
-    roles: ["ADMIN", "REVIEW"],
+    roles: ["ADMIN", "REVIEW", "TEC_APPROVER"],
   },
   {
     labelKey: "nav.projects",

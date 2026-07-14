@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/server-translations";
 import { EvidenceNotesForm } from "./evidence-notes-form";
 import { VerdictForm } from "./verdict-form";
+import { ReplacementSection } from "./replacement-section";
 
 // SCR-017 PHASE 2 (D-25) — شاشة الأثر: الأضلاع الأربعة جنبًا إلى جنب.
 // 🔴 النظام يعرض — البشر يحكمون. صفر استنتاج آلي للسبب، صفر اقتراح متسبب.
@@ -20,7 +21,9 @@ export default async function InvestigationDetailPage(props: {
 }) {
   const { id } = await props.params;
 
-  const roleCheck = await requireRole(["REVIEW", "ADMIN"]);
+  // PHASE 4: TEC_APPROVER يقرأ الشاشة ليُصدر البديل بعد الحكم (D-29) —
+  // الفتح REVIEW/ADMIN والحكم ADMIN كما هما (حراس الـ actions لم تتغير)
+  const roleCheck = await requireRole(["REVIEW", "ADMIN", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const inv = await prisma.faultInvestigation.findUnique({
@@ -317,6 +320,15 @@ export default async function InvestigationDetailPage(props: {
 
       {/* ── الحُكم (D-25: ADMIN فقط — الحارس server-side) ── */}
       {inv.status === "OPEN" && <VerdictForm investigationId={inv.id} />}
+
+      {/* ── أمر البديل (D-29: TEC_APPROVER — بعد الحكم فقط) ── */}
+      {inv.status === "JUDGED" && inv.verdictFault && (
+        <ReplacementSection
+          investigationId={inv.id}
+          replacementOrderId={inv.replacementOrderId}
+          verdictFaultLabel={t(`investigations.fault_${inv.verdictFault}`)}
+        />
+      )}
     </div>
   );
 }
