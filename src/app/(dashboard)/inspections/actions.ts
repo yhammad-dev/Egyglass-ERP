@@ -8,8 +8,14 @@ import {
   scheduleInspection,
   InspectionError,
 } from "@/lib/services/inspections";
-import { sendNotification, notifyRole } from "@/lib/notifications/send";
-import { recomputeQuotationRequestStatus } from "@/lib/services/status-derivation";
+import {
+  addMeasurement,
+  deleteMeasurement,
+  listMeasurements,
+  getMeasurementAssignee,
+  MeasurementError,
+} from "@/lib/services/inspection-measurements";
+import { sendNotification } from "@/lib/notifications/send";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
@@ -141,15 +147,13 @@ export async function getInspectionDetail(id: string) {
       return null;
     }
 
-    const [attachments, measurementLogs] = await Promise.all([
+    // 1ب: المقاسات من الجدول المهيكل — لا ActivityLog
+    const [attachments, measurements] = await Promise.all([
       prisma.attachment.findMany({
         where: { parent: "INSPECTION", parentId: id },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.activityLog.findMany({
-        where: { entity: "InspectionRequest", entityId: id, action: "MEASUREMENTS_RECORDED" },
-        orderBy: { createdAt: "desc" },
-      }),
+      listMeasurements(id),
     ]);
 
     return {
@@ -171,11 +175,7 @@ export async function getInspectionDetail(id: string) {
         filePath: a.filePath,
         createdAt: a.createdAt.toISOString(),
       })),
-      measurements: measurementLogs.map((log) => ({
-        id: log.id,
-        details: log.details ? JSON.parse(log.details) : null,
-        createdAt: log.createdAt.toISOString(),
-      })),
+      measurements,
     };
   } catch (error) {
     console.error("[getInspectionDetail]", error);
@@ -183,24 +183,30 @@ export async function getInspectionDetail(id: string) {
   }
 }
 
-const measurementsSchema = z.object({
-  id: z.string().min(1, "errors.invalidInput"),
-  width: z.coerce.number().positive("errors.invalidInput"),
-  height: z.coerce.number().positive("errors.invalidInput"),
+// 1ب (BL-81): صف مقاس مهيكل — البيان/العرض/الارتفاع/الوحدة/الكمية/ملاحظات
+// `multipleOf(0.001)`: العمود Decimal(12,3) — أي دقة أعلى كانت ستُقرَّب بصمت،
+// والمقاسات تغذّي المطابقة الثلاثية (BL-86). الرفض الصريح خير من تقريب صامت.
+const addMeasurementSchema = z.object({
+  inspectionRequestId: z.string().min(1, "errors.invalidInput"),
+  description: z.string().trim().min(1, "errors.required"),
+  width: z.coerce.number().positive("errors.invalidInput").multipleOf(0.001, "errors.invalidInput"),
+  height: z.coerce.number().positive("errors.invalidInput").multipleOf(0.001, "errors.invalidInput"),
+  unit: z.enum(["SQM", "CBM"]),
+  quantity: z.coerce.number().int().positive("errors.invalidInput"),
   notes: z.string().optional(),
 });
 
-export async function addMeasurements(input: unknown) {
+export async function addMeasurementAction(input: unknown) {
   try {
     const auth = await requireRole(ALLOWED_ROLES);
     if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
-    const parsed = measurementsSchema.safeParse(input);
+    const parsed = addMeasurementSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
     const inspection = await prisma.inspectionRequest.findUnique({
-      where: { id: parsed.data.id },
-      include: { customer: { select: { id: true, name: true, ownerId: true } } },
+      where: { id: parsed.data.inspectionRequestId },
+      select: { id: true, assigneeId: true },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
@@ -208,61 +214,41 @@ export async function addMeasurements(input: unknown) {
     if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
       return { error: "errors.inspectionNotAssigned" as const };
 
-    await prisma.activityLog.create({
-      data: {
-        userId: auth.userId,
-        action: "MEASUREMENTS_RECORDED",
-        entity: "InspectionRequest",
-        entityId: parsed.data.id,
-        details: JSON.stringify({
-          width: parsed.data.width,
-          height: parsed.data.height,
-          notes: parsed.data.notes ?? null,
-        }),
-      },
-    });
+    const row = await addMeasurement(parsed.data, auth.userId);
+    return { success: true as const, data: row };
+  } catch (error) {
+    // مفتاح الخطأ من الاتحاد المُصرَّح في الخدمة (MeasurementErrorKey) — لا `as`
+    if (error instanceof MeasurementError) return { error: error.key };
+    console.error("[addMeasurementAction]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
 
-    // دفعة ب — فجوة 4: المقاسات تُخطر المكتب الفني (INS-R05: جاهزة لإعادة التسعير)
-    await notifyRole("TECHNICAL_OFFICE", {
-      title: "notifications.measurementsReadyTitle",
-      body: `مقاسات جديدة للعميل ${inspection.customer.name} — جاهزة لإعادة التسعير`,
-      type: "MEASUREMENTS_READY",
-      entityId: inspection.id,
-      entityType: "InspectionRequest",
-    });
+const deleteMeasurementSchema = z.object({
+  measurementId: z.string().min(1, "errors.invalidInput"),
+});
 
-    // + التزام W-02/SAL-R10: المبيعات تُخطَر دائمًا — مالك العميل، وإلا مدير المبيعات
-    if (inspection.customer.ownerId) {
-      await sendNotification({
-        userId: inspection.customer.ownerId,
-        title: "notifications.measurementsRecordedTitle",
-        body: `سُجّلت مقاسات معاينة عميلك ${inspection.customer.name}`,
-        type: "MEASUREMENTS_RECORDED_SALES",
-        entityId: inspection.id,
-        entityType: "InspectionRequest",
-      });
-    } else {
-      await notifyRole("SALES_MANAGER", {
-        title: "notifications.measurementsRecordedTitle",
-        body: `سُجّلت مقاسات معاينة العميل ${inspection.customer.name} (بلا مالك مندوب)`,
-        type: "MEASUREMENTS_RECORDED_SALES",
-        entityId: inspection.id,
-        entityType: "InspectionRequest",
-      });
-    }
+export async function deleteMeasurementAction(input: unknown) {
+  try {
+    const auth = await requireRole(ALLOWED_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
-    // دفعة هـ · Phase 4: المقاسات وصلت → اشتقاق حالة الطلب المربوط (ON_HOLD → IN_PROGRESS)
-    const linkedRequest = await prisma.quotationRequest.findFirst({
-      where: { inspectionRequestId: parsed.data.id },
-      select: { id: true },
-    });
-    if (linkedRequest) {
-      await recomputeQuotationRequestStatus(linkedRequest.id, auth.userId);
-    }
+    const parsed = deleteMeasurementSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
 
+    // BL-105: الملكية تُقرأ من معاينة الصف نفسه — لا من مُدخل العميل
+    const owner = await getMeasurementAssignee(parsed.data.measurementId);
+    if (!owner) return { error: "errors.notFound" as const };
+
+    if (!canWriteOnInspection(auth.role, auth.userId, owner.assigneeId))
+      return { error: "errors.inspectionNotAssigned" as const };
+
+    await deleteMeasurement(parsed.data.measurementId, auth.userId);
     return { success: true as const };
   } catch (error) {
-    console.error("[addMeasurements]", error);
+    // مفتاح الخطأ من الاتحاد المُصرَّح في الخدمة (MeasurementErrorKey) — لا `as`
+    if (error instanceof MeasurementError) return { error: error.key };
+    console.error("[deleteMeasurementAction]", error);
     return { error: "errors.serverError" as const };
   }
 }

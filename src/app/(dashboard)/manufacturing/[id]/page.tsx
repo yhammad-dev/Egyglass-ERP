@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { listExtraItems } from "@/lib/services/extra-items";
+import { listMeasurements } from "@/lib/services/inspection-measurements";
 import { t } from "@/lib/server-translations";
 import { ExtraItemsPanel } from "./extra-items-panel";
 import { ReviewPanel } from "./review-panel";
@@ -76,17 +77,9 @@ export default async function ManufacturingOrderPage(props: {
   const { getConfirmedMatchItems } = await import("@/lib/services/mfg-review");
   const confirmedItems = await getConfirmedMatchItems(order.id);
 
-  // ضلع المعاينات: المقاسات مخزّنة كـ ActivityLog (دَين تقني موثّق InspectionMeasurement)
-  const measurementLogs = req?.inspectionRequestId
-    ? await prisma.activityLog.findMany({
-        where: {
-          entity: "InspectionRequest",
-          entityId: req.inspectionRequestId,
-          action: "MEASUREMENTS_RECORDED",
-        },
-        orderBy: { createdAt: "asc" },
-        select: { details: true, createdAt: true },
-      })
+  // ضلع المعاينات: 1ب (BL-81) — صفوف مهيكلة من `InspectionMeasurement`
+  const measurementRows = req?.inspectionRequestId
+    ? await listMeasurements(req.inspectionRequestId)
     : [];
 
   const threeWay = {
@@ -100,14 +93,14 @@ export default async function ManufacturingOrderPage(props: {
     },
     inspection: {
       hasInspection: !!req?.inspectionRequestId,
-      measurements: measurementLogs.map((m) => {
-        try {
-          const d = JSON.parse(m.details ?? "{}");
-          return { width: d.width ?? null, height: d.height ?? null, notes: d.notes ?? null };
-        } catch {
-          return { width: null, height: null, notes: m.details };
-        }
-      }),
+      measurements: measurementRows.map((m) => ({
+        description: m.description,
+        width: m.width,
+        height: m.height,
+        unit: m.unit,
+        quantity: m.quantity,
+        notes: m.notes,
+      })),
       drawings: drawings
         .filter((d) => d.category === "DRAWINGS")
         .map((d) => ({ name: d.originalName, url: d.url })),

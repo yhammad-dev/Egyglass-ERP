@@ -34,7 +34,14 @@ type ThreeWay = {
   };
   inspection: {
     hasInspection: boolean;
-    measurements: { width: number | null; height: number | null; notes: string | null }[];
+    measurements: {
+      description: string;
+      width: string;
+      height: string;
+      unit: string;
+      quantity: number;
+      notes: string | null;
+    }[];
     drawings: { name: string; url: string }[];
   };
   engineering: {
@@ -140,8 +147,12 @@ export function ReviewPanel({
             <p className="text-amber-600">{t("manufacturing.noInspection")}</p>
           )}
           {threeWay.inspection.measurements.map((m, i) => (
-            <p key={i} dir="ltr">
-              {m.width ?? "?"} × {m.height ?? "?"} {m.notes ? `— ${m.notes}` : ""}
+            <p key={i}>
+              <span>{m.description}</span>{" · "}
+              <span dir="ltr">
+                {m.width} × {m.height} {t(`inspections.detail.unit_${m.unit}`)} × {m.quantity}
+              </span>
+              {m.notes ? ` — ${m.notes}` : ""}
             </p>
           ))}
           {threeWay.inspection.drawings.map((d, i) => (

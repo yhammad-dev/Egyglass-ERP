@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/server-translations";
+import { listMeasurements } from "@/lib/services/inspection-measurements";
 import { EvidenceNotesForm } from "./evidence-notes-form";
 import { VerdictForm } from "./verdict-form";
 import { ReplacementSection } from "./replacement-section";
@@ -78,32 +79,10 @@ export default async function InvestigationDetailPage(props: {
   const req = inv.manufacturingOrder.quotation.quotationRequest;
   const approvedDrawings = req?.drawings ?? [];
 
-  // الضلع 1 — مقاسات المعاينة (نص من ActivityLog — دَين BL-81 الموثّق)
-  const measurementLogs = req?.inspectionRequestId
-    ? await prisma.activityLog.findMany({
-        where: {
-          entity: "InspectionRequest",
-          entityId: req.inspectionRequestId,
-          action: "MEASUREMENTS_RECORDED",
-        },
-        orderBy: { createdAt: "asc" },
-        select: { details: true, createdAt: true },
-      })
+  // الضلع 1 — مقاسات المعاينة: 1ب (BL-81) صفوف مهيكلة من `InspectionMeasurement`
+  const measurements = req?.inspectionRequestId
+    ? await listMeasurements(req.inspectionRequestId)
     : [];
-  const measurements = measurementLogs.map((m) => {
-    try {
-      const d = JSON.parse(m.details ?? "{}");
-      return {
-        width: d.width ?? null,
-        height: d.height ?? null,
-        notes: d.notes ?? null,
-        raw: null as string | null,
-        at: m.createdAt,
-      };
-    } catch {
-      return { width: null, height: null, notes: null, raw: m.details, at: m.createdAt };
-    }
-  });
 
   // الضلع 4 — تأكيدات REVIEW الثلاث: مَن أكّد أي عنصر ومتى (كل السجلات، الأحدث أولًا)
   const confirmLogs = await prisma.activityLog.findMany({
@@ -216,19 +195,22 @@ export default async function InvestigationDetailPage(props: {
             </p>
           ) : (
             <div className="divide-y">
-              {measurements.map((m, i) => (
-                <div key={i} className="px-3 py-1.5">
-                  {m.raw ? (
-                    <p>{m.raw}</p>
-                  ) : (
-                    <p>
-                      {t("inspections.detail.width")}: <span dir="ltr">{m.width ?? dash}</span>
-                      {" · "}
-                      {t("inspections.detail.height")}: <span dir="ltr">{m.height ?? dash}</span>
-                      {m.notes ? <> · {m.notes}</> : null}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">{dateFmt.format(m.at)}</p>
+              {measurements.map((m) => (
+                <div key={m.id} className="px-3 py-1.5">
+                  <p className="font-medium">{m.description}</p>
+                  <p>
+                    {t("inspections.detail.width")}: <span dir="ltr">{m.width}</span>
+                    {" · "}
+                    {t("inspections.detail.height")}: <span dir="ltr">{m.height}</span>
+                    {" · "}
+                    {t(`inspections.detail.unit_${m.unit}`)}
+                    {" · "}
+                    {t("inspections.detail.quantity")}: <span dir="ltr">{m.quantity}</span>
+                    {m.notes ? <> · {m.notes}</> : null}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {dateFmt.format(new Date(m.createdAt))}
+                  </p>
                 </div>
               ))}
             </div>

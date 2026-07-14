@@ -93,15 +93,11 @@ export async function recomputeQuotationRequestStatus(
   const inspectionActive =
     !!req.inspectionRequest && req.inspectionRequest.status !== "DONE";
 
-  // وصلت مقاسات؟ سجل MEASUREMENTS_RECORDED لتلك المعاينة (المصدر الحقيقي —
-  // المقاسات تُخزَّن كـ ActivityLog حاليًا، دين تقني موثّق InspectionMeasurement).
+  // وصلت مقاسات؟ 1ب (BL-81): المصدر الوحيد = صفوف `InspectionMeasurement`.
+  // (المسار النصي القديم ActivityLog/MEASUREMENTS_RECORDED حُذف — لم يعد مصدر حقيقة.)
   const measurementsArrived = req.inspectionRequestId
-    ? (await tx.activityLog.findFirst({
-        where: {
-          entity: "InspectionRequest",
-          entityId: req.inspectionRequestId,
-          action: "MEASUREMENTS_RECORDED",
-        },
+    ? (await tx.inspectionMeasurement.findFirst({
+        where: { inspectionRequestId: req.inspectionRequestId },
         select: { id: true },
       })) !== null
     : false;

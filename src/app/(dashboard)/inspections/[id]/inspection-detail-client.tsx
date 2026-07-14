@@ -16,15 +16,22 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
-  addMeasurements,
+  addMeasurementAction,
+  deleteMeasurementAction,
   addInspectionAttachment,
   updateInspectionStatus,
   updateSiteReadiness,
 } from "../actions";
+// تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
+import type { MeasurementRow } from "@/lib/services/inspection-measurements";
 
 type InspectionStatus = "REQUESTED" | "SCHEDULED" | "DONE" | "OVERDUE";
 
 const STATUS_OPTIONS: InspectionStatus[] = ["REQUESTED", "SCHEDULED", "DONE", "OVERDUE"];
+
+// 1ب (BL-81): وحدات المقاس المهيكل
+const UNITS = ["SQM", "CBM"] as const;
+type MeasurementUnit = (typeof UNITS)[number];
 
 type InspectionDetail = {
   id: string;
@@ -40,11 +47,7 @@ type InspectionDetail = {
   dueDate: string;
   assignee: { id: string; name: string } | null;
   attachments: { id: string; fileName: string; filePath: string; createdAt: string }[];
-  measurements: {
-    id: string;
-    details: { width: number; height: number; notes: string | null } | null;
-    createdAt: string;
-  }[];
+  measurements: MeasurementRow[];
 };
 
 export function InspectionDetailClient({
@@ -79,11 +82,15 @@ export function InspectionDetailClient({
     toast.success(t("inspections.siteReadinessUpdated"));
   }
 
+  const [descriptionInput, setDescriptionInput] = useState("");
   const [widthInput, setWidthInput] = useState("");
   const [heightInput, setHeightInput] = useState("");
+  const [unitInput, setUnitInput] = useState<MeasurementUnit>("SQM");
+  const [quantityInput, setQuantityInput] = useState("1");
   const [measurementNotes, setMeasurementNotes] = useState("");
   const [measurementError, setMeasurementError] = useState<string | null>(null);
   const [savingMeasurement, setSavingMeasurement] = useState(false);
+  const [deletingMeasurementId, setDeletingMeasurementId] = useState<string | null>(null);
 
   const [fileName, setFileName] = useState("");
   const [filePath, setFilePath] = useState("");
@@ -98,21 +105,36 @@ export function InspectionDetailClient({
     day: "2-digit",
   });
 
-  async function handleAddMeasurements() {
+  async function handleAddMeasurement() {
     setMeasurementError(null);
     const width = Number(widthInput);
     const height = Number(heightInput);
+    const quantity = Number(quantityInput);
 
-    if (Number.isNaN(width) || width <= 0 || Number.isNaN(height) || height <= 0) {
+    if (!descriptionInput.trim()) {
+      setMeasurementError(t("errors.required"));
+      return;
+    }
+    if (
+      Number.isNaN(width) ||
+      width <= 0 ||
+      Number.isNaN(height) ||
+      height <= 0 ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
       setMeasurementError(t("errors.invalidInput"));
       return;
     }
 
     setSavingMeasurement(true);
-    const response = await addMeasurements({
-      id: inspection.id,
+    const response = await addMeasurementAction({
+      inspectionRequestId: inspection.id,
+      description: descriptionInput.trim(),
       width,
       height,
+      unit: unitInput,
+      quantity,
       notes: measurementNotes || undefined,
     });
     setSavingMeasurement(false);
@@ -124,19 +146,32 @@ export function InspectionDetailClient({
 
     setInspection((prev) => ({
       ...prev,
-      measurements: [
-        {
-          id: `${Date.now()}`,
-          details: { width, height, notes: measurementNotes || null },
-          createdAt: new Date().toISOString(),
-        },
-        ...prev.measurements,
-      ],
+      measurements: [...prev.measurements, response.data],
     }));
+    setDescriptionInput("");
     setWidthInput("");
     setHeightInput("");
+    setQuantityInput("1");
     setMeasurementNotes("");
     toast.success(t("inspections.detail.measurementsAdded"));
+  }
+
+  async function handleDeleteMeasurement(measurementId: string) {
+    setMeasurementError(null);
+    setDeletingMeasurementId(measurementId);
+    const response = await deleteMeasurementAction({ measurementId });
+    setDeletingMeasurementId(null);
+
+    if ("error" in response) {
+      setMeasurementError(t(response.error ?? "errors.updateFailed"));
+      return;
+    }
+
+    setInspection((prev) => ({
+      ...prev,
+      measurements: prev.measurements.filter((m) => m.id !== measurementId),
+    }));
+    toast.success(t("inspections.detail.measurementDeleted"));
   }
 
   async function handleAddAttachment() {
@@ -299,16 +334,74 @@ export function InspectionDetailClient({
         )}
       </div>
 
-      <div className="space-y-3 max-w-xl border-t pt-6">
+      <div className="space-y-3 max-w-3xl border-t pt-6">
         <h2 className="font-semibold">{t("inspections.detail.measurements")}</h2>
-        <div className="grid grid-cols-2 gap-4">
+
+        {/* 1ب (BL-81): جدول الصفوف المهيكلة — المصدر InspectionMeasurement */}
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="p-2 text-start">{t("inspections.detail.description")}</th>
+                <th className="p-2 text-start">{t("inspections.detail.width")}</th>
+                <th className="p-2 text-start">{t("inspections.detail.height")}</th>
+                <th className="p-2 text-start">{t("inspections.detail.unit")}</th>
+                <th className="p-2 text-start">{t("inspections.detail.quantity")}</th>
+                <th className="p-2 text-start">{t("inspections.notes")}</th>
+                <th className="p-2 text-start">{t("app.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inspection.measurements.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                    {t("inspections.detail.noMeasurements")}
+                  </td>
+                </tr>
+              ) : (
+                inspection.measurements.map((m) => (
+                  <tr key={m.id} className="border-t">
+                    <td className="p-2">{m.description}</td>
+                    <td className="p-2" dir="ltr">{m.width}</td>
+                    <td className="p-2" dir="ltr">{m.height}</td>
+                    <td className="p-2">{t(`inspections.detail.unit_${m.unit}`)}</td>
+                    <td className="p-2" dir="ltr">{m.quantity}</td>
+                    <td className="p-2 text-muted-foreground">{m.notes ?? "—"}</td>
+                    <td className="p-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={deletingMeasurementId === m.id}
+                        onClick={() => handleDeleteMeasurement(m.id)}
+                      >
+                        {t("app.delete")}
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* صف جديد */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label htmlFor="description">{t("inspections.detail.description")}</Label>
+            <Input
+              id="description"
+              value={descriptionInput}
+              onChange={(e) => setDescriptionInput(e.target.value)}
+            />
+          </div>
           <div className="space-y-1">
             <Label htmlFor="width">{t("inspections.detail.width")}</Label>
             <Input
               id="width"
               type="number"
               dir="ltr"
-              step="0.01"
+              step="0.001"
               value={widthInput}
               onChange={(e) => setWidthInput(e.target.value)}
             />
@@ -319,9 +412,39 @@ export function InspectionDetailClient({
               id="height"
               type="number"
               dir="ltr"
-              step="0.01"
+              step="0.001"
               value={heightInput}
               onChange={(e) => setHeightInput(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{t("inspections.detail.unit")}</Label>
+            <Select
+              value={unitInput}
+              onValueChange={(v) => setUnitInput((v as MeasurementUnit) ?? "SQM")}
+            >
+              <SelectTrigger>
+                <SelectValue>{t(`inspections.detail.unit_${unitInput}`)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {UNITS.map((u) => (
+                  <SelectItem key={u} value={u}>
+                    {t(`inspections.detail.unit_${u}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="quantity">{t("inspections.detail.quantity")}</Label>
+            <Input
+              id="quantity"
+              type="number"
+              dir="ltr"
+              step="1"
+              min="1"
+              value={quantityInput}
+              onChange={(e) => setQuantityInput(e.target.value)}
             />
           </div>
         </div>
@@ -334,27 +457,9 @@ export function InspectionDetailClient({
           />
         </div>
         {measurementError && <p className="text-sm text-red-500">{measurementError}</p>}
-        <Button type="button" onClick={handleAddMeasurements} disabled={savingMeasurement}>
+        <Button type="button" onClick={handleAddMeasurement} disabled={savingMeasurement}>
           {savingMeasurement ? t("app.loading") : t("inspections.detail.addMeasurements")}
         </Button>
-
-        {inspection.measurements.length > 0 && (
-          <div className="space-y-2 pt-2">
-            {inspection.measurements.map((m) => (
-              <div key={m.id} className="text-sm border rounded-md p-2">
-                {m.details && (
-                  <p dir="ltr">
-                    {m.details.width} × {m.details.height}
-                  </p>
-                )}
-                {m.details?.notes && <p className="text-muted-foreground">{m.details.notes}</p>}
-                <p className="text-xs text-muted-foreground">
-                  {dateFormat.format(new Date(m.createdAt))}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="space-y-3 max-w-xl border-t pt-6">
