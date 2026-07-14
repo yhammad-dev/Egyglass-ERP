@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -23,6 +23,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  createInspectionAction,
+  getSelectableRequests,
+} from "@/app/(dashboard)/inspections/actions";
 
 const LOCATIONS = ["INSIDE_CAIRO", "OUTSIDE_CAIRO"] as const;
 const TYPES = ["PRICING", "EXECUTION"] as const;
@@ -40,6 +44,12 @@ export function RequestInspectionDialog({
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
+  // D-31 (BL-91): الطلب يُختار صراحةً من طلبات العميل المؤهَّلة
+  const [requests, setRequests] = useState<
+    { id: string; code: string; technicalRoute: string }[]
+  >([]);
+  const [quotationRequestId, setQuotationRequestId] = useState<string>("");
+  const [loadingRequests, setLoadingRequests] = useState(false);
   const [location, setLocation] = useState<string>("INSIDE_CAIRO");
   const [address, setAddress] = useState(customerAddress ?? "");
   const [phone, setPhone] = useState(customerPhone);
@@ -48,7 +58,34 @@ export function RequestInspectionDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // D-31 (BL-91): عند فتح الحوار، اجلب طلبات العميل المؤهَّلة (غير مربوطة · غير DONE)
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLoadingRequests(true);
+    setQuotationRequestId("");
+    getSelectableRequests(customerId)
+      .then((res) => {
+        if (!active) return;
+        setRequests(res.success ? res.data : []);
+        setLoadingRequests(false);
+      })
+      .catch(() => {
+        // فشل RPC: لا تعلّق الحوار على "تحميل" — أفرغ القائمة وأوقف التحميل
+        if (!active) return;
+        setRequests([]);
+        setLoadingRequests(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, customerId]);
+
   async function handleSubmit() {
+    if (!quotationRequestId) {
+      setError(t("inspections.selectRequest"));
+      return;
+    }
     if (!address.trim() || !phone.trim()) {
       setError(t("errors.required"));
       return;
@@ -57,32 +94,32 @@ export function RequestInspectionDialog({
     setSubmitting(true);
     setError(null);
 
-    const { createInspectionAction } = await import(
-      "@/app/(dashboard)/inspections/actions"
-    );
+    try {
+      const result = await createInspectionAction({
+        customerId,
+        quotationRequestId,
+        location,
+        address: address.trim(),
+        phone: phone.trim(),
+        type,
+        notes: notes.trim() || undefined,
+      });
 
-    const result = await createInspectionAction({
-      customerId,
-      location,
-      address: address.trim(),
-      phone: phone.trim(),
-      type,
-      notes: notes.trim() || undefined,
-    });
+      if (!result.success) {
+        const msg =
+          typeof result.error === "string"
+            ? t(result.error)
+            : t("errors.createFailed");
+        setError(msg);
+        return;
+      }
 
-    setSubmitting(false);
-
-    if (!result.success) {
-      const msg =
-        typeof result.error === "string"
-          ? t(result.error)
-          : t("errors.createFailed");
-      setError(msg);
-      return;
+      setOpen(false);
+      onCreated();
+    } finally {
+      // لا يعلّق الزر على "جارٍ الحفظ" لو رمى الأكشن (RPC)
+      setSubmitting(false);
     }
-
-    setOpen(false);
-    onCreated();
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -106,6 +143,34 @@ export function RequestInspectionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* D-31 (BL-91): اختيار الطلب صراحةً — لا معاينة بلا طلب */}
+          <div className="space-y-2">
+            <Label htmlFor="ri-request">{t("inspections.selectRequest")}</Label>
+            {loadingRequests ? (
+              <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
+            ) : requests.length === 0 ? (
+              <p className="text-sm text-amber-600">
+                {t("inspections.noSelectableRequests")}
+              </p>
+            ) : (
+              <Select value={quotationRequestId} onValueChange={setQuotationRequestId}>
+                <SelectTrigger id="ri-request">
+                  <SelectValue placeholder={t("inspections.selectRequest")}>
+                    {requests.find((r) => r.id === quotationRequestId)?.code ??
+                      t("inspections.selectRequest")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {requests.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.code} · {t(`quotationRequest.route_${r.technicalRoute}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ri-location">{t("inspections.location")}</Label>
@@ -181,7 +246,13 @@ export function RequestInspectionDialog({
           <DialogClose render={<Button type="button" variant="outline" />}>
             {t("customers.cancel")}
           </DialogClose>
-          <Button type="button" onClick={handleSubmit} disabled={submitting}>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={
+              submitting || loadingRequests || requests.length === 0 || !quotationRequestId
+            }
+          >
             {submitting ? t("app.loading") : t("app.save")}
           </Button>
         </DialogFooter>

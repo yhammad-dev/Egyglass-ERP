@@ -5,6 +5,14 @@ import {
   recomputeCustomerStage,
 } from "@/lib/services/status-derivation";
 
+// D-31 (BL-91): خطأ مُوجَّه حين لا يكون الطلب المختار مؤهَّلًا للربط
+export class InspectionError extends Error {
+  constructor(key: string) {
+    super(key);
+    this.name = "InspectionError";
+  }
+}
+
 export interface InspectionRow {
   id: string;
   customerId: string;
@@ -119,6 +127,8 @@ export async function getAssignableUsers(): Promise<UserOption[]> {
 
 export interface CreateInspectionInput {
   customerId: string;
+  /** D-31 (BL-91): الطلب الذي يختاره المندوب صراحةً — إلزامي، لا تخمين */
+  quotationRequestId: string;
   location: string;
   address: string;
   phone: string;
@@ -130,36 +140,70 @@ export async function createInspection(
   input: CreateInspectionInput,
   actorId: string
 ): Promise<InspectionRow> {
+  // D-31 (BL-91): الطلب يُختار صراحةً — تحقّق server-side قبل أي إنشاء:
+  // نفس العميل · غير مربوط بمعاينة · غير DONE · غير محذوف. وإلا رفض بلا إنشاء.
+  const request = await prisma.quotationRequest.findUnique({
+    where: { id: input.quotationRequestId },
+    select: { id: true, customerId: true, inspectionRequestId: true, status: true, deletedAt: true },
+  });
+  if (
+    !request ||
+    request.deletedAt !== null ||
+    request.customerId !== input.customerId ||
+    request.inspectionRequestId !== null ||
+    request.status === "DONE"
+  ) {
+    throw new InspectionError("errors.requestNotSelectable");
+  }
+
   const dueDate = computeDueDate(input.location);
 
-  const inspection = await prisma.inspectionRequest.create({
-    data: {
-      customerId: input.customerId,
-      location: input.location as any,
-      address: input.address,
-      phone: input.phone,
-      type: input.type as any,
-      notes: input.notes || null,
-      dueDate,
-    },
-    include: {
-      customer: { select: { name: true } },
-      assignee: { select: { name: true } },
-    },
-  });
+  // D-31 (BL-91): الإنشاء + السجل + الربط في transaction واحدة — لا معاينة يتيمة
+  // حتى لو سبق ربطٌ آخر (updateMany الشرطي يُرجِع 0 → rollback كامل للمعاينة).
+  const inspection = await prisma.$transaction(async (tx) => {
+    const created = await tx.inspectionRequest.create({
+      data: {
+        customerId: input.customerId,
+        location: input.location as any,
+        address: input.address,
+        phone: input.phone,
+        type: input.type as any,
+        notes: input.notes || null,
+        dueDate,
+      },
+      include: {
+        customer: { select: { name: true, ownerId: true } },
+        assignee: { select: { name: true } },
+      },
+    });
 
-  await prisma.activityLog.create({
-    data: {
-      userId: actorId,
-      action: "INSPECTION_CREATED",
-      entity: "InspectionRequest",
-      entityId: inspection.id,
-      details: JSON.stringify({
-        customerId: inspection.customerId,
-        location: inspection.location,
-        type: inspection.type,
-      }),
-    },
+    await tx.activityLog.create({
+      data: {
+        userId: actorId,
+        action: "INSPECTION_CREATED",
+        entity: "InspectionRequest",
+        entityId: created.id,
+        details: JSON.stringify({
+          customerId: created.customerId,
+          location: created.location,
+          type: created.type,
+        }),
+      },
+    });
+
+    // الربط الشرطي (سباق): لو سبقنا ربطٌ آخر → count=0 → throw → rollback المعاينة
+    const linked = await tx.quotationRequest.updateMany({
+      where: {
+        id: request.id,
+        inspectionRequestId: null,
+        status: { not: "DONE" },
+        deletedAt: null,
+      },
+      data: { inspectionRequestId: created.id },
+    });
+    if (linked.count === 0) throw new InspectionError("errors.requestNotSelectable");
+
+    return created;
   });
 
   try {
@@ -174,25 +218,27 @@ export async function createInspection(
     // notification failure must not block the operation
   }
 
-  // دفعة هـ · Phase 4: اربط المعاينة بطلب تسعير مفتوح لنفس العميل (إن وُجد بلا
-  // معاينة مربوطة) لتُشتق حالته ON_HOLD، ثم أعِد اشتقاق مرحلة العميل → INSPECTION.
-  const openRequest = await prisma.quotationRequest.findFirst({
-    where: {
-      customerId: inspection.customerId,
-      deletedAt: null,
-      inspectionRequestId: null,
-      status: { not: "DONE" },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { id: true },
-  });
-  if (openRequest) {
-    await prisma.quotationRequest.update({
-      where: { id: openRequest.id },
-      data: { inspectionRequestId: inspection.id },
-    });
-    await recomputeQuotationRequestStatus(openRequest.id, actorId);
+  // D-32 (BL-93): التغطية مسموحة (نموذج R-02) بلا حارس ملكية — لكن الحوكمة إلزامية:
+  // يُخطَر مالك العميل (الضابط = الأثر + الرؤية، D-11/D-24). الفاعل الحقيقي مُسجَّل
+  // بالفعل في ActivityLog أعلاه (INSPECTION_CREATED, userId=actorId).
+  // 🔴 الشرط = **أي فاعل غير المالك** (ADMIN/مدير معاينات/مندوب مغطٍّ) — مُقرّ صراحةً
+  // من يوسف: لا تُضيَّق لـSALES_REP. المالك يستحق أن يعرف أن أحدًا لمس عميله، أيًا كان.
+  if (inspection.customer.ownerId && inspection.customer.ownerId !== actorId) {
+    try {
+      await sendNotification({
+        userId: inspection.customer.ownerId,
+        title: "notifications.inspectionByColleagueTitle",
+        body: `زميل طلب معاينة لعميلك ${inspection.customer.name}`,
+        type: "INSPECTION_BY_COLLEAGUE",
+        entityId: inspection.id,
+        entityType: "InspectionRequest",
+      });
+    } catch {
+      // notification failure must not block the operation
+    }
   }
+
+  await recomputeQuotationRequestStatus(request.id, actorId);
   await recomputeCustomerStage(inspection.customerId, actorId);
 
   const now = new Date();

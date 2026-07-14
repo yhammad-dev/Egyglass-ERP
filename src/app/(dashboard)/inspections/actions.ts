@@ -3,7 +3,11 @@
 import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { createInspection, scheduleInspection } from "@/lib/services/inspections";
+import {
+  createInspection,
+  scheduleInspection,
+  InspectionError,
+} from "@/lib/services/inspections";
 import { sendNotification, notifyRole } from "@/lib/notifications/send";
 import { recomputeQuotationRequestStatus } from "@/lib/services/status-derivation";
 
@@ -12,6 +16,8 @@ const typeEnum = z.enum(["PRICING", "EXECUTION"]);
 
 const createSchema = z.object({
   customerId: z.string().min(1, "errors.required"),
+  // D-31 (BL-91): الطلب إلزامي — يختاره المندوب صراحةً، لا تخمين
+  quotationRequestId: z.string().min(1, "errors.requestNotSelectable"),
   location: locationEnum,
   address: z.string().min(1, "errors.required"),
   phone: z.string().min(1, "errors.required"),
@@ -21,6 +27,8 @@ const createSchema = z.object({
 
 const ALLOWED_ROLES = ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"];
 const MANAGER_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
+// D-31: طلب المعاينة = المبيعات (+ المدير للاستثناء) — الجدولة/التعيين تبقى للمدير
+const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "INSPECTION_MANAGER", "ADMIN"];
 
 const scheduleSchema = z.object({
   id: z.string().min(1, "errors.required"),
@@ -55,7 +63,7 @@ export async function scheduleInspectionAction(data: unknown) {
 }
 
 export async function createInspectionAction(data: unknown) {
-  const auth = await requireRole(MANAGER_ROLES);
+  const auth = await requireRole(CREATE_ROLES);
   if (!auth.authorized)
     return { success: false as const, error: "errors.notAuthorized" };
 
@@ -70,9 +78,37 @@ export async function createInspectionAction(data: unknown) {
   try {
     const inspection = await createInspection(parsed.data, auth.userId);
     return { success: true as const, data: inspection };
-  } catch {
+  } catch (e) {
+    // D-31: الحارس server-side (طلب غير مؤهَّل) يصل للواجهة برسالة صريحة
+    if (e instanceof InspectionError)
+      return { success: false as const, error: e.message };
     return { success: false as const, error: "errors.createFailed" };
   }
+}
+
+// D-31 (BL-91): طلبات العميل المؤهَّلة للربط بمعاينة — يختار المندوب منها صراحةً
+export async function getSelectableRequests(customerId: string) {
+  const auth = await requireRole(CREATE_ROLES);
+  if (!auth.authorized)
+    return { success: false as const, error: "errors.notAuthorized" };
+
+  const parsed = z.string().min(1).safeParse(customerId);
+  if (!parsed.success)
+    return { success: false as const, error: "errors.invalidInput" };
+
+  // BL-93 (مفتوح): لا نطاق ملكية للمندوب هنا — قرار سياسة (hard-scope مثل
+  // changeCustomerStage أم R-02 soft-control). لم يُخترع؛ يُحسم بيد يوسف.
+  const requests = await prisma.quotationRequest.findMany({
+    where: {
+      customerId: parsed.data,
+      deletedAt: null,
+      inspectionRequestId: null,
+      status: { not: "DONE" },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, code: true, technicalRoute: true },
+  });
+  return { success: true as const, data: requests };
 }
 
 export async function getInspectionDetail(id: string) {

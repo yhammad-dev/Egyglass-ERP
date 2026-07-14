@@ -3,7 +3,6 @@
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { notifyRole, notifyDepartment } from "@/lib/notifications/send";
-import { createInspection } from "@/lib/services/inspections";
 import { z } from "zod";
 
 const stageChangeSchema = z.object({
@@ -74,27 +73,9 @@ export async function changeCustomerStage(
 
   try {
     if (newStage === "INSPECTION") {
-      const existingInspection = await prisma.inspectionRequest.findFirst({
-        where: {
-          customerId,
-          deletedAt: null,
-          status: { in: ["REQUESTED", "SCHEDULED"] },
-        },
-      });
-
-      if (!existingInspection) {
-        await createInspection(
-          {
-            customerId,
-            location: "INSIDE_CAIRO",
-            address: customer.address || "",
-            phone: customer.phone,
-            type: "PRICING",
-          },
-          roleCheck.userId
-        );
-      }
-
+      // D-31 (BL-91): حُذف التوليد التلقائي للمعاينة نهائيًا — كان جذر الـ13 معاينة
+      // اليتيمة (معاينة بلا طلب صريح). المرحلة تتغيّر فقط + إشعار المدير؛ المعاينة
+      // تُطلَب صراحةً من شاشة العميل باختيار طلب محدّد (createInspection).
       await notifyRole("INSPECTION_MANAGER", {
         title: "notifications.stageInspectionTitle",
         body: `تم نقل العميل ${customer.name} إلى مرحلة المعاينة`,

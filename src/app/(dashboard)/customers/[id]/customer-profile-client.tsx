@@ -83,7 +83,12 @@ export function CustomerProfileClient({
   // الذي لا يُشتق من حدث. باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
   const canChangeStage = currentRole === "ADMIN";
   const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
-  const canCreateInspection = currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+  // D-31 (BL-91): طلب المعاينة من شاشة العميل = المبيعات (+ المدير للاستثناء)
+  const canCreateInspection =
+    currentRole === "ADMIN" ||
+    currentRole === "INSPECTION_MANAGER" ||
+    currentRole === "SALES_MANAGER" ||
+    currentRole === "SALES_REP";
   const canCreateQuotation =
     currentRole === "ADMIN" ||
     currentRole === "SALES_MANAGER" ||
