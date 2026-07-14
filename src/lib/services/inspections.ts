@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import {
@@ -71,7 +72,13 @@ export async function getInspections(
   userId: string,
   role: string
 ): Promise<InspectionRow[]> {
-  const where: Record<string, any> = { deletedAt: null };
+  // BL-94 (نطاق جزئي): INSPECTION_REP يرى المعاينات المسندة إليه فقط — نفس
+  // تضييق الملكية المفروض في getInspectionDetail. لا توسيع لأي دور آخر:
+  // ADMIN/INSPECTION_MANAGER يريان الكل كما كانا (المدير يوزّع فيلزمه الكل).
+  const where: Prisma.InspectionRequestWhereInput = { deletedAt: null };
+  if (role === "INSPECTION_REP") {
+    where.assigneeId = userId;
+  }
 
   const inspections = await prisma.inspectionRequest.findMany({
     where,

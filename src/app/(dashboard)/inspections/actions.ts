@@ -30,6 +30,17 @@ const MANAGER_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
 // D-31: طلب المعاينة = المبيعات (+ المدير للاستثناء) — الجدولة/التعيين تبقى للمدير
 const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "INSPECTION_MANAGER", "ADMIN"];
 
+// BL-105: تضييق الملكية على **الكتابة** لا القراءة وحدها (STD-15: الترشيح ليس حارسًا).
+// INSPECTION_REP يسجّل على المعاينات المسندة إليه فقط — نفس تضييق getInspectionDetail.
+// ADMIN/INSPECTION_MANAGER بلا تضييق (المدير يغطّي ويصحّح ميدانيًا).
+function canWriteOnInspection(
+  role: string,
+  userId: string,
+  assigneeId: string | null
+): boolean {
+  return role !== "INSPECTION_REP" || assigneeId === userId;
+}
+
 const scheduleSchema = z.object({
   id: z.string().min(1, "errors.required"),
   scheduledAt: z.string().min(1, "errors.required"),
@@ -192,6 +203,10 @@ export async function addMeasurements(input: unknown) {
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
+    // BL-105: فحص الملكية قبل أي كتابة
+    if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
+      return { error: "errors.inspectionNotAssigned" as const };
+
     await prisma.activityLog.create({
       data: {
         userId: auth.userId,
@@ -269,6 +284,10 @@ export async function addInspectionAttachment(input: unknown) {
       where: { id: parsed.data.id },
     });
     if (!inspection) return { error: "errors.notFound" as const };
+
+    // BL-105: فحص الملكية قبل أي كتابة
+    if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
+      return { error: "errors.inspectionNotAssigned" as const };
 
     const attachment = await prisma.attachment.create({
       data: {

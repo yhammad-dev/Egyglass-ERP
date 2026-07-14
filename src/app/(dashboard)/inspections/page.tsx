@@ -5,7 +5,10 @@ import { getInspections, getCustomers, getAssignableUsers } from "@/lib/services
 import { InspectionsClient } from "./inspections-client";
 
 export default async function InspectionsPage() {
-  const roleCheck = await requireRole(["ADMIN", "INSPECTION_MANAGER"]);
+  // INSPECTION_REP وظيفته تسجيل المعاينات الميدانية — يفتح الشاشة، والنطاق
+  // يُضيَّق داخل getInspections (معايناته المسندة فقط). أزرار الجدولة/الإنشاء
+  // تبقى محروسة server-side بـ MANAGER_ROLES في actions.ts.
+  const roleCheck = await requireRole(["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const [inspections, customers, assignableUsers] = await Promise.all([

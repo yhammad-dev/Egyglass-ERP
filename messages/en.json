@@ -768,7 +768,8 @@
     "reviewNotApproved": "Quotation is not approved — no contract, payment, or manufacturing before the pricing is finally approved",
     "requestNotSelectable": "Request is not eligible to link an inspection — it must belong to the same customer, be unlinked, and not be done",
     "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)",
-    "discountRequestPending": "A discount request is already pending on this quotation"
+    "discountRequestPending": "A discount request is already pending on this quotation",
+    "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

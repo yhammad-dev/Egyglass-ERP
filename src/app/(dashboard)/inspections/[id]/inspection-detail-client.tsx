@@ -61,8 +61,11 @@ export function InspectionDetailClient({
   );
   const [updatingSiteReadiness, setUpdatingSiteReadiness] = useState(false);
 
-  const canEditSiteReadiness =
+  // STD-15: هذا إخفاء واجهة فقط — الحارس الحقيقي server-side (MANAGER_ROLES في
+  // updateInspectionStatus/updateSiteReadiness) كما هو، لم يُمَس.
+  const canManage =
     currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+  const canEditSiteReadiness = canManage;
 
   async function handleSiteReadiness(value: boolean | null) {
     setUpdatingSiteReadiness(true);
@@ -231,25 +234,27 @@ export function InspectionDetailClient({
         </div>
       )}
 
-      <div className="space-y-2 max-w-xs">
-        <Label>{t("inspections.detail.updateStatus")}</Label>
-        <Select
-          value={inspection.status}
-          onValueChange={(value) => handleStatusChange((value as InspectionStatus) ?? inspection.status)}
-          disabled={updatingStatus}
-        >
-          <SelectTrigger>
-            <SelectValue>{t(`inspections.status_${inspection.status}`)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((status) => (
-              <SelectItem key={status} value={status}>
-                {t(`inspections.status_${status}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {canManage && (
+        <div className="space-y-2 max-w-xs">
+          <Label>{t("inspections.detail.updateStatus")}</Label>
+          <Select
+            value={inspection.status}
+            onValueChange={(value) => handleStatusChange((value as InspectionStatus) ?? inspection.status)}
+            disabled={updatingStatus}
+          >
+            <SelectTrigger>
+              <SelectValue>{t(`inspections.status_${inspection.status}`)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {t(`inspections.status_${status}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2 max-w-xs">
         <Label>{t("inspections.siteReadiness")}</Label>
