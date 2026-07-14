@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { requireRole } from "@/lib/rbac";
 import { redirect } from "next/navigation";
-import { getInspections, getCustomers, getAssignableUsers } from "@/lib/services/inspections";
+import { getInspections, getAssignableUsers } from "@/lib/services/inspections";
 import { InspectionsClient } from "./inspections-client";
 
 export default async function InspectionsPage() {
@@ -11,16 +11,15 @@ export default async function InspectionsPage() {
   const roleCheck = await requireRole(["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
-  const [inspections, customers, assignableUsers] = await Promise.all([
+  // BL-104: لا إنشاء من هذه الشاشة (المدخل = شاشة العميل، D-31) → لا حاجة لقائمة العملاء
+  const [inspections, assignableUsers] = await Promise.all([
     getInspections(roleCheck.userId, roleCheck.role),
-    getCustomers(),
     getAssignableUsers(),
   ]);
 
   return (
     <InspectionsClient
       initialInspections={inspections}
-      customers={customers}
       currentRole={roleCheck.role}
       assignableUsers={assignableUsers}
     />

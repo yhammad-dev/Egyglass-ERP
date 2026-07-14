@@ -27,8 +27,9 @@ const createSchema = z.object({
 
 const ALLOWED_ROLES = ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"];
 const MANAGER_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
-// D-31: طلب المعاينة = المبيعات (+ المدير للاستثناء) — الجدولة/التعيين تبقى للمدير
-const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "INSPECTION_MANAGER", "ADMIN"];
+// D-37: مدير المعاينات يوزّع ويعتمد — لا يُنشئ. الطلب = المبيعات وحدها (D-31: من شاشة
+// العميل باختيار QuotationRequest صريح). الجدولة/التعيين تبقى للمدير (MANAGER_ROLES).
+const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 
 // BL-105: تضييق الملكية على **الكتابة** لا القراءة وحدها (STD-15: الترشيح ليس حارسًا).
 // INSPECTION_REP يسجّل على المعاينات المسندة إليه فقط — نفس تضييق getInspectionDetail.

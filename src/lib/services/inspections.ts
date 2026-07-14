@@ -35,12 +35,6 @@ export interface InspectionRow {
   effectiveStatus: string;
 }
 
-export interface CustomerOption {
-  id: string;
-  name: string;
-  phone: string;
-}
-
 export interface UserOption {
   id: string;
   name: string;
@@ -112,15 +106,6 @@ export async function getInspections(
       effectiveStatus,
     };
   });
-}
-
-export async function getCustomers(): Promise<CustomerOption[]> {
-  const customers = await prisma.customer.findMany({
-    where: { deletedAt: null },
-    select: { id: true, name: true, phone: true },
-    orderBy: { name: "asc" },
-  });
-  return customers;
 }
 
 export async function getAssignableUsers(): Promise<UserOption[]> {
