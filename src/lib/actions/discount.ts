@@ -238,6 +238,14 @@ export async function decideDiscountAction(
     });
     if (!quotation) return { error: "errors.notFound" };
 
+    // D-34: الوسم لا المنع. DISCOUNT_ROLES يشمل ADMIN، فقد يطلب ADMIN خصمًا ثم يقرّره.
+    // لا نمنع (القرار النهائي للإدارة العليا — D-19)، لكن الأثر يقولها صراحةً.
+    // 🔴 لا يمسّ D-20: منع اعتماد الذات في passDiscountAction (SALES_MANAGER) يبقى منعًا.
+    const isSelfDecision = discountRequest.requestedById === roleCheck.userId;
+    const selfTag = isSelfDecision
+      ? " — ⚠️ قرار ذاتي (D-34): طالب الخصم هو المقرِّر نفسه"
+      : "";
+
     const now = new Date();
 
     if (decision === "REJECTED") {
@@ -261,7 +269,7 @@ export async function decideDiscountAction(
             action: "UPDATE",
             entity: "DiscountRequest",
             entityId: discountRequestId,
-            details: `تم رفض طلب خصم ${requestedPct}% على عرض السعر ${quotation.number}${rejectNote ? ` — ${rejectNote}` : ""}`,
+            details: `تم رفض طلب خصم ${requestedPct}% على عرض السعر ${quotation.number}${rejectNote ? ` — ${rejectNote}` : ""}${selfTag}`,
           },
         }),
       ]);
@@ -321,8 +329,8 @@ export async function decideDiscountAction(
           entityId: discountRequestId,
           details:
             decision === "ADJUSTED"
-              ? `تمت الموافقة بنسبة معدّلة ${finalPct}% (بدلاً من ${requestedPct}%) على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}`
-              : `تمت الموافقة على خصم ${finalPct}% على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}`,
+              ? `تمت الموافقة بنسبة معدّلة ${finalPct}% (بدلاً من ${requestedPct}%) على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}${selfTag}`
+              : `تمت الموافقة على خصم ${finalPct}% على عرض السعر ${quotation.number} — اعتماد العرض بواسطة ${roleCheck.userId}${selfTag}`,
         },
       }),
     ]);

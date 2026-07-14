@@ -43,7 +43,6 @@ BACKLOG DISCIPLINE (إلزامي):
 
 # ✅ قرارات محسومة — المرجع المُلزِم
 ### (صاحب العمل · 2026-07-12)
-
 ## السلسلة الحقيقية
 
 ```
@@ -74,8 +73,12 @@ BACKLOG DISCIPLINE (إلزامي):
 
 ## تصحيحات جوهرية
 
+
+
 | # | التصحيح |
 |---|---|
+| **D-33** | **"خارج القاهرة" في المعاينة ≠ بند نقل إلزامي في التسعير — والانفصال مقصود.** المعاينة **مجانية** (لا رسوم). بند `OUT_OF_CAIRO_TRANSPORT` بند تسعير اختياري يضيفه `TECHNICAL_OFFICE` **حسب الحالة** — النقل لا يُحمَّل على العميل دائمًا. **لا تنبيه، لا حجب، لا اشتقاق آلي.** (يوسف، 2026-07-14 — يقفل BL-92) |
+| **D-34** | **ADMIN يطلب خصمًا ويقرّره — مسموح، لكن مُوسَّم.** `DISCOUNT_ROLES` يشمل ADMIN، و`decideDiscountAction` بيده وحده → قرار ذاتي ممكن. **لا مَنع** (ADMIN صاحب القرار — D-19: "ADMIN يقرر النهائي على كل خصم"). **الضابط = الأثر والرؤية لا المنع** (D-11/D-24): حين `requestedById === actorId` يُوسَم `ActivityLog` صراحةً **"قرار ذاتي — ADMIN"** فلا يبدو السجل كأنه شخصان. **الاستثناء الوحيد لمنع اعتماد الذات يبقى SALES_MANAGER** (`cannotApproveSelf` — D-20، `discount.ts:163`). (يوسف، 2026-07-14) |
 | **D-01** | **"المدير التنفيذي" ≠ ADMIN (الرئيس التنفيذي).** في لغة الشركة = **مدير المكتب الهندسي** (TEC_APPROVER). |
 | **D-02** | **ADMIN خارج سلسلة اعتماد الرسومات** — بوابة CEO كانت **اختراعًا**. |
 | **D-03** | **REVIEW لا علاقة له بالتسعير ولا عروض الأسعار.** |
@@ -145,13 +148,13 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-58** | ❓ **اسم `IN_PRODUCTION` لم يعد دقيقًا** — يعني الآن "معتمد بانتظار توجيه PROCUREMENT". إعادة التسمية = تغيير enum = SCR. مؤجل. | يوسف (SCR) |
 | **BL-55** | 🟠 **مسار إشعار التحويل غير مبني** — SALES ترفع صورة التحويل (واتساب) على ملف العميل + إشعار للحسابات. **ليس بلوكرًا:** ACCOUNTING تسجّل الدفعة والصورة تصل خارج النظام (D-13). دفعة منفصلة. | يوسف |
 | **BL-65** | ✅ **مُغلق (2026-07-12، قرار يوسف: أي خصم>0=طلب).** `createQuotation`: `discountNeedsApproval = discountPct.gt(0)` (بدل `> base`) — **أي خصم يفتح DiscountRequest، صفر تطبيق مباشر**. الوسم "استثنائي" فوق `discountBasePct`، عادي تحته. السقف الصلب (25) باقٍ. مسار اليتيم `discount.ts` أُزيل سابقًا. مُثبت بالجلسات (10%/20%/0%). | مُغلق |
-| **BL-66** | 🔴 **SALES_MANAGER يعتمد خصمًا طلبه هو** — لا assertNotSelf (`discount.ts`). يخالف D-20. | قيد التنفيذ (PHASE A) |
-| **BL-67** | 🔴 **صفر إشعار بعد قرار الخصم** — SALES_REP لا يعلم بالنتيجة (`discount.ts:256`). | قيد التنفيذ (PHASE A) |
+| **BL-66** | ✅ **مُغلق (الوسم كان قديمًا — verified 2026-07-14).** منع اعتماد الذات مُنفَّذ في `passDiscountAction` (`discount.ts:162-165` → `errors.cannotApproveSelf`، D-20). ~~قيد التنفيذ~~ | مُغلق |
+| **BL-67** | ✅ **مُغلق (الوسم كان قديمًا — verified 2026-07-14).** إشعار SALES_REP بقرار الخصم مُنفَّذ في المسارين: الرفض (`discount.ts:270-277`) والقبول/التعديل (`:331-341`) — `DISCOUNT_DECIDED`. ~~صفر إشعار~~ | مُغلق |
 | **BL-68** | ❓ **`managerApprovalCeilingPct` عمود ميت** (صفر منطق يقرأه). اسمه يطابق "سقف المدير" لكن الوظيفة يحملها `discountBasePct` بمعنى مقلوب. يُوحَّد أو يُحذف — SCR. | يوسف (SCR) |
 | **BL-71** | ✅ **مُغلق (PHASE C، D-23).** زر "طلب خصم" في شاشة تفاصيل العرض (`quotation-detail.tsx` — SALES_REP/SALES_MANAGER/ADMIN، على DRAFT/SENT بلا طلب معلّق) يستدعي `requestDiscountAction` القائم بلا منطق جديد. مُثبت: 15% → طلب+SALES_MANAGER، السلسلة كاملة حتى إشعار SALES_REP، 30% مرفوض، طلب ثانٍ مرفوض. | مُغلق |
 | **BL-73** | ✅ **مُغلق (PHASE D، D-24).** `cancelInvoiceAction` (ACCOUNTING/ADMIN): سبب إلزامي server-side (`cancelReasonRequired`) + إشعار فوري لـ ADMIN (رقم+مبلغ+سبب) + `INVOICE_CANCELLED` + CANCELLED لا محذوفة. مُثبت. **رصد (recon): لا FK بين `Invoice` و`Payment`** (`Payment.invoiceId` غير موجود — يرتبط بالعرض) → **إلغاء الفاتورة لا ييتّم أي دفعة**. الاسترجاع مسار منفصل (BL-75). | مُغلق |
 | **BL-75** | 🟠 **لا مسار استرجاع مبالغ.** `Payment` يسجّل الوارد فقط. أول استرجاع فعلي سيُسجَّل خارج النظام أو برقم خاطئ. صاحب العمل: "طبيعي يحصل استرجاع". دفعة منفصلة. | يوسف |
-| **BL-78** | ✅ **مُغلق (PHASE 4)**. DrawingStatus.SUPERSEDED — عند اعتماد رسمة،   كل رسمة TEC_APPROVED أخرى على نفس الطلب → SUPERSEDED (transaction + ActivityLog).   الدليل: technical-office/actions.ts · commit 8e72113
+| **BL-78** | ✅ **مُغلق (PHASE 4).** DrawingStatus.SUPERSEDED — عند اعتماد رسمة، كل رسمة TEC_APPROVED أخرى على نفس الطلب → SUPERSEDED (transaction + ActivityLog). الدليل: technical-office/actions.ts · commit 8e72113 | مُغلق |
 | **BL-79** | 🟠 **دَين: `FaultType` و`InstallationItemType` enumان متوازيان** لنفس المفهوم (BREAKAGE↔BREAKAGE_REPLACEMENT · FACTORY_ERROR↔MFG_ERROR). التحقيق سيترجم بخريطة يدوية. التوحيد = SCR منفصل. ليس بلوكرًا. | يوسف (SCR) |
 | **BL-80** | 🟠 **لا granularity على القطعة** — `InstallationItem` يصل لأمر التصنيع كاملًا (عبر `InstallationOrder.manufacturingOrderId` 1:1)، لا للقطعة المكسورة بعينها. مقبول حاليًا. | يوسف |
 | **BL-81** | ❓ **`InspectionMeasurement` غير مستخدم** — المقاسات تُخزَّن كنص في ActivityLog. التحقيق سيقرأ نصًّا لا صفوفًا مهيكلة. دَين. هل يُهاجَر؟ | يوسف |
@@ -162,7 +165,7 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-90** | 🟠 **`rejectQuotationAction` (`lib/review/actions.ts:180`) بلا حارس حالة** — يعيد عرضًا معتمدًا (وربما مدفوعًا/متعاقَدًا) إلى `RETURNED` بلا فحص. بعد حارس PHASE 3.5 يصير له أثر جانبي: أقساط تالية على عرض أُرجع تُرفض (`reviewNotApproved`) — وهو سلوك دفاعي مقبول غالبًا، لكن الانتقال نفسه (approved→returned بعد مال) غير مُصالَح (ACC-OBS-2). رُصد أثناء تدقيق PHASE 3.5. **القرار (منع الإرجاع بعد دفعة/عقد؟) عند يوسف.** | يوسف |
 | **BL-89** | 🔴 **صفّا اختبار بالتناقض (Q-2026-00007 · Q-2026-00011): عرض غير معتمد وعليه عقد (والثاني + أمر تصنيع).** رصد فقط — يُنظَّفان مع بيانات الاختبار (SCR-017b/تنظيف UAT). **ممنوع ترميمهما** (STD-14). | يوسف (تنظيف) |
 | **BL-91** | ✅ **محسوم بـ D-31 (PHASE 2، 2026-07-14): الربط باختيار صريح.** `createInspection` صار يتطلب `quotationRequestId` إلزاميًا مع حارس server-side (نفس العميل · غير مربوط · غير DONE، وإلا `errors.requestNotSelectable`) داخل transaction (ربط شرطي race-safe)؛ حُذف `findFirst` التخميني وحُذف التوليد التلقائي في `changeCustomerStage`. مُثبَت بجلسة واجهة (3a: SALES_REP اختار TEC-PRJ-0002 → ربط دقيق · 3b: عميل آخر → مرفوض · 3c: جدولة+تعيين · 3d: نقل لمرحلة INSPECTION → صفر معاينة). الـ13 اليتيمة: رصد فقط (STD-14). ~~انتهازي لا مضمون~~ | مُغلق (D-31) |
-| **BL-92** | 🟠 **"خارج القاهرة" مفهومان منفصلان لا رابط بينهما (verified-in-code، تدقيق 2026-07-14).** (أ) `InspectionRequest.location=OUTSIDE_CAIRO` يؤثّر فقط على مهلة المعاينة (SLA): `INSIDE_CAIRO_DAYS=2` / `OUTSIDE_CAIRO_DAYS=4` (`src/lib/services/inspections.ts:40-41,58,133`). (ب) بند التسعير `ExtraItemType.OUT_OF_CAIRO_TRANSPORT` (schema:1164) يُضيفه **TECHNICAL_OFFICE يدويًا** على أمر التصنيع (`manufacturing/[id]/actions.ts:45` + `extra-items-panel.tsx:43`)، تؤكده INS، وتُسعّره PRC (W-04). **لا كود يشتق (ب) من (أ)** — لو المعاينة خارج القاهرة، لا شيء يذكّر/يضيف بند النقل تلقائيًا؛ يعتمد على تذكُّر TEC. رصد فقط — قد يكون مقبولًا (يدوي عمدًا). | يوسف |
+| **BL-92** | ✅ **مُغلق (D-33، 2026-07-14).** الانفصال مقصود لا عطل: المعاينة مجانية، وبند النقل اختياري بيد TECHNICAL_OFFICE حسب الحالة. صفر كود مطلوب. | مُغلق |
 | **BL-95** | 🟡 **مفتوح، غير حاجب: لا مسار لنقل ملكية العميل بين المندوبين.** صاحب العمل: "المدير يغيّر المندوب عشان البيعة تتم". لا يُبنى ولا يُقترَح الآن (STD-05) — مُسجَّل فقط. | يوسف |
 | **BL-93** | ✅ **محسوم بـ D-32 (2026-07-14): تغطية مسموحة بحوكمة — لا حارس ملكية.** الأصل (تدقيق RBAC عدائي لـPHASE 2): `createInspectionAction` و`getSelectableRequests` يقبلان `customerId` بحارس دور فقط بلا فحص ملكية، فيستطيع `SALES_REP` طلب/تعداد معاينة على عميل زميله (والطلب **يقدّم المرحلة المشتقّة**). التناقض: `changeCustomerStage:46` hard-scope مقابل R-02 soft-control. **القرار (يوسف): نموذج R-02** — التغطية واقع تشغيلي؛ الضابط = ActivityLog (الفاعل الحقيقي، INSPECTION_CREATED) + إشعار المالك (`notifications.inspectionByColleagueTitle`، `createInspection`). | مُغلق (D-32) |
 | **BL-94** | 🟠 **`getInspections` (`src/lib/services/inspections.ts:70`) بلا نطاق دور** — `where:{deletedAt:null}` فقط، يعيد كل المعاينات لأي دور. **غير مستغَل اليوم** (الصفحة محروسة ADMIN/INSPECTION_MANAGER/INSPECTION_REP) لكنه قائمة غير مُنطَّقة لو اتّسعت البوابة. سابق لـPHASE 2 (خارج الديف) — رُصد أثناء تدقيقه. | يوسف |
@@ -175,7 +178,7 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-70** | ✅ **مُغلق (PHASE C).** لم يعد يتيمًا — `requestDiscountAction` موصول بزر "طلب خصم" (مدخل العرض القائم، D-23). المساران مشروعان الآن (D-23): createQuotation عند الإنشاء · requestDiscountAction على عرض قائم. كلاهما نفس السلسلة. | مُغلق |
 | **BL-69** | 🔴 **`QuotationStatus` قائمة حرة بلا حارس تسلسل.** EXPIRED يمكن الرجوع منها. SALES_REP يرى القائمة والأكشن يرفضه (عدم تطابق UI/server). | يوسف |
 | **BL-60** | 🔴 **[verified-in-code] مسار البديل (W-06) ينشئ أمر تصنيع مباشرة `IN_PRODUCTION` — يتخطّى بوابة REVIEW والحارس كله.** `installation-extras.ts:121` **كتابة مباشرة** `prisma.manufacturingOrder.create` (لا `createManufacturingOrder`) → يتخطّى: `requireRole(TEC_APPROVER)` · العقد · الدفعة · فحص الرسمة المعتمدة · UNDER_REVIEW/مطابقة REVIEW. يُطلقه **INSTALLATIONS** (قائد الفريق) بإضافة بند تركيب من نوع خطأ/كسر (`addInstallationItemAction`). يرث `factoryId` من الأصلي (قد يكون null). القاعدة: **3 أوامر بديلة، كلها IN_PRODUCTION**. البديل **أخطر حالة** (لازم يطابق الأصل وإلا خسارة خامات) ويتخطّى المطابقة. **✅ الباب مُقفَل (2026-07-12، D-18):** حُذف الإنشاء التلقائي؛ البند يُسجَّل + إشعار INSTALLATIONS/REVIEW + `REPLACEMENT_REQUESTED`. مسار البديل معطّل حتى بناء موديول التحقيق (BL-63). الأوامر الثلاثة القائمة: رُصدت، لم تُهاجَر. | مُغلق (الباب) |
-| **BL-63** | ✅ **مُغلق (SCR-017a PHASE 4، 2026-07-13)**. موديول التحقيق كامل: PHASE 1 فتح · 2 الأثر · 3 الحكم · 3.5 حارس الاعتماد · 4 البديل + حارس W-06.   الدليل: commit 8e72113 · tag scr017a-phase4-done
+| **BL-63** | ✅ **مُغلق (SCR-017a PHASE 4، 2026-07-13).** موديول التحقيق كامل: PHASE 1 فتح · 2 الأثر · 3 الحكم · 3.5 حارس الاعتماد · 4 البديل + حارس W-06. الدليل: commit 8e72113 · tag scr017a-phase4-done | مُغلق |
 | **BL-61** | ❓ **الفاتورة تصدر من ACCOUNTING بلا بوابة ADMIN** (`issueInvoice` — ACCOUNTING/ADMIN، لا اعتماد ADMIN منفصل) — وصاحب العمل يقول "ADMIN يعتمد الفواتير والخصم". الخصم له بوابة (`decideDiscount`)؛ الفاتورة لا. فجوة؟ | يوسف |
 | **BL-62** | ❓ **`updateQuotationStatus` قائمة حالة حرة** (`pricing/actions.ts`) — `PRICING_ROLES` يضبط أي `QuotationStatus` بما فيها `APPROVED` بلا بوابة. هل `QuotationStatus` حاملة لأي قرار، أم عرض فقط؟ (منفصل عن `reviewStatus` الذي يحمل اعتماد التسعير.) | يوسف |
 | **BL-59** | ✅ **مُغلق (PHASE B، D-16).** `createManufacturingOrder` يُنشئ `UNDER_REVIEW` مباشرة + إشعار REVIEW (`lib/manufacturing/actions.ts:94`). لا خطوة "أرسل للمراجعة" يدوية. `submitForReview` بقي لمسار REJECTED→إعادة الرفع. مُثبت بالجلسات. | مُغلق |
@@ -195,6 +198,8 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-15** | **`Drawing.REJECTED` قيمة enum ميتة** — لا يمكن رفض رسمة | تدقيق الكود |
 | **BL-16** | ✅ **مُغلق (PHASE 2د).** `approvedById` يُكتب عند اعتماد العرض بيد `TEC_APPROVER` (`lib/review/actions.ts:105`) + المساران القديمان (`pricing/actions.ts:521`، `discount.ts:248`). مُثبت: الطباعة تُظهر "المدير التنفيذي — TEC Approver Test (DEV)" لا "—". | مُغلق |
 | **BL-17** | **اعتماد تسعير المهندس من مديره** — "لو التسعير من مهندس، مدير المهندس يراجع ويعتمد" | الفلوشارت م3 |
+| **BL-96** | ✅ **مُغلق (D-34، 2026-07-14).** الوسم مُطبَّق في مساري القرار (`discount.ts:244-246, 272, 332-333`). **مُثبَت بجلستين حقيقيتين:** ADMIN طلب 5% ورفضه بنفسه → السجل يحمل "⚠️ قرار ذاتي (D-34)" · ADMIN رفض طلب SALES_MANAGER (7%) → **بلا وسم** (الوسم يتتبّع `requestedById === decidedById` لا مجرد "ADMIN قرّر"). D-20 سليم: SALES_MANAGER حاول تمرير طلبه هو → `cannotApproveSelf`، صفر سجل، صفر إشعار. الأثر المالي صفر (Q-2026-00026: DRAFT · 0.00 · 1140.00). | مُغلق |
+| **BL-97** | ✅ **الدَّين مُنظَّف (2026-07-14):** الحقل الميت `replacementOrderId` أُزيل من السلسلة (grep = صفر) + التعليق صُحِّح لـTEC_APPROVER (D-29). 🟠 **متبقٍّ:** `errors.cannotApproveSelf` نصه **"لا يمكن اعتماد رسم رفعته بنفسك"** (رسالة رسمة) ويُعرض لمدير المبيعات على **خصم**. الحارس صحيح — النص مضلِّل. (ليس مفتاحًا مكررًا — يوجد في namespace `errors` و`tec` منفصلين.) | تنظيف نص |
 
 ---
 
@@ -239,8 +244,8 @@ BACKLOG DISCIPLINE (إلزامي):
 | **BL-28** | تنظيف مراجع `NODE_ENV` القديمة (`AGENTS.md` · `CLAUDE.md` · `START-HERE.md`) | توثيق |
 | **BL-29** | `calculateRecipe` غير مُهاجَر لـ Decimal (~1e-12) | تحسين |
 | **BL-30** | قوائم أسعار لكل مُصنِّع | **ملغى كأولوية** |
-| **BL-91** | hook يمنع الوكيل من تعديل schema.prisma / CLAUDE.md | من atlas-kit (ملغي) — غير عاجل |
-| **BL-92** | خطأ ESLint "circular structure" في next build (لا يكسر البناء) | تنظيف |
+| **BL-98** | hook يمنع الوكيل من تعديل schema.prisma / CLAUDE.md | من atlas-kit (ملغي) — غير عاجل |
+| **BL-99** | خطأ ESLint "circular structure" في next build (لا يكسر البناء) | تنظيف |
 ---
 
 ## 🧭 بنود دائمة
@@ -263,7 +268,7 @@ BACKLOG DISCIPLINE (إلزامي):
 | **STD-11** | **كل دليل واجهة يبدأ بإثبات هوية الجلسة (الاسم + الدور في الترويسة) قبل أي نقرة.** كوكي قديم (ADMIN عالق في الـpane) كاد يفسد دليل PHASE 1 للتحقيقات لولا الانتباه — الفاعل الخطأ = دليل باطل. (2026-07-13) |
 | **STD-12** | **النقر البرمجي (JS) ليس دليل واجهة. الدليل = نقرة حقيقية في الشاشة.** JS يُستخدم للقراءة/الالتقاط فقط (نص toast مثلًا)، لا لإثبات سلوك مستخدم. (2026-07-13) |
 | **STD-07** | **ممنوع الكتابة المباشرة على قاعدة البيانات كالتفاف على أكشن مكسور.** الأكشن المكسور = بند في BACKLOG، لا عقبة تُلَفّ. أي كتابة مباشرة تتطلب **إذن يوسف الصريح** وتُسجَّل في BACKLOG. (نشأت من واقعة: 4 حسابات عُطّلت بكتابة مباشرة بصفر `ActivityLog`، والالتفاف أخفى عطلًا محتملًا في شاشة الأدمن — BL-42.) |
-
+| **STD-16** | **أي `next build` أثناء تشغيل السيرفر يُتبَع بـ restart إلزامي.** الـbuild يدهس `.next` فيشير manifest الذاكرة لملفات محذوفة → `Loading chunk failed` في المتصفح، ويبدو كعطل في الكود وهو عطل بيئة. (نشأت من جلسة D-34، 2026-07-14) |
 ---
 
 ## سجل التنفيذ (دفعة إعادة إسناد السلسلة — 2026-07-12)
@@ -274,7 +279,7 @@ BACKLOG DISCIPLINE (إلزامي):
 - **PHASE 4** — دورة كاملة من الشاشة بصفر بذرة: عميل→طلب TEC-PRJ-0005→إسناد→عرض→اعتماد TEC_APPROVER→عقد→رسمة معتمدة→إصدار أمر تصنيع→مراجعة REVIEW(3 تأكيدات+اعتماد)→READY. الأثر يثبت كل دور في موضعه.
 - **مفتوح لقرار يوسف:** BL-18 (موافقة عميل السوشيال) · BL-31 (دفع السوشيال) · BL-33 (ملكية اختيار المصنع) · BL-20 (حذف أعمدة/enums الميتة، SCR).
 
-*آخر تحديث: 2026-07-12 — بعد إعادة إسناد السلسلة الحقيقية للأدوار (PHASE 1-4).*
+*آخر تحديث: 2026-07-14 — D-31/D-32/D-33/D-34 · BL-63/78/91/92/93/96 مُغلقة · BL-94/95/97/98/99 مُسجَّلة.*
 
 ---
 
@@ -282,7 +287,7 @@ BACKLOG DISCIPLINE (إلزامي):
 
 > schema مطبَّق سلفًا بيد يوسف (tag `schema-scr017a-done`، commit `0796a08`، migration 28). البناء app-layer فقط.
 
-- **PHASE 1 — فتح التحقيق (قيد التنفيذ):**
+- **PHASE 1 — فتح التحقيق ✅ (2026-07-13):**
   - خدمة `src/lib/services/fault-investigations.ts`: `openFaultInvestigation` — `claimedFault` بخريطة BL-79 اليدوية (`BREAKAGE_REPLACEMENT→BREAKAGE · MFG_ERROR→FACTORY_ERROR · TEC_ERROR→TEC_ERROR · MEASUREMENT_ERROR→MEASUREMENT_ERROR`؛ `CLIENT_DELAY/OTHER` غير قابلَين للتحقيق عمدًا — لا يولّدان بديلًا أصلًا). `manufacturingOrderId` عبر `InstallationItem → InstallationOrder.manufacturingOrderId` (1:1، BL-80 granularity الأمر لا القطعة — مقبول بقرار يوسف).
   - action: `requireRole(["REVIEW","ADMIN"])` + zod + ActivityLog `INVESTIGATION_OPENED`.
   - تحقيق واحد لكل بند: فحص مسبق + قيد `@unique` على `installationItemId` (P2002 → `errors.investigationExists`).

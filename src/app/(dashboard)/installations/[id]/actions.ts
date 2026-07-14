@@ -34,12 +34,12 @@ export async function addInstallationItemAction(input: unknown) {
     const parsed = addItemSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
-    const { item, replacementOrderId } = await addInstallationItem(
+    const item = await addInstallationItem(
       parsed.data,
       roleCheck.userId,
       roleCheck.role
     );
-    return { success: true as const, id: item.id, replacementOrderId };
+    return { success: true as const, id: item.id };
   } catch (e) {
     if (e instanceof InstallationExtrasError) return { error: e.message };
     console.error("[addInstallationItemAction]", e);

@@ -102,12 +102,13 @@ export async function addInstallationItem(
     }
   }
 
-  // replacementOrderId يبقى null دائمًا — لا أمر تلقائي بعد الآن (يحفظ توقيع المُستدعي)
-  return { item, replacementOrderId: null as string | null };
+  return item;
 }
 
-// D-18/BL-60: createReplacementOrder (الإنشاء التلقائي المباشر IN_PRODUCTION) حُذف.
-// البديل لا يُصنَّع إلا بعد تحقيق REVIEW (BL-63) وطلب PROCUREMENT صريح.
+// D-18/BL-60: createReplacementOrder (الإنشاء التلقائي المباشر IN_PRODUCTION) حُذف من هنا.
+// البديل لا يُصدَر إلا بعد تحقيق REVIEW وحُكم ADMIN (BL-63)، و**`TEC_APPROVER` هو مَن
+// يُصدره** (D-29) عبر `createReplacementOrder` في `services/fault-investigations.ts`،
+// ثم يدخل `UNDER_REVIEW` فتطابقه REVIEW وتعتمده — لا إصدار بيد PROCUREMENT.
 
 export async function addInstallationPhoto(
   input: { installationOrderId: string; url: string; caption?: string },
