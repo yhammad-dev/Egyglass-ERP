@@ -8,7 +8,7 @@ An unchecked box is not a formality. It is an unshipped defect.
 ## The gate
 
 - [ ] **Build GREEN**
-      `docker compose exec -e NODE_ENV=production app npm run build`
+      `docker compose exec app npm run build`
       → paste the last 10 lines of real output.
 
 - [ ] **Runtime verified**

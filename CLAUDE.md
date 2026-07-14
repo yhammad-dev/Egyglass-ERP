@@ -4,8 +4,9 @@
 > عند أي تعارض بينه وبين وثيقة أقدم (بما فيها AGENTS.md) → **الكود هو الحقيقة**، ثم هذا الملف، ثم الباقي (الدرس 8).
 > المبدأ الحاكم فوق كل شيء: **بالدليل لا بالحدس** — "تمّ" ليست دليلًا.
 >
-> آخر تحديث: 2026-07-12 | آخر tag مطبّق: `batch-e-done` (migrations حتى 27 — آخرها `batch_e_request_nullable_quotation`)
->اقرأ BACKLOG.md قبل أي مهمة. قسم "قرارات محسومة" مرجع مُلزِم — لا اجتهاد فيه.
+> 🔴 **BACKLOG.md هو المرجع المُلزِم الأوحد (STD-04).** هذا الملف **مشتقّ منه** — عند أي تعارض، **BACKLOG يعلو**. القرارات (`D-xx`) والبنود المفتوحة (`BL-xx`) هناك، لا هنا. هذا الملف يصف: الـstack · الأنماط · المبادئ · حالة البناء. **لا يحمل قرار عمل.**
+>
+> آخر تحديث: 2026-07-14 | آخر tag: `1b-measurements-done` (migrations حتى **29** — آخرها `scr018_inspection_gate`)
 ---
 
 ## 1. هوية المشروع + Stack
@@ -57,13 +58,13 @@
 | `SALES_REP` | عملاؤه + قراءة عملاء الزملاء + كتابة عبر-مندوب مُسجَّلة | التغطية soft + logging كامل |
 | `TECHNICAL_OFFICE` | طلبات قسمه فقط (سوشيال ميديا / مشروعات بالمصدر) | إنشاء عروض أسعار |
 | `TEC_APPROVER` | اعتماد الرسومات فنيًا | المهندس لا يعتمد رسمته |
-| `INSPECTION_MANAGER` | كل المعاينات + تحقق ما قبل التصنيع | بوابة منفصلة عن TEC_APPROVER |
-| `INSPECTION_REP` | تسجيل معاينات ميدانية | — |
+| `INSPECTION_MANAGER` | يوزّع المعاينات على فريقه · **يعتمد المعاينة** قبل ذهابها للمكتب الفني (D-37) | 🔴 **لا بوابة على الرسومات** (G2 محذوفة — BL-03/D-05) · **لا يُنشئ معاينة** (D-37 — الإنشاء للمبيعات) |
+| `INSPECTION_REP` | معايناته المُسندة إليه فقط (`assigneeId`) · يسجّل المقاسات المهيكلة والصور | حارس ملكية server-side على الكتابة (BL-105) |
 | `PROJECTS` | المشاريع بعد التعاقد + اعتماد التعاقد | قبل التعاقد = للمبيعات |
 | `ACCOUNTING` | كل المالية | غيرها project-scoped |
 | `PROCUREMENT` | أوامر التصنيع + التكاليف | ينفّذ التوريد لا يعدّل المواصفة |
 | `INSTALLATIONS` | مشاريعه المُسندة + بنود + صور | القائد فقط؛ المدير override |
-| `REVIEW` | قسم الجودة والمراجعات الفنية (محمد حسام) | موضعه في سلسلة الاعتماد = `reviewGatePosition` (config) |
+| `REVIEW` | 🔴 **يعتمد أمر التصنيع** بعد **مطابقة ثلاثية صريحة**: طلب العميل + مقاسات المعاينة + رسم المكتب الهندسي (D-04 · D-09) | **رقابة وجودة فقط — لا علاقة له بالتسعير ولا عروض الأسعار** (D-03). `reviewGatePosition` **عمود ميت** — الموضع محسوم في الكود لا في config |
 | `HR` | الموارد البشرية | — |
 | `VIEWER` | قراءة فقط | — |
 
@@ -74,11 +75,11 @@
 ## 4. القرارات المعتمدة (مختصرة)
 
 - **W-01** طلبات التسعير: ✅ **مفروض فعليًا (دفعة هـ، 2026-07-12)** — التسعير حصري للمكتب الفني: `SALES_REP` خارج `PRICING_ROLES` (`lib/pricing/actions.ts`) وخارج guard صفحة `/quotations/new` (307). **نقطة الدخول الحقيقية:** المندوب ينشئ `QuotationRequest` من ملف العميل عبر dialog بمسار `technicalRoute` **إلزامي بلا افتراضي** (PROJECTS/SOCIAL_MEDIA — خاصية الطلب لا العميل؛ عميل واحد قد يطلب المسارين) + إشعار TECHNICAL_OFFICE "يحتاج إسنادًا" + قسم بارز "طلبات غير مُسنَدة" في شاشة TEC. `quotationId` صار nullable (migration `batch_e_request_nullable_quotation`) — الطلب أولًا، TEC ينشئ العرض من الطلب ويرث المسار (الهوية تصل للطباعة والترقيم: مشروعات `EG…` · سوشيال `C3_…`). ترقيم الطلبات `TEC-PRJ-/TEC-SOC-` في `document-number.ts` (max+1 يقاوم الحذف).
-- **W-02** التعديل بعد المعاينة: مسار واحد يتقارب عند المكتب الفني (مالك إعادة التسعير). المبيعات تُخطَر دائمًا — ✅ **الإخطارات منفّذة (دفعة ب):** `addMeasurements` يُخطر TECHNICAL_OFFICE (INS-R05) + مالك العميل `Customer.ownerId` وإلا SALES_MANAGER (SAL-R10).
+- **W-02** التعديل بعد المعاينة: مسار واحد يتقارب عند المكتب الفني (مالك إعادة التسعير). المبيعات تُخطَر دائمًا — ✅ **القاعدة قائمة، والدالة أُعيد بناؤها في SCR-018:** `addMeasurement` (`services/inspection-measurements.ts`) يُخطر TECHNICAL_OFFICE (INS-R05) + مالك العميل `Customer.ownerId` وإلا SALES_MANAGER (SAL-R10). ⚠️ `addMeasurements` القديم **حُذف** — لا تبحث عنه. **الحذف بلا إشعار** (D-38 — تصحيح لا حدث).
 - **W-03** المشروعات: اكتساب موحد عبر المبيعات · توجيه داخلي بالمصدر · كريم بعد التعاقد (app-layer gate: APPROVED فقط). ✅ مُنفَّذ.
 - **W-04** بطاقة الإكسسوار: ✅ **مُنفَّذ فعليًا (دفعة أ)** بالدورة الثلاثية — TEC ينشئ البنود · INS يؤكد المقاسات (`confirmedByInspection` + إشعار PRC) · PRC يُدخل `unitCost` فقط **دون أي تعديل مواصفة (مفروض server-side** — action التكلفة لا يقبل نوعًا/وصفًا/كمية بنيويًا، ولا تكلفة على بند غير مؤكَّد). `services/extra-items.ts` + لوحة في شاشة الأوردر.
-- **W-05 / R-01** اعتماد الرسومات: ✅ **السلسلة مكتملة فعليًا (دفعة ب)** — G1 `TEC_APPROVER` (DRAFT→TEC_APPROVED) → G2 `INSPECTION_MANAGER` (INS_VERIFIED) → G3 CEO/ADMIN **مشروط بالعتبة** (`ceoDrawingApprovalThreshold`؛ **NULL = G3 يُتخطّى** — عمرو يفعّلها من شاشته) → RELEASED_TO_FACTORY تلقائيًا + إشعار PRC. القياس = `Contract.totalValue ?? Quotation.total`. **الفرعان (فوق/تحت العتبة) مثبتان اختباريًا. منع اعتماد الذات في كل بوابة.** قرارات التخطي كلها في `nextGateAfterVerify()` وحدها (`services/drawing-approval.ts`). دور `REVIEW`: `reviewGatePosition` NULL → يُتخطّى (الموضع لم يُحسم بعد).
-- **W-06** بدل الكسر: ✅ **مُنفَّذ فعليًا (دفعة ج)** — بند تركيب من نوع خطأ/كسر → أمر تصنيع بديل تلقائي (`parentOrderId` + `faultType`، يرث العرض والمصنع) بـ **Fast-track** (IN_PRODUCTION مباشرة — يتخطّى بوابة المراجعة، الرسمة معتمدة سلفًا). التوجيه بالخريطة: BREAKAGE/FACTORY_ERROR → PRC · TEC_ERROR → TEC · MEASUREMENT_ERROR → INSPECTION_MANAGER. CLIENT_DELAY/OTHER لا يولّدان بديلًا. الخريطة في `REPLACEMENT_MAP` (`services/installation-extras.ts`). IMT-R05 (بنود) + IMT-R06 (صور، اختيارية) + IMT-R02 (بطاقة الفريق) منفّذة — الصلاحية لقائد الفريق على الأمر حصريًا (R-04، ADMIN override).
+- **W-05 / R-01** اعتماد الرسومات: 🔴 **البوابتان G2 و G3 أُلغيتا (BL-02 · BL-03 · D-02 · D-05).** G3 (بوابة CEO المشروطة بالعتبة) كانت **اختراعًا** — نشأت من قراءة "المدير التنفيذي" كـCEO، وهو في لغة الشركة **مدير المكتب الهندسي** (D-01). G2 (`INSPECTION_MANAGER` على الرسمة) لا وجود لها — المعاينات **بلا بوابة على الرسومات** (D-05). **البوابة الوحيدة النافذة: G1 = `TEC_APPROVER`** (DRAFT → TEC_APPROVED) — يعتمد الرسم **والتسعير** ويُصدر أمر التصنيع (D-22). منع اعتماد الذات قائم (`assertNotSelf` — `services/drawing-approval.ts`). **الرسمة النافذة واحدة:** اعتماد رسمة ⇒ كل رسمة `TEC_APPROVED` أخرى على نفس الطلب → `SUPERSEDED` (BL-78، commit `8e72113`). العمودان `ceoDrawingApprovalThreshold` و `reviewGatePosition` **ميتان** (صفر منطق يقرأهما) — حذفهما SCR لاحق (BL-20). **التفاصيل المُلزِمة: BACKLOG (D-01 · D-02 · D-05 · D-22 · BL-02 · BL-03 · BL-78).**
+- **W-06** بدل الكسر: 🔴 **الوصف القديم (أمر بديل تلقائي + Fast-track) كان ثغرة أمنية — أُلغي بالكامل (BL-60 · D-18).** كان يُنشئ أمرًا `IN_PRODUCTION` مباشرة متخطّيًا: حارس الدور · العقد · الدفعة · فحص الرسمة المعتمدة · بوابة `REVIEW`. **المسار النافذ الآن (SCR-017a، commit `8e72113`):** بند تركيب (خطأ/كسر) → **تسجيل فقط + إشعار `REVIEW`** — لا أمر تلقائي إطلاقًا → `REVIEW` تفتح تحقيقًا وتجمّع الأثر → **`ADMIN` يحكم** بفئة العطل → **`TEC_APPROVER` يُصدر البديل** → **`REVIEW` تطابق وتعتمد كأي أمر — لا استثناء من المطابقة (D-29).** حكم `CUSTOMER_DELAY` (عطل العميل) **يُرفض** — لا بديل بتكلفة الشركة (حارس W-06، `fault-investigations.ts`). ⚠️ **الأوامر الثلاثة القديمة (`IN_PRODUCTION` بلا مراجعة) ما زالت في القاعدة — رُصدت ولم تُهاجَر (STD-14).** IMT-R05 (بنود) + IMT-R06 (صور، اختيارية) + IMT-R02 (بطاقة الفريق) منفّذة — الصلاحية لقائد الفريق حصريًا (R-04، ADMIN override). **التفاصيل المُلزِمة: BACKLOG (D-18 · D-25..D-29 · BL-60 · BL-63).**
 - **W-07** استطلاع الرضا: ❌ **غير منفّذ — اكتُشف كذب توثيقي في اختبار Phase 5 (دفعة هـ، 2026-07-12).** لا يوجد أي حدث يُطلقه: إتمام التركيب (`InstStatus=COMPLETED`) لا يُخطر المبيعات ولا يجدول استطلاعًا، ولا يوجد enum `INSTALLED_FINAL` أصلًا. الموجود فعليًا: `createPostInstallReview` **يدوي فقط** + عمود config `satisfactionSurveyDelayDays=3` بلا مستهلِك. **بند معلّق صريح:** التوصيل الحدثي (COMPLETED → إشعار مالك العميل/SALES_MANAGER → استطلاع بعد delay) يحتاج تكليفًا منفصلًا.
 - **R-02** كتابة عملاء الزملاء: مسموح + logging كامل + لوحة رؤية للمدير (soft-control). ✅ مُنفَّذ.
 - **R-03** قراءة المالية: project-scoped (least privilege) عبر `lib/finance/scope.ts`. ✅ مُنفَّذ.
@@ -115,9 +116,12 @@
 
 ---
 
-## 7. حالة الـ Schema (بعد SCR-014 — أحدث تجميد)
+## 7. حالة الـ Schema (بعد SCR-018 — أحدث تجميد)
 
-- تجميد حالي: tag `schema-scr014-done`، migration حتى 21، build GREEN، DB up to date.
+- تجميد حالي: tag `schema-scr018-done`، **migration حتى 29**، build GREEN، DB up to date.
+- **SCR-017a (migration 28):** `DrawingStatus.SUPERSEDED` · `FaultInvestigation` (موديول التحقيق — BL-63).
+- **SCR-018 (migration 29):** `AttachmentCategory` {SITE_PHOTO · SKETCH · OTHER} + `Attachment.category` · `MeasurementUnit` {SQM · CBM} · **`InspectionMeasurement` أُعيد بناؤه مهيكلًا** (description · width · height · unit · quantity · notes · createdById · Cascade) · `InspectionApprovalStatus` {DRAFT · PENDING_APPROVAL · APPROVED · RETURNED} + `InspectionRequest.approvalStatus`/`approvedById`/`approvedAt`/`returnReason`.
+  ⚠️ **بوابة اعتماد المعاينة: schema جاهز، app-layer لم يُبنَ بعد** (BL-109) — `approvalStatus` لا كاتب له حتى الآن.
 - `SystemSettings` (`id="singleton"`, typed fixed-column — أي مفتاح جديد = migration):
   - أساسي: `discountBasePct=18` · `discountMaxReqPct=25` · `factorMinimum=1.5` · `vatPct=14` · `quotationValidDays=3` · `cashbackActive` · `cashbackStartDate` · `companyLogoUrl`
   - SCR-013: `managerApprovalCeilingPct` · `ceoDrawingApprovalThreshold` (كلاهما nullable — دور فعلي محدود بعد قرار §5) · `satisfactionSurveyDelayDays=3` · `reviewGatePosition`
@@ -125,7 +129,8 @@
 - **نماذج موجودة بالفعل — تحقّق قبل أي migration جديدة:** `QuotationRequest`, `Drawing` (+ `status`: enum `DrawingStatus`), `ExtraItem` (+ `confirmedByInspection`), `Referral`, `CashbackTier`, `PriceListItem`, `PricingFactor`, `DiscountRequest`, `QuotationApproval`, `ManufacturingOrder` (+ `parentOrderId` + `faultType`: enum `FaultType` + self-relation `MfgReplacement`), `InstallationOrder`.
 - **SCR-014 الجديد:** `PaymentMilestone` (contractId, label, percentage Decimal(5,2), plannedAmount Decimal(14,2), sortOrder) · `Payment.milestoneId` (nullable, onDelete SetNull) · `Contract.totalValue` (Decimal? — snapshot من Quotation.total وقت الإصدار، لا يُقرأ لايف).
 - **الرقم 18 في الكود = fallback default فقط.** ✅ القراءة موحّدة الآن عبر `src/lib/config.ts` → `getSystemSettings()` (المسار الفعلي المفروض من tsconfig alias `@/lib/config` — وليس `lib/config.ts`). بلا caching (كل الصفحات `force-dynamic`) وبلا ابتلاع أخطاء (سلوك `findUnique` حرفيًا). مُتحقَّق: صفر `systemSettings.findUnique` خارج `config.ts` (commit `bdc873a`).
-- **دفعة أ (migration `batch_a_factory_mfg_review`, tag `schema-batch-a-done`):** كيان `Factory` (name·code @unique·contact·isActive·notes — بسيط عمدًا، التقييم مؤجّل بعد UAT) · `ManufacturingOrder.factoryId?` (SetNull) + `rejectionReason?` · `MfgStatus` أصبح 6 قيم: `{PENDING, UNDER_REVIEW, REJECTED, IN_PRODUCTION, READY, DELIVERED}` — التسلسل الشرعي مفروض server-side، بوابة المراجعة قرارها `INSPECTION_MANAGER` (إجابة شكري BRD-11).
+- **دفعة أ (migration `batch_a_factory_mfg_review`, tag `schema-batch-a-done`):** كيان `Factory` (name·code @unique·contact·isActive·notes — بسيط عمدًا، التقييم مؤجّل بعد UAT) · `ManufacturingOrder.factoryId?` (SetNull) + `rejectionReason?` · `MfgStatus` أصبح 6 قيم: `{PENDING, UNDER_REVIEW, REJECTED, IN_PRODUCTION, READY, DELIVERED}` — التسلسل الشرعي مفروض server-side، بوابة مراجعة أمر التصنيع = REVIEW (BL-07/D-04) — لا INSPECTION_MANAGER.
+المرجع المُلزِم: BACKLOG "قرارات محسومة".
 - **دفعة ج (migrations `batch_c_installation_items_photos` + `batch_c2_w06_unblock`, tag `schema-batch-c-done`):** `InstallationItem` (نوع/وصف/كمية/تكلفة اختيارية — Restrict، حادثة سند) + `InstallationPhoto` (Cascade مع الأمر) + enum `InstallationItemType` (6 قيم) · `FaultType` أُضيف له `TEC_ERROR` · **رُفع `@unique` عن `ManufacturingOrder.quotationId`** (يمنع W-06 بنيويًا) — "أمر أصلي واحد لكل عرض" يُفرض منطقيًا في `createManufacturingOrder` (`findFirst({quotationId, parentOrderId: null})`).
 
 > 📐 **درس معماري مهم:** SCR-013 أضاف حقول W-06 (`parentOrderId`/`faultType`) دون رفع قيد `@unique` على `quotationId` المانع لها — فجعل الميزة مستحيلة بنيويًا لشهور. اكتُشف في دفعة ج. **الدرس: إضافة حقول لميزة لا تكفي — افحص القيود المانعة.**
@@ -180,9 +185,21 @@
 
 ```
 المبيعات → (طلب تسعير) → المكتب الفني → (عرض سعر) → المبيعات
-المبيعات → (تحويل معاينة) → المعاينات → (مقاسات) → المكتب الفني
-المكتب الفني → (إعادة تسعير) → المبيعات → (تعاقد) → الحسابات + المكتب الفني + المشروعات
-المكتب الفني → (رسم تنفيذي + اعتماد) → المخازن → (تصنيع) → التركيبات → (إغلاق) → المشروعات + المبيعات
+
+المبيعات → (طلب معاينة — تختار الطلب صراحةً، D-31)
+   → INSPECTION_MANAGER (توزيع على مندوب من فريقه — لا إنشاء، D-37)
+   → INSPECTION_REP (مقاسات مهيكلة + صور + كروكي)
+   → [تلقائيًا بعد الحفظ] → INSPECTION_MANAGER (اعتماد، D-37)
+   → المكتب الفني
+
+المكتب الفني → (إعادة تسعير) → المبيعات → (موافقة العميل)
+   → عقد + دفعة (شرط قبل التصنيع — D-10)
+
+TEC_APPROVER → يعتمد الرسم + يعتمد التسعير + يُصدر أمر التصنيع (D-22)
+   → 🔴 REVIEW → مطابقة ثلاثية صريحة + اعتماد الأمر (D-04 · D-09)
+   → PROCUREMENT (اختيار المصنع + التاريخ + التكاليف — D-12)
+   → تصنيع → استلام → التركيبات → بنود إضافية → صور وتقرير
+   → متابعة رضا العميل
 ```
 
 ---
@@ -225,7 +242,7 @@
 ### تشغيلي — قبل UAT
 - ~~`notifyRole` لصفر مستلمين يضيع بصمت~~ ✅ **نُفّذ (دفعة ب):** عند 0 مستلمين نشطين → `console.warn` + ActivityLog `NOTIFICATION_ZERO_RECIPIENTS` (مُسند لأقدم ADMIN بوسم "[تحذير آلي]").
 - ⚠️ **تحذير UAT (قائم):** seed UAT يجب أن يولّد مستخدمًا نشطًا لكل دور يستقبل إشعارات (TEC/PRC/INSTALLATIONS/INS/SALES/ACCOUNTING) — الإشعار الضائع الآن يُسجَّل تحذيرًا لكنه يظل ضائعًا.
-- **دين تقني مؤثّر:** نموذج `InspectionMeasurement` غير مستخدم — المقاسات تُخزَّن نصًا في ActivityLog لا صفوفًا مهيكلة. **يمنع أي feature يحتاج المقاسات كبيانات** (مقارنة/تقارير/حساب) لكنه ليس بلوكر UAT (المسار يعمل، البيانات تُعرض).
+- ~~دين تقني: المقاسات نصًا في ActivityLog~~ ✅ **مُنفَّذ (SCR-018 · BL-81، commit `eac9d38`):** المقاسات صارت **صفوفًا مهيكلة** في `InspectionMeasurement` (بيان · عرض · ارتفاع · وحدة م²/م³ · كمية). المسار النصي القديم **حُذف بالكامل**، والقرّاء الأربعة حُوّلوا (اشتقاق الحالة · بوابة REVIEW · شاشة التحقيق · شاشة المعاينة). `.multipleOf(0.001)` يمنع التقريب الصامت.
 
 ### درس تشغيلي إلزامي (قاطع)
 - **كل أوامر docker compose / psql من جذر المشروع حصرًا. ممنوع كتم مخرجاتها (`>/dev/null`) — الفشل الصامت أخطر من الخطأ الظاهر.** (وقع 3 مرات، آخرها أنتج نتيجة اختبار كاذبة.)

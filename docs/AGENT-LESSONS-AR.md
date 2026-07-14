@@ -16,7 +16,6 @@
 - لا تثق بكلمة "GREEN". اطلب **ناتج الـ build الكامل الخام** (raw, unedited).
 - الأفضل: **أنتَ** تشغّل الـ build بنفسك — لا وسيط يدّعي:
   `docker compose exec app npm run build`
-  (لم يعد يحتاج `-e NODE_ENV=production` — الجذر اتحل بحذف `NODE_ENV: development` من `docker-compose.yml`؛ Next.js يضبطها تلقائيًا حسب كل أمر.)
 - لا تعتمد قط checkpoint بناءً على ادعاء "أخضر" — فقط بعد رؤية الناتج الحقيقي بعينك.
 
 ### خطأ 2: الوكيل يتخطّى نقطة الوقوف (checkpoint)

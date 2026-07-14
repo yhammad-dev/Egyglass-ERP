@@ -1,12 +1,14 @@
 # ابدأ من هنا — تشغيل البناء مع OpenCode
 
-> ⚠️ **تحديث الحقيقة (Reconciliation) — اقرأ هذا أولًا:** هذا الملف من النطاق الأولي.
-> تغيّر التالي وأصبح في **AGENTS.md + SCHEMA-CHANGE-REQUESTS.md + NON-COLLISION-PROTOCOL.md**:
-> - **الـ schema مطبّق فعليًا** (CR-01→10، tag `schema-phase1-done`) — مش "هيتجمّد بعدين"، هو **متجمّد دلوقتي**.
-> - **Stream D = المراجعة + الأدمن** (مش Dashboard). الـ Dashboard يُبنى **آخرًا** كمكوّن منفصل.
-> - **التسعير:** خصم تفاوضي (18→25%) + كاش باك إحالة متدرّج — راجع `docs/quotation-math.md`.
+> ⚠️ **تحديث الحقيقة (Reconciliation) — اقرأ هذا أولًا:** هذا الملف من النطاق الأولي، وهو **ملف إقلاع تاريخي — لا يحمل أي واقعة نافذة**.
+> - **المرجع المُلزِم الأوحد: `BACKLOG.md`** (قسم "قرارات محسومة") — يعلو على هذا الملف وعلى أي وثيقة أقدم (STD-04).
+> - **الـ schema مجمّد ومطبّق.** حالته النافذة (migrations · tags) في **`CLAUDE.md §7` + `BACKLOG.md`** — لا تقرأ حالة schema من هذا الملف.
+> - **سلاسل الاعتماد والأدوار والخصم:** النافذ في **`BACKLOG.md` — قرارات محسومة** (D-xx / BL-xx). لا تُقرأ من هنا.
+> - **التسعير:** محرك الحساب في `docs/quotation-math.md`. أما سياسة الخصم وعتباتها فالنافذ فيها **BACKLOG (D-19 · BL-65)**.
 > - مسار ملف التسعير الصحيح: `docs/quotation-math.md` (وليس `docs/tests/`).
-> عند أي تعارض بين هذا الملف والمصادر أعلاه — **المصادر أعلاه هي الحقيقة.**
+> - ⚠️ **التعليمات التشغيلية أدناه (الخطوات 1–3 والبرومبتات المضمّنة) تاريخية ولا تُنفَّذ** —
+>   تخالف النافذَين: **L-03** (الوكيل لا يعمل commit/tag أبدًا) و**STD-18** (لا كتابة بوكلاء متوازين).
+> عند أي تعارض بين هذا الملف وأي من المصادر أعلاه — **المصادر أعلاه هي الحقيقة، وBACKLOG يعلو عليها جميعًا.**
 
 الحزمة دي جاهزة تسلّمها لـ OpenCode. **ملفات الوكلاء كلها بالإنجليزي** (OpenCode بيلتزم
 بيها أحسن)، لكن **واجهة المنتج نفسها عربي/RTL**.
@@ -41,7 +43,7 @@
 | `docs/BUILD-ROADMAP.md` | خطة البناء: Phase A تأسيس → Phase B متوازي → Phase C تلميع |
 | `docker-compose.yml` | بيئة العمل: يشغّل قاعدة البيانات + التطبيق بأمر واحد |
 | `Dockerfile` / `.dockerignore` / `.env.example` | إعدادات Docker والبيئة (جاهزة) |
-| `prisma/schema.prisma` | نموذج البيانات الكامل (يتجمّد بعد التأسيس) |
+| `prisma/schema.prisma` | نموذج البيانات الكامل — **مجمّد** (الحالة النافذة: `CLAUDE.md §7` + `BACKLOG.md`) |
 | `docs/quotation-math.md` | أمثلة محسومة لمحرك عرض السعر (راجعتها وكلها مظبوطة ✅) |
 | `docs/Project_Scope_EgyGlass.md` | النطاق الكامل (سياق فقط) |
 
@@ -56,7 +58,7 @@
 > `prisma/schema.prisma` in full. The environment is Docker (compose file provided) — run all
 > commands inside the app container. Execute **Phase A only (Milestone 0 and Milestone 1)**
 > from the roadmap. Do not start Phase B. After each milestone, run
-> `docker compose exec app npm run build` (no `-e NODE_ENV=...` needed — root cause fixed in docker-compose.yml) and report the result before continuing. When Phase A
+> `docker compose exec app npm run build` and report the result before continuing. When Phase A
 > is done, commit and tag it `foundation-done`.
 
 ⚠️ **مهم:** متشغّلش أكتر من وكيل في المرحلة دي — لازم الأساس يخلص الأول.
