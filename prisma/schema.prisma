@@ -36,7 +36,6 @@ model User {
   managedProjects          Project[]               @relation("ProjectManager")
   approvalRequests         QuotationApproval[]     @relation("ApprovalRequester")
   approvalReviews          QuotationApproval[]     @relation("ApprovalReviewer")
-  measurements             InspectionMeasurement[] @relation("MeasurementRecorder")
   uploadedPhotos           InspectionPhoto[]       @relation("PhotoUploader")
   uploadedDocuments        Document[]
   contracts                Contract[]
@@ -53,6 +52,10 @@ model User {
   installationItems        InstallationItem[]      @relation("InstallationItemCreator")
   investigationsOpened     FaultInvestigation[]    @relation("InvestigationOpenedBy")
   investigationsJudged     FaultInvestigation[]    @relation("InvestigationVerdictBy")
+
+  // ── SCR-018: اعتماد المعاينة + مقاسات مهيكلة (BL-81 / BL-86) ──
+  approvedInspections      InspectionRequest[]     @relation("InspectionApprover")
+  createdMeasurements      InspectionMeasurement[] @relation("MeasurementCreator")
 }
 
 model Customer {
@@ -199,23 +202,31 @@ model DiscountRequest {
 }
 
 model InspectionRequest {
-  id               String                  @id @default(cuid())
+  id               String                   @id @default(cuid())
   customerId       String
-  location         InspectionLocation      @default(INSIDE_CAIRO)
+  location         InspectionLocation       @default(INSIDE_CAIRO)
   address          String
   phone            String
   notes            String?
-  status           InspectionStatus        @default(REQUESTED)
+  status           InspectionStatus         @default(REQUESTED)
   scheduledAt      DateTime?
   dueDate          DateTime
   assigneeId       String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
   deletedAt        DateTime?
-  type             InspectionType          @default(PRICING)
+  type             InspectionType           @default(PRICING)
   siteReadiness    Boolean? // null=لم يُحدَّد، true=جاهز، false=غير جاهز
-  assignee         User?                   @relation("InspectionAssignee", fields: [assigneeId], references: [id])
-  customer         Customer                @relation(fields: [customerId], references: [id])
+
+  // ── SCR-018: بوابة اعتماد المعاينة ──
+  approvalStatus   InspectionApprovalStatus @default(DRAFT)
+  approvedById     String?
+  approvedAt       DateTime?
+  returnReason     String?
+
+  assignee         User?                    @relation("InspectionAssignee", fields: [assigneeId], references: [id])
+  approvedBy       User?                    @relation("InspectionApprover", fields: [approvedById], references: [id])
+  customer         Customer                 @relation(fields: [customerId], references: [id])
   measurements     InspectionMeasurement[]
   photos           InspectionPhoto[]
   quotationRequest QuotationRequest?
@@ -226,13 +237,16 @@ model InspectionRequest {
 }
 
 model Attachment {
-  id        String           @id @default(cuid())
+  id        String             @id @default(cuid())
   parent    AttachmentParent
   parentId  String
   fileName  String
   filePath  String
   mimeType  String?
-  createdAt DateTime         @default(now())
+  createdAt DateTime           @default(now())
+
+  // ── SCR-018: تمييز نوع المرفق (صورة موقع / كروكي مقاسات / غيرهما) ──
+  category  AttachmentCategory @default(OTHER)
 
   @@index([parent, parentId])
 }
@@ -695,6 +709,25 @@ enum AttachmentParent {
   INSPECTION
 }
 
+// ── SCR-018: تمييز المرفقات · وحدة المقاس · بوابة اعتماد المعاينة ──
+enum AttachmentCategory {
+  SITE_PHOTO
+  SKETCH
+  OTHER
+}
+
+enum MeasurementUnit {
+  SQM
+  CBM
+}
+
+enum InspectionApprovalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  RETURNED
+}
+
 enum ReviewStatus {
   PENDING_REVIEW
   APPROVED
@@ -813,23 +846,24 @@ model QuotationApproval {
   @@map("quotation_approvals")
 }
 
+// ── SCR-018: استبدال كامل للنموذج الميت (BL-81) — مقاسات مهيكلة بدل نص ActivityLog ──
 model InspectionMeasurement {
-  id           String            @id @default(cuid())
-  inspectionId String
-  inspection   InspectionRequest @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  label        String            @db.VarChar(200)
-  value        Decimal           @db.Decimal(12, 4)
-  unit         String            @db.VarChar(50)
-  minSpec      Decimal?          @db.Decimal(12, 4)
-  maxSpec      Decimal?          @db.Decimal(12, 4)
-  result       String            @default("PENDING")
-  notes        String?           @db.Text
-  recordedById String
-  recordedBy   User              @relation("MeasurementRecorder", fields: [recordedById], references: [id])
-  recordedAt   DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id                  String          @id @default(cuid())
+  inspectionRequestId String
+  description         String
+  width               Decimal         @db.Decimal(12, 3)
+  height              Decimal         @db.Decimal(12, 3)
+  unit                MeasurementUnit
+  quantity            Int             @default(1)
+  notes               String?
+  createdById         String
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
-  @@index([inspectionId])
+  inspectionRequest InspectionRequest @relation(fields: [inspectionRequestId], references: [id], onDelete: Cascade)
+  createdBy         User              @relation("MeasurementCreator", fields: [createdById], references: [id])
+
+  @@index([inspectionRequestId])
   @@map("inspection_measurements")
 }
 
