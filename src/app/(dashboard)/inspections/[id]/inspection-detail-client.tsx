@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,13 @@ type InspectionDetail = {
   scheduledAt: string | null;
   dueDate: string;
   assignee: { id: string; name: string } | null;
-  attachments: { id: string; fileName: string; filePath: string; createdAt: string }[];
+  attachments: {
+    id: string;
+    fileName: string;
+    filePath: string;
+    category: "SITE_PHOTO" | "SKETCH" | "OTHER";
+    createdAt: string;
+  }[];
   measurements: MeasurementRow[];
 };
 
@@ -92,10 +98,12 @@ export function InspectionDetailClient({
   const [savingMeasurement, setSavingMeasurement] = useState(false);
   const [deletingMeasurementId, setDeletingMeasurementId] = useState<string | null>(null);
 
-  const [fileName, setFileName] = useState("");
-  const [filePath, setFilePath] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentCategory, setAttachmentCategory] =
+    useState<"SITE_PHOTO" | "SKETCH">("SITE_PHOTO");
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [savingAttachment, setSavingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -177,31 +185,48 @@ export function InspectionDetailClient({
   async function handleAddAttachment() {
     setAttachmentError(null);
 
-    if (!fileName.trim() || !filePath.trim()) {
+    if (!attachmentFile) {
       setAttachmentError(t("errors.required"));
+      return;
+    }
+    if (!attachmentFile.type.startsWith("image/")) {
+      setAttachmentError(t("errors.invalidFileType"));
       return;
     }
 
     setSavingAttachment(true);
-    const response = await addInspectionAttachment({
-      id: inspection.id,
-      fileName,
-      filePath,
-    });
-    setSavingAttachment(false);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(attachmentFile);
+      });
 
-    if ("error" in response) {
-      setAttachmentError(t(response.error ?? "errors.invalidInput"));
-      return;
+      const response = await addInspectionAttachment({
+        id: inspection.id,
+        category: attachmentCategory,
+        originalName: attachmentFile.name,
+        base64,
+      });
+
+      if ("error" in response) {
+        setAttachmentError(t(response.error ?? "errors.invalidInput"));
+        return;
+      }
+
+      setInspection((prev) => ({
+        ...prev,
+        attachments: [response.data, ...prev.attachments],
+      }));
+      setAttachmentFile(null);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      toast.success(t("inspections.detail.attachmentAdded"));
+    } catch {
+      setAttachmentError(t("errors.serverError"));
+    } finally {
+      setSavingAttachment(false);
     }
-
-    setInspection((prev) => ({
-      ...prev,
-      attachments: [response.data, ...prev.attachments],
-    }));
-    setFileName("");
-    setFilePath("");
-    toast.success(t("inspections.detail.attachmentAdded"));
   }
 
   async function handleStatusChange(status: InspectionStatus) {
@@ -466,39 +491,88 @@ export function InspectionDetailClient({
         <h2 className="font-semibold">{t("inspections.detail.attachments")}</h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <Label htmlFor="fileName">{t("inspections.detail.fileName")}</Label>
-            <Input
-              id="fileName"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-            />
+            <Label htmlFor="attachmentType">
+              {t("inspections.detail.attachmentType")}
+            </Label>
+            <Select
+              value={attachmentCategory}
+              onValueChange={(v) =>
+                setAttachmentCategory(v as "SITE_PHOTO" | "SKETCH")
+              }
+            >
+              <SelectTrigger id="attachmentType">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SITE_PHOTO">
+                  {t("inspections.detail.categorySitePhoto")}
+                </SelectItem>
+                <SelectItem value="SKETCH">
+                  {t("inspections.detail.categorySketch")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="filePath">{t("inspections.detail.filePath")}</Label>
+            <Label htmlFor="attachmentFile">
+              {t("inspections.detail.chooseFile")}
+            </Label>
             <Input
-              id="filePath"
-              dir="ltr"
-              value={filePath}
-              onChange={(e) => setFilePath(e.target.value)}
-              placeholder={t("inspections.detail.filePathPlaceholder")}
+              id="attachmentFile"
+              type="file"
+              accept="image/*"
+              ref={attachmentInputRef}
+              onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
             />
           </div>
         </div>
         {attachmentError && <p className="text-sm text-red-500">{attachmentError}</p>}
-        <Button type="button" onClick={handleAddAttachment} disabled={savingAttachment}>
+        <Button
+          type="button"
+          onClick={handleAddAttachment}
+          disabled={savingAttachment || !attachmentFile}
+        >
           {savingAttachment ? t("app.loading") : t("inspections.detail.addAttachment")}
         </Button>
 
         {inspection.attachments.length > 0 && (
-          <div className="space-y-2 pt-2">
-            {inspection.attachments.map((a) => (
-              <div key={a.id} className="text-sm border rounded-md p-2 flex justify-between">
-                <span>{a.fileName}</span>
-                <span dir="ltr" className="text-muted-foreground">
-                  {a.filePath}
-                </span>
-              </div>
-            ))}
+          <div className="space-y-4 pt-2">
+            {(["SITE_PHOTO", "SKETCH", "OTHER"] as const).map((cat) => {
+              const items = inspection.attachments.filter(
+                (a) => a.category === cat
+              );
+              if (items.length === 0) return null;
+              const label =
+                cat === "SITE_PHOTO"
+                  ? t("inspections.detail.categorySitePhotos")
+                  : cat === "SKETCH"
+                  ? t("inspections.detail.categorySketches")
+                  : t("inspections.detail.categoryOther");
+              return (
+                <div key={cat} className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    {label}
+                  </h3>
+                  {items.map((a) => (
+                    <div
+                      key={a.id}
+                      className="text-sm border rounded-md p-2 flex justify-between items-center gap-2"
+                    >
+                      <span className="truncate">{a.fileName}</span>
+                      <a
+                        href={a.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        dir="ltr"
+                        className="text-blue-600 underline shrink-0"
+                      >
+                        {t("inspections.detail.viewFile")}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

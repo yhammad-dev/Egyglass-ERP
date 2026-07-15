@@ -655,9 +655,14 @@
       "noMeasurements": "No measurements recorded",
       "measurementDeleted": "Measurement deleted",
       "attachments": "Attachments",
-      "fileName": "File Name",
-      "filePath": "File Reference",
-      "filePathPlaceholder": "URL or reference path",
+      "attachmentType": "Attachment type",
+      "chooseFile": "Choose a file",
+      "viewFile": "View",
+      "categorySitePhoto": "Site photo",
+      "categorySketch": "Sketch",
+      "categorySitePhotos": "Site photos",
+      "categorySketches": "Sketches",
+      "categoryOther": "Other attachments",
       "addAttachment": "Add Attachment",
       "attachmentAdded": "Attachment added successfully"
     },
@@ -776,7 +781,9 @@
     "requestNotSelectable": "Request is not eligible to link an inspection — it must belong to the same customer, be unlinked, and not be done",
     "factoryNotAssigned": "Cannot move to READY before the factory and expected date are assigned (procurement)",
     "discountRequestPending": "A discount request is already pending on this quotation",
-    "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it"
+    "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it",
+    "invalidFileType": "Unsupported file type — images only",
+    "fileTooLarge": "File exceeds the maximum allowed size (10MB)"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

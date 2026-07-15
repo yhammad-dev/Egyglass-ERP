@@ -123,6 +123,7 @@ BACKLOG DISCIPLINE (إلزامي):
 |---|---|---|---|
 | **BL-47** | 🔴 **لا مسار break-glass للأدمن.** المستخدم العادي ينساها → ADMIN يعيد ضبطها من `/users`. لكن **ADMIN نفسه = طريق مسدود** (لا استرجاع، لا seed لـ `admin@egyglass.net`). أثبتته الواقعة. **شدّته معلّقة على BL-42:** لو شاشة المستخدمين مكسورة → لا استرجاع لأحد. **جزئيًا مُخفَّف بـ BL-48 (سكريبت break-glass).** | يوسف |
 | **BL-01** | ✅ **مُغلق (PHASE 2، 2026-07-12).** حارس `requireRole(["TEC_APPROVER","ADMIN"])` مُضاف — `lib/manufacturing/actions.ts:45`. مُثبت: SALES_REP → `notAuthorized` بجلسة حقيقية. | مُغلق |
+| **BL-112** | 🔴 **[P0-أمني] IDOR في تقديم الملفات:** `/uploads/[...path]/route.ts` يقدّم ملفات `public/` **بلا مصادقة** — أي شخص يفتح صورة معاينة/رسمة بالرابط المباشر بلا تسجيل دخول. **سابق لـ1ج** (نمط `uploadDrawingAction` القائم). الإصلاح النافذ: تخزين خارج web-root + handler مُصادَق + فحص `canWriteOnInspection` + Content-Disposition. مرتبط بـBL-40/BL-56. **تغيير معماري متعدد الوحدات — قرار يوسف (L-11).** | يوسف |
 
 ---
 

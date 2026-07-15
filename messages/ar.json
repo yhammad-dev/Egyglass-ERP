@@ -654,9 +654,14 @@
       "noMeasurements": "لا مقاسات مسجّلة",
       "measurementDeleted": "تم حذف المقاس",
       "attachments": "المرفقات",
-      "fileName": "اسم الملف",
-      "filePath": "رابط/مرجع الملف",
-      "filePathPlaceholder": "رابط أو مسار المرجع",
+      "attachmentType": "نوع المرفق",
+      "chooseFile": "اختر ملفًا",
+      "viewFile": "عرض",
+      "categorySitePhoto": "صورة موقع",
+      "categorySketch": "رسم كروكي",
+      "categorySitePhotos": "صور الموقع",
+      "categorySketches": "الكروكيات",
+      "categoryOther": "مرفقات أخرى",
       "addAttachment": "إضافة مرفق",
       "attachmentAdded": "تم إضافة المرفق بنجاح"
     },
@@ -775,7 +780,9 @@
     "requestNotSelectable": "الطلب غير صالح للربط بمعاينة — يجب أن يخص نفس العميل وغير مربوط بمعاينة وغير منتهٍ",
     "factoryNotAssigned": "لا يمكن الانتقال إلى READY قبل تعيين المصنع والتاريخ المتوقع (شكري)",
     "discountRequestPending": "يوجد طلب خصم معلّق على هذا العرض بالفعل",
-    "inspectionNotAssigned": "هذه المعاينة ليست مُسندة إليك — لا يمكنك التسجيل عليها"
+    "inspectionNotAssigned": "هذه المعاينة ليست مُسندة إليك — لا يمكنك التسجيل عليها",
+    "invalidFileType": "نوع الملف غير مدعوم — يُقبل صور فقط",
+    "fileTooLarge": "حجم الملف أكبر من الحد المسموح (10 ميجابايت)"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",

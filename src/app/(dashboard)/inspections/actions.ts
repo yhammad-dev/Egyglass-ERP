@@ -1,8 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import type { AttachmentCategory } from "@prisma/client";
 import {
   createInspection,
   scheduleInspection,
@@ -173,6 +177,7 @@ export async function getInspectionDetail(id: string) {
         id: a.id,
         fileName: a.fileName,
         filePath: a.filePath,
+        category: a.category,
         createdAt: a.createdAt.toISOString(),
       })),
       measurements,
@@ -253,10 +258,59 @@ export async function deleteMeasurementAction(input: unknown) {
   }
 }
 
+// 1ج (D-36): رفع فعلي — صورة موقع أو كروكي، كلاهما صورة عبر مسار المرفقات،
+// يُميَّزان بـ AttachmentCategory. نفس نمط uploadDrawingAction: يُكتب للقرص ثم صف Attachment.
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
+
+// أمان الرفع: allowlist صريح يستبعد image/svg+xml (ناقل XSS عند العرض المضمّن).
+// النوع والامتداد يُشتقّان من البايتات المُحقَّقة سيرفر-سايد لا من ادعاء العميل.
+const IMAGE_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+// اشتقاق النوع من البصمة السحرية للبايتات (magic bytes) — لا ثقة بـ mimeType العميل
+function sniffImageMime(buf: Buffer): string | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
+    return "image/jpeg";
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  )
+    return "image/png";
+  if (
+    buf.length >= 6 &&
+    buf[0] === 0x47 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x38 &&
+    (buf[4] === 0x37 || buf[4] === 0x39) &&
+    buf[5] === 0x61
+  )
+    return "image/gif";
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  )
+    return "image/webp";
+  return null;
+}
+
 const attachmentSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
-  fileName: z.string().min(1, "errors.required"),
-  filePath: z.string().min(1, "errors.required"),
+  category: z.enum(["SITE_PHOTO", "SKETCH"]),
+  originalName: z.string().min(1, "errors.required"),
+  base64: z.string().min(1, "errors.required"),
 });
 
 export async function addInspectionAttachment(input: unknown) {
@@ -265,10 +319,17 @@ export async function addInspectionAttachment(input: unknown) {
     if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = attachmentSchema.safeParse(input);
-    if (!parsed.success) return { error: "errors.invalidInput" as const };
+    if (!parsed.success) {
+      // مفتاح الخطأ الأول من التحقق (نوع/حجم الملف) يصل للواجهة صريحًا
+      const first = parsed.error.errors[0]?.message ?? "errors.invalidInput";
+      return { error: first as "errors.invalidInput" };
+    }
+
+    const { id, category, originalName, base64 } = parsed.data;
 
     const inspection = await prisma.inspectionRequest.findUnique({
-      where: { id: parsed.data.id },
+      where: { id },
+      select: { id: true, assigneeId: true },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
@@ -276,12 +337,32 @@ export async function addInspectionAttachment(input: unknown) {
     if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
       return { error: "errors.inspectionNotAssigned" as const };
 
+    // فكّ الترميز ثم افرض الحد على البايتات الفعلية (لا على رقم يرسله العميل)
+    const buffer = Buffer.from(base64, "base64");
+    if (buffer.length === 0) return { error: "errors.invalidInput" as const };
+    if (buffer.length > MAX_ATTACHMENT_BYTES)
+      return { error: "errors.fileTooLarge" as const };
+
+    // النوع من البصمة السحرية للمحتوى نفسه — svg وأي شيء غير صورة يُرفض هنا
+    const mimeType = sniffImageMime(buffer);
+    if (!mimeType || !(mimeType in IMAGE_EXT))
+      return { error: "errors.invalidFileType" as const };
+    const ext = IMAGE_EXT[mimeType];
+
+    const filename = `${randomUUID()}.${ext}`;
+    const uploadDir = join(process.cwd(), "public", "uploads", "inspections");
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(join(uploadDir, filename), buffer);
+    const filePath = `/uploads/inspections/${filename}`;
+
     const attachment = await prisma.attachment.create({
       data: {
         parent: "INSPECTION",
-        parentId: parsed.data.id,
-        fileName: parsed.data.fileName,
-        filePath: parsed.data.filePath,
+        parentId: id,
+        category: category as AttachmentCategory,
+        fileName: originalName,
+        filePath,
+        mimeType,
       },
     });
 
@@ -290,8 +371,8 @@ export async function addInspectionAttachment(input: unknown) {
         userId: auth.userId,
         action: "ATTACHMENT_ADDED",
         entity: "InspectionRequest",
-        entityId: parsed.data.id,
-        details: `تم إضافة مرفق: ${parsed.data.fileName}`,
+        entityId: id,
+        details: JSON.stringify({ category, originalName }),
       },
     });
 
@@ -301,6 +382,7 @@ export async function addInspectionAttachment(input: unknown) {
         id: attachment.id,
         fileName: attachment.fileName,
         filePath: attachment.filePath,
+        category: attachment.category,
         createdAt: attachment.createdAt.toISOString(),
       },
     };
