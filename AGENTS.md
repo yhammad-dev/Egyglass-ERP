@@ -6,7 +6,10 @@ If any generated code or cached documentation suggests v16 APIs, ignore it.
 <!-- END:nextjs-agent-rules -->
 
 ---
->اقرأ BACKLOG.md قبل أي مهمة. قسم "قرارات محسومة" مرجع مُلزِم — لا اجتهاد فيه.
+> 🔴 **BACKLOG.md هو المرجع المُلزِم الأوحد (STD-04).** اقرأه قبل أي مهمة — قسم "قرارات محسومة" لا اجتهاد فيه. هذا الملف **مشتقّ منه** — عند أي تعارض، BACKLOG يعلو.
+>
+> - **حالة الـschema (migrations · tags · SCR النافذة):** المرجع النافذ **`CLAUDE.md §7` + `BACKLOG.md`** — لا تُقرأ من هذا الملف (أقسامه أدناه مجمّدة عند Phase 1).
+> - **سلاسل الاعتماد · الأدوار · الخصم:** النافذ في **BACKLOG قرارات محسومة (D-xx)** — لا هنا.
 
 # EgyGlass ERP — Agent Rules (Ground Truth)
 
@@ -81,8 +84,9 @@ Rules:
 - Hiding a UI element is NOT security. The backend must reject non-permitted roles.
 - ActivityLog entry required on every create/update/delete.
 
-## Schema — Phase 1 (FROZEN at `schema-phase1-done`)
-The Prisma schema is the single source of truth. Do NOT edit it (see SCHEMA-CHANGE-REQUESTS.md).
+## Schema — FROZEN (الحالة النافذة: CLAUDE.md §7 + BACKLOG)
+The Prisma schema is the single source of truth. Do NOT edit it — changes go through Youssif on main via a Schema Change Request (`SCHEMA-CHANGE-REQUESTS.md`).
+🔴 **حالة الـschema النافذة (migrations · tags · SCR) في `CLAUDE.md §7`** — القائمة أدناه مجمّدة عند Phase 1 وتاريخية. آخر tag نافذ: `schema-scr018-done` (migration 29). SCR-010→018 غير مذكورة أدناه — راجع CLAUDE.md §7.
 
 **Roles (enum Role) — 14 exact values.** Full authoritative table lives in CLAUDE.md §3 — do not
 duplicate/maintain a separate list here to avoid drift:
@@ -110,7 +114,7 @@ No `QUALITY_REVIEW`. No `INS_MANAGER`/`PRJ_MANAGER`/`INSTALLATION` (singular).
 ## Git
 - No secrets in commits. `.env` is gitignored — verify before every commit.
 - Foundation commit exists: `d109648`. Tag `foundation-done` marks end of Phase A.
-- Phase 1 schema applied in 3 batches. Tag `schema-phase1-done` (`79b488d`) marks the frozen Phase 1 schema. The schema is FROZEN — see SCHEMA-CHANGE-REQUESTS.md. No agent edits the schema; changes go through Youssif on main.
+- 🔴 **حالة الـschema النافذة في `CLAUDE.md §7`** — آخر tag: `schema-scr018-done` (migration 29). Phase 1 (`schema-phase1-done`) كان أول تجميد؛ تلته SCR-010→018. The schema is FROZEN — no agent edits it; changes go through Youssif on main via `SCHEMA-CHANGE-REQUESTS.md`.
 
 ## Dev environment rules
 - Project lives at `E:\Projects\EgyGlass_ERP_New_Build` (local machine — NOT under OneDrive).
@@ -165,45 +169,12 @@ A closed `<Select>` must display the translated label of the selected value, not
 ### 9. Stop at every checkpoint
 After each task, STOP and wait for explicit approval before starting the next. Do not skip ahead. Report with evidence (real build output + confirmation the page loads).
 
+### SCR-010→018 — (تفاصيلها النافذة في CLAUDE.md §7 + BACKLOG)
+🔴 لا تُكرَّر تفاصيل الـschema هنا (تجنّب الانحراف — كما في §Roles).
 
-### SCR-010 — Technical Office Domain (applied 2026-07-07, tag: schema-tec-scr010)
+**قاعدة RBAC ملزِمة باقية (SCR-010، مُنفَّذة):**
+مهندس `TECHNICAL_OFFICE` لا يعتمد رسمته — فعل الاعتماد يفحص `session.role == TEC_APPROVER` خادميًا. `TEC_APPROVER` لا يرث صلاحيات `TECHNICAL_OFFICE`؛ الدوران منفصلان (D-02). الأدوار مجرّدة — لا أسماء أفراد في الschema.
 
-Three additive models on the frozen schema. Migration 20260707125459_tec_scr010.
+**دورة حياة المستخدم:** DEACTIVATE لا DELETE (`isActive=false` + `deletedAt`).
 
-**Models:**
-- `QuotationRequest` (quotation_requests) — TEC job card. Three DISTINCT named
-  User relations: engineer (TecEngineer), salesOwner (TecSalesOwner),
-  inspectionOwner (TecInspectionOwner). 1:1 to Quotation (quotationId @unique)
-  and to InspectionRequest (inspectionRequestId @unique — one inspection → one
-  TEC job). technicalRoute is a DEDICATED field (PROJECTS/SOCIAL_MEDIA), NOT
-  derived from CustomerSource.
-- `Drawing` (drawings) — categorized files, two-state approval
-  (approvedById/approvedAt). Cascade from parent job.
-- `ExtraItem` (extra_items) — post-quotation cost items, routes to PROCUREMENT.
-
-**New enums:** TecJobStatus, TechnicalRoute, DrawingCategory, DrawingFileType,
-ExtraItemType.
-
-**New Role values (Option C — Separation of Duties):**
-- `TECHNICAL_OFFICE` — TEC engineers: create QuotationRequests, upload
-  Drawings, add ExtraItems, re-price quotations.
-- `TEC_APPROVER` — drawing approval ONLY (TEC-13). Distinct from `REVIEW`
-  (Inspection Manager, PRC-11).
-
-**MANDATORY RBAC RULE (enforce server-side in Phase 4):**
-An engineer (TECHNICAL_OFFICE) may NOT approve their own drawings. The
-approve action MUST check session.role == TEC_APPROVER server-side.
-TEC_APPROVER does NOT inherit TECHNICAL_OFFICE privileges — roles are
-distinct; grant both explicitly in User.role if one person needs both.
-Roles are ABSTRACT — no named individuals in schema (Nouran/Amr assigned
-in User table).
-
-**onDelete policy (data-loss protection):**
-- Restrict: Customer, Quotation (block delete while TEC job exists);
-  Drawing.uploadedBy, ExtraItem.createdBy, ExtraItem.manufacturingOrder
-  (audit/cost integrity).
-- SetNull: all User owner FKs on QuotationRequest, Drawing.approvedBy,
-  QuotationRequest.inspectionRequest (job survives deactivation).
-- Cascade: Drawing → QuotationRequest (drawings die with parent job).
-- User lifecycle is DEACTIVATE-not-delete (isActive=false + deletedAt).
-  Restrict FKs never block a legitimate deactivation.
+للتفاصيل الكاملة (النماذج · العلاقات · سياسة onDelete · السلاسل النافذة): **CLAUDE.md §7 + BACKLOG قرارات محسومة**.
