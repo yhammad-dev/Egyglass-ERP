@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getFinanceScope } from "../finance/scope";
 import { createContractCore } from "@/lib/services/contract-core";
+import { notifyRole } from "@/lib/notifications/send";
 
 // R-03: read-only financial visibility, least-privilege scoped by getFinanceScope.
 const ACCOUNTING_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"];
@@ -231,6 +232,11 @@ export async function addPayment(input: unknown) {
       quotation.quotationRequest?.technicalRoute === "SOCIAL_MEDIA" &&
       quotation.reviewStatus === "APPROVED"; // Q1: نهائية التسعير المعتمدة
 
+    // D-39: إشعار الحسابات يُلتقط داخل الـtx ويُرسَل بعد تأكيدها (خارجها) — لا يُلغيها
+    let contractNotify:
+      | { title: string; body: string; type: string; entityId?: string; entityType?: string }
+      | null = null;
+
     await prisma.$transaction(async (tx) => {
       if (shouldAutoCreateContract) {
         const contractResult = await createContractCore(
@@ -242,6 +248,7 @@ export async function addPayment(input: unknown) {
           // يفشل كامل الـ transaction — لا دفعة بلا عقد
           throw new Error(`AUTO_CONTRACT_FAILED:${contractResult.error}`);
         }
+        contractNotify = contractResult.accountingNotify;
         await tx.activityLog.create({
           data: {
             userId: roleCheck.userId,
@@ -276,6 +283,16 @@ export async function addPayment(input: unknown) {
 
       return created;
     });
+
+    // D-39: إشعار الحسابات بعد تأكيد الـtransaction (نمط inspection-measurements:124-137).
+    // نظام الإشعارات بالع أصلًا؛ التحويط دفاع عمق — لا فشل إشعار يمسّ الدفعة/العقد.
+    if (contractNotify) {
+      try {
+        await notifyRole("ACCOUNTING", contractNotify);
+      } catch {
+        // فشل الإشعار لا يوقف عملية (D-39)
+      }
+    }
 
     return { success: true as const };
   } catch (error) {

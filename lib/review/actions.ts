@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
-import { sendNotification } from "../notifications/send";
+import { sendNotification } from "@/lib/notifications/send";
 
 // PHASE 2 (D-03): اعتماد عرض السعر ملك المدير التنفيذي (مدير المكتب الهندسي = TEC_APPROVER).
 // محمد حسام (REVIEW) لا علاقة له بالتسعير — دوره على أمر التصنيع (PHASE 3).

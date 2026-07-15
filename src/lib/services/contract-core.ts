@@ -102,14 +102,20 @@ export async function createContractCore(
     },
   });
 
-  // دفعة د — ACC-R01: الحسابات تُخطَر فور التعاقد (لا تنتظر فتح الشاشة)
-  await notifyRole("ACCOUNTING", {
+  // دفعة د — ACC-R01: الحسابات تُخطَر فور التعاقد (لا تنتظر فتح الشاشة).
+  // D-39: الإشعار **لا يُنفَّذ داخل transaction**. المسار المستقل (createContract، بلا tx)
+  // يُرسله هنا؛ المسار داخل tx (addPayment يمرّر tx) يؤجّله المستدعي لِما بعد تأكيد الـtx
+  // عبر accountingNotify المُعاد — فلا فشل إشعار يُلغي دفعة/عقدًا.
+  const accountingNotify = {
     title: "notifications.contractCreatedTitle",
     body: `عقد جديد — العميل ${quotation.customer.name} · عرض ${quotation.number} · قيمة مجمّدة ${quotation.total.toFixed(2)} جنيه`,
     type: "CONTRACT_CREATED",
     entityId: contract.id,
     entityType: "Contract",
-  });
+  };
+  if (db === prisma) {
+    await notifyRole("ACCOUNTING", accountingNotify);
+  }
 
-  return { success: true as const, contract };
+  return { success: true as const, contract, accountingNotify };
 }

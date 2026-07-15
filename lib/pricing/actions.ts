@@ -6,8 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
-import { sendNotification } from "../notifications/send";
-import { notifyRole } from "@/lib/notifications/send";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import {
   recomputeQuotationRequestStatus,
   recomputeCustomerStage,

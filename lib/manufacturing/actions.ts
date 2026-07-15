@@ -4,8 +4,7 @@ import { z } from "zod";
 import { MfgStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
-import { sendNotification } from "../notifications/send";
-import { notifyRole } from "@/lib/notifications/send";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import { createInstallationOrder } from "../installations/actions";
 
 const MFG_ROLES = ["ADMIN", "PROCUREMENT"];
