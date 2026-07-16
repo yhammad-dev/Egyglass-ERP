@@ -21,7 +21,16 @@ import {
 } from "@/components/ui/select";
 import { updateMfgStatus } from "../../../../lib/manufacturing/actions";
 
-type MfgStatus = "PENDING" | "IN_PRODUCTION" | "READY" | "DELIVERED";
+// BL-124: `UNDER_REVIEW` أُضيفت للنوع والشارة — هي الحالة الوحيدة التي يراها REVIEW،
+// وكانت تُرندَر بشارة undefined. لم تُضَف لـSTATUS_OPTIONS عمدًا: الدخول/الخروج من
+// بوابة المراجعة عبر actions البوابة لا عبر هذا الـSelect (LEGAL_TRANSITIONS).
+type MfgStatus =
+  | "PENDING"
+  | "UNDER_REVIEW"
+  | "REJECTED"
+  | "IN_PRODUCTION"
+  | "READY"
+  | "DELIVERED";
 
 const STATUS_OPTIONS: MfgStatus[] = [
   "PENDING",
@@ -32,6 +41,8 @@ const STATUS_OPTIONS: MfgStatus[] = [
 
 const STATUS_VARIANT: Record<MfgStatus, "default" | "secondary" | "outline" | "destructive"> = {
   PENDING: "outline",
+  UNDER_REVIEW: "secondary",
+  REJECTED: "destructive",
   IN_PRODUCTION: "secondary",
   READY: "default",
   DELIVERED: "default",
@@ -49,12 +60,18 @@ type MfgOrderRow = {
 
 export function ManufacturingClient({
   initialOrders,
+  userRole,
 }: {
   initialOrders: MfgOrderRow[];
+  userRole: string;
 }) {
   const t = useTranslations();
   const [orders, setOrders] = useState<MfgOrderRow[]>(initialOrders);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // BL-124 (نمط BL-119): أداة تغيير الحالة تُخفى عن REVIEW — ليست أداته.
+  // الحارس الحقيقي خادمي (updateMfgStatus بـMFG_ROLES بلا REVIEW) ولم يُمَس.
+  const canChangeStatus = ["ADMIN", "PROCUREMENT"].includes(userRole);
 
   const dateFormat = new Intl.DateTimeFormat("ar-EG", {
     year: "numeric",
@@ -107,26 +124,28 @@ export function ManufacturingClient({
                       <Badge variant={STATUS_VARIANT[order.status]}>
                         {t(`manufacturing.status_${order.status}`)}
                       </Badge>
-                      <Select
-                        value={order.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(order, value as MfgStatus)
-                        }
-                        disabled={updatingId === order.id}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue>
-                            {t(`manufacturing.status_${order.status}`)}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {t(`manufacturing.status_${option}`)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {canChangeStatus && (
+                        <Select
+                          value={order.status}
+                          onValueChange={(value) =>
+                            handleStatusChange(order, value as MfgStatus)
+                          }
+                          disabled={updatingId === order.id}
+                        >
+                          <SelectTrigger className="w-40">
+                            <SelectValue>
+                              {t(`manufacturing.status_${order.status}`)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {t(`manufacturing.status_${option}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

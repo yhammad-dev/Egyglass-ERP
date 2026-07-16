@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { MfgStatus } from "@prisma/client";
+import { MfgStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
@@ -11,10 +11,16 @@ const MFG_ROLES = ["ADMIN", "PROCUREMENT"];
 
 export async function getMfgOrders() {
   try {
-    const roleCheck = await requireRole(MFG_ROLES);
+    // D-41 (BL-113): REVIEW يرى القائمة مفلترة على UNDER_REVIEW فقط (شغله الفعلي — لا
+    // الـ14 أمرًا). ADMIN/PROCUREMENT بلا فلتر. MFG_ROLES يبقى بلا REVIEW (updateMfgStatus).
+    const roleCheck = await requireRole(["ADMIN", "PROCUREMENT", "REVIEW"]);
     if (!roleCheck.authorized) return [];
 
+    const where: Prisma.ManufacturingOrderWhereInput =
+      roleCheck.role === "REVIEW" ? { status: MfgStatus.UNDER_REVIEW } : {};
+
     const orders = await prisma.manufacturingOrder.findMany({
+      where,
       include: {
         quotation: {
           select: {

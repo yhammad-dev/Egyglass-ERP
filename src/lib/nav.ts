@@ -31,6 +31,15 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "PROCUREMENT"],
   },
   {
+    // D-41 (BL-113): REVIEW له مدخل خاص لأوامر التصنيع — القائمة تُفلتر على
+    // UNDER_REVIEW في getMfgOrders. منفصل عن nav.manufacturing (PROCUREMENT/ADMIN).
+    // BL-124: ADMIN مستثنى هنا — يصله المدخل عبر nav.manufacturing (مدخل واحد لا مكرر).
+    labelKey: "nav.manufacturingReview",
+    href: "/manufacturing",
+    icon: "fact_check",
+    roles: ["REVIEW"],
+  },
+  {
     labelKey: "nav.installations",
     href: "/installations",
     icon: "handyman",

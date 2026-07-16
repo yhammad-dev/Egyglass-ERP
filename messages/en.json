@@ -860,6 +860,7 @@
     "technicalOffice": "Technical Office",
     "review": "Review",
     "manufacturing": "Manufacturing",
+    "manufacturingReview": "Review manufacturing orders",
     "installations": "Installations",
     "projects": "Projects",
     "accounting": "Accounting",

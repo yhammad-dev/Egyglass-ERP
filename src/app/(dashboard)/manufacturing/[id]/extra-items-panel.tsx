@@ -57,6 +57,9 @@ export function ExtraItemsPanel({
   const canAdd = ["TECHNICAL_OFFICE", "ADMIN"].includes(userRole);
   const canConfirm = ["INSPECTION_MANAGER", "INSPECTION_REP", "ADMIN"].includes(userRole);
   const canCost = ["PROCUREMENT", "ADMIN"].includes(userRole);
+  // BL-124: الحماية الحقيقية خادمية (page.tsx: unitCost=null لغير PROCUREMENT/ADMIN —
+  // BL-123). هذا الشرط **عرض فقط**: يُخفي عمودًا لا بيانات فيه أصلًا لهذه الأدوار.
+  const showCost = ["PROCUREMENT", "ADMIN"].includes(userRole);
 
   const [type, setType] = useState("");
   const [description, setDescription] = useState("");
@@ -82,7 +85,7 @@ export function ExtraItemsPanel({
     });
     setBusy(null);
     if ("error" in result) {
-      setFormError(t(result.error));
+      setFormError(t(result.error ?? "errors.invalidInput"));
       return;
     }
     toast.success(t("extraItems.added"));
@@ -97,7 +100,7 @@ export function ExtraItemsPanel({
     const result = await confirmExtraItemAction({ id });
     setBusy(null);
     if ("error" in result) {
-      toast.error(t(result.error));
+      toast.error(t(result.error ?? "errors.updateFailed"));
       return;
     }
     toast.success(t("extraItems.confirmed"));
@@ -114,7 +117,7 @@ export function ExtraItemsPanel({
     const result = await setExtraItemCostAction({ id, unitCost: value });
     setBusy(null);
     if ("error" in result) {
-      toast.error(t(result.error));
+      toast.error(t(result.error ?? "errors.updateFailed"));
       return;
     }
     toast.success(t("extraItems.costSaved"));
@@ -132,7 +135,7 @@ export function ExtraItemsPanel({
               <TableHead>{t("extraItems.type")}</TableHead>
               <TableHead>{t("extraItems.description")}</TableHead>
               <TableHead>{t("extraItems.qty")}</TableHead>
-              <TableHead>{t("extraItems.unitCost")}</TableHead>
+              {showCost && <TableHead>{t("extraItems.unitCost")}</TableHead>}
               <TableHead>{t("extraItems.confirmation")}</TableHead>
               <TableHead>{t("app.actions")}</TableHead>
             </TableRow>
@@ -146,11 +149,13 @@ export function ExtraItemsPanel({
                   <TableCell>
                     <span dir="ltr">{item.qty ?? "—"}</span>
                   </TableCell>
-                  <TableCell>
-                    <span dir="ltr" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {item.unitCost !== null ? fmt.format(item.unitCost) : "—"}
-                    </span>
-                  </TableCell>
+                  {showCost && (
+                    <TableCell>
+                      <span dir="ltr" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {item.unitCost !== null ? fmt.format(item.unitCost) : "—"}
+                      </span>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Badge variant={item.confirmedByInspection ? "default" : "secondary"}>
                       {t(
@@ -201,7 +206,7 @@ export function ExtraItemsPanel({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={showCost ? 6 : 5} className="text-center text-muted-foreground">
                   {t("extraItems.empty")}
                 </TableCell>
               </TableRow>
@@ -216,7 +221,7 @@ export function ExtraItemsPanel({
           <div className="flex items-end gap-2 flex-wrap">
             <div className="space-y-1">
               <Label>{t("extraItems.type")}</Label>
-              <Select value={type} onValueChange={setType}>
+              <Select value={type} onValueChange={(value) => setType(value ?? "")}>
                 <SelectTrigger className="w-44">
                   <SelectValue>
                     {type ? t(`extraItems.type_${type}`) : t("extraItems.selectType")}

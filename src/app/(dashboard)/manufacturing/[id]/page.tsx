@@ -26,6 +26,11 @@ export default async function ManufacturingOrderPage(props: {
   const roleCheck = await requireRole(ORDER_VIEW_ROLES);
   if (!roleCheck.authorized) redirect("/dashboard");
 
+  // D-03/BL-123: REVIEW جودة لا تسعير — التكلفة **لا تُرسَل لمتصفحه أصلًا**.
+  // حماية خادمية لا إخفاء عرض (STD-15: الترشيح ليس حارسًا). الدور من الجلسة
+  // (requireRole أعلاه) لا من مُدخل عميل. PROCUREMENT/ADMIN بلا تغيير.
+  const canSeeCost = ["PROCUREMENT", "ADMIN"].includes(roleCheck.role);
+
   const [order, items, factories] = await Promise.all([
     prisma.manufacturingOrder.findUnique({
       where: { id },
@@ -177,7 +182,8 @@ export default async function ManufacturingOrderPage(props: {
           type: i.type,
           description: i.description,
           qty: i.qty?.toNumber() ?? null,
-          unitCost: i.unitCost?.toNumber() ?? null,
+          // BL-123: null لغير PROCUREMENT/ADMIN — الرقم لا يغادر الخادم
+          unitCost: canSeeCost ? (i.unitCost?.toNumber() ?? null) : null,
           confirmedByInspection: i.confirmedByInspection,
           createdByName: i.createdBy.name,
         }))}
