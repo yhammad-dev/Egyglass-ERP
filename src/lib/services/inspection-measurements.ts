@@ -1,4 +1,8 @@
-import { Prisma, type MeasurementUnit } from "@prisma/client";
+import {
+  Prisma,
+  type MeasurementUnit,
+  type InspectionApprovalStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import { recomputeQuotationRequestStatus } from "@/lib/services/status-derivation";
@@ -121,22 +125,10 @@ export async function addMeasurement(
     return row;
   });
 
-  // الإشعارات **بعد** الاشتقاق ومحوَّطة: فشل إشعار لا يجوز أن يمنع صحة حالة الطلب
-  // (قرار يوسف — نمط `services/inspections.ts:208-211` الشقيق).
-  try {
-    // الأثر الجانبي 1 (INS-R05): المقاسات تُخطر المكتب الفني — جاهزة لإعادة التسعير
-    await notifyRole("TECHNICAL_OFFICE", {
-      title: "notifications.measurementsReadyTitle",
-      body: `مقاسات جديدة للعميل ${inspection.customer.name} — جاهزة لإعادة التسعير`,
-      type: "MEASUREMENTS_READY",
-      entityId: inspection.id,
-      entityType: "InspectionRequest",
-    });
-  } catch {
-    // notification failure must not block the operation
-  }
-
-  // الأثر الجانبي 2 (W-02 / SAL-R10): المبيعات تُخطَر دائمًا — مالك العميل، وإلا مدير المبيعات
+  // D-40/D-37 (BL-109): المكتب الفني **لا يُخطَر عند الحفظ** — يُخطَر حصريًا بعد اعتماد
+  // المدير (approveInspection). الحفظ: إشعار المبيعات "للعلم" + تحريك تتبّع الطلب أعلاه.
+  // محوَّطة: فشل إشعار لا يمنع صحة حالة الطلب (D-39، نمط services/inspections.ts).
+  // الأثر الجانبي (W-02 / SAL-R10): المبيعات تُخطَر دائمًا — مالك العميل، وإلا مدير المبيعات
   try {
     if (inspection.customer.ownerId) {
       await sendNotification({
@@ -213,17 +205,22 @@ async function recomputeLinkedRequest(
 /** مالك المعاينة — لحارس BL-105 على الكتابة (REP يكتب على معايناته فقط) */
 export async function getMeasurementAssignee(
   measurementId: string
-): Promise<{ inspectionRequestId: string; assigneeId: string | null } | null> {
+): Promise<{
+  inspectionRequestId: string;
+  assigneeId: string | null;
+  approvalStatus: InspectionApprovalStatus;
+} | null> {
   const row = await prisma.inspectionMeasurement.findUnique({
     where: { id: measurementId },
     select: {
       inspectionRequestId: true,
-      inspectionRequest: { select: { assigneeId: true } },
+      inspectionRequest: { select: { assigneeId: true, approvalStatus: true } },
     },
   });
   if (!row) return null;
   return {
     inspectionRequestId: row.inspectionRequestId,
     assigneeId: row.inspectionRequest.assigneeId,
+    approvalStatus: row.inspectionRequest.approvalStatus,
   };
 }

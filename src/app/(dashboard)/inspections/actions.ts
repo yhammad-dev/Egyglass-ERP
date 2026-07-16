@@ -19,7 +19,7 @@ import {
   getMeasurementAssignee,
   MeasurementError,
 } from "@/lib/services/inspection-measurements";
-import { sendNotification } from "@/lib/notifications/send";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
@@ -181,6 +181,8 @@ export async function getInspectionDetail(id: string) {
         createdAt: a.createdAt.toISOString(),
       })),
       measurements,
+      approvalStatus: inspection.approvalStatus,
+      returnReason: inspection.returnReason,
     };
   } catch (error) {
     console.error("[getInspectionDetail]", error);
@@ -211,13 +213,17 @@ export async function addMeasurementAction(input: unknown) {
 
     const inspection = await prisma.inspectionRequest.findUnique({
       where: { id: parsed.data.inspectionRequestId },
-      select: { id: true, assigneeId: true },
+      select: { id: true, assigneeId: true, approvalStatus: true },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
     // BL-105: فحص الملكية قبل أي كتابة
     if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
       return { error: "errors.inspectionNotAssigned" as const };
+
+    // D-38 (BL-110): بعد اعتماد المدير تُقفَل المقاسات لأي دور
+    if (inspection.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedLocked" as const };
 
     const row = await addMeasurement(parsed.data, auth.userId);
     return { success: true as const, data: row };
@@ -247,6 +253,10 @@ export async function deleteMeasurementAction(input: unknown) {
 
     if (!canWriteOnInspection(auth.role, auth.userId, owner.assigneeId))
       return { error: "errors.inspectionNotAssigned" as const };
+
+    // D-38 (BL-110): بعد اعتماد المدير تُقفَل المقاسات لأي دور
+    if (owner.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedLocked" as const };
 
     await deleteMeasurement(parsed.data.measurementId, auth.userId);
     return { success: true as const };
@@ -329,13 +339,17 @@ export async function addInspectionAttachment(input: unknown) {
 
     const inspection = await prisma.inspectionRequest.findUnique({
       where: { id },
-      select: { id: true, assigneeId: true },
+      select: { id: true, assigneeId: true, approvalStatus: true },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
     // BL-105: فحص الملكية قبل أي كتابة
     if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
       return { error: "errors.inspectionNotAssigned" as const };
+
+    // D-38 (BL-110): بعد اعتماد المدير تُقفَل المرفقات أيضًا لأي دور
+    if (inspection.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedLocked" as const };
 
     // فكّ الترميز ثم افرض الحد على البايتات الفعلية (لا على رقم يرسله العميل)
     const buffer = Buffer.from(base64, "base64");
@@ -428,25 +442,8 @@ export async function updateInspectionStatus(input: unknown) {
       },
     });
 
-    if (parsed.data.status === "DONE") {
-      const technicalOfficeUsers = await prisma.user.findMany({
-        where: { department: "TECHNICAL_OFFICE", isActive: true },
-        select: { id: true },
-      });
-
-      await Promise.all(
-        technicalOfficeUsers.map((user) =>
-          sendNotification({
-            userId: user.id,
-            title: "notifications.inspectionCompletedTitle",
-            body: `تم إكمال معاينة العميل ${inspection.customer.name}`,
-            type: "INSPECTION_COMPLETED",
-            entityId: parsed.data.id,
-            entityType: "InspectionRequest",
-          })
-        )
-      );
-    }
+    // D-40/D-37 (BL-109): DONE **لا يُخطر المكتب الفني** — الإخطار حصريًا عند اعتماد
+    // المدير (approveInspection). DONE هنا حالة تشغيلية للمعاينة، لا بوابة تسليم.
 
     return { success: true as const };
   } catch (error) {
@@ -501,6 +498,198 @@ export async function updateSiteReadiness(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[updateSiteReadiness]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ══ D-40 / BL-109: بوابة اعتماد المعاينة ══════════════════════════════════════
+// بُعد منفصل عن InspectionStatus. REP يسجّل بحرية (DRAFT/RETURNED) ثم يقدّم صراحةً
+// (submitInspectionForApproval — لا انتقال تلقائي عند الحفظ، يحمي من اعتماد ناقص).
+// المدير يعتمد (approveInspection) أو يُرجع (returnInspection). المكتب الفني يُخطَر
+// **حصريًا عند APPROVED** (D-37). المقاسات تُقفَل بعد APPROVED (D-38).
+
+const inspectionApprovalIdSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+});
+
+export async function submitInspectionForApproval(input: unknown) {
+  try {
+    const auth = await requireRole(ALLOWED_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = inspectionApprovalIdSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const inspection = await prisma.inspectionRequest.findUnique({
+      where: { id: parsed.data.id },
+      select: { id: true, assigneeId: true, approvalStatus: true },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // BL-105: REP يقدّم معايناته فقط
+    if (!canWriteOnInspection(auth.role, auth.userId, inspection.assigneeId))
+      return { error: "errors.inspectionNotAssigned" as const };
+
+    // حارس البوابة: DRAFT/RETURNED فقط (لا PENDING مكرر، لا APPROVED نهائي)
+    if (
+      inspection.approvalStatus !== "DRAFT" &&
+      inspection.approvalStatus !== "RETURNED"
+    )
+      return { error: "errors.inspectionNotSubmittable" as const };
+
+    // D-40: لا تقديم بلا مقاس واحد على الأقل (لا معاينة فارغة للاعتماد)
+    const measurementCount = await prisma.inspectionMeasurement.count({
+      where: { inspectionRequestId: parsed.data.id },
+    });
+    if (measurementCount === 0)
+      return { error: "errors.inspectionNoMeasurements" as const };
+
+    await prisma.inspectionRequest.update({
+      where: { id: parsed.data.id },
+      data: { approvalStatus: "PENDING_APPROVAL" },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "INSPECTION_SUBMITTED_FOR_APPROVAL",
+        entity: "InspectionRequest",
+        entityId: parsed.data.id,
+        details: "قُدّمت المعاينة لاعتماد المدير",
+      },
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[submitInspectionForApproval]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+export async function approveInspection(input: unknown) {
+  try {
+    const auth = await requireRole(MANAGER_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = inspectionApprovalIdSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const inspection = await prisma.inspectionRequest.findUnique({
+      where: { id: parsed.data.id },
+      select: {
+        id: true,
+        approvalStatus: true,
+        customer: { select: { name: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // حارس: لا يُعتمد إلا PENDING_APPROVAL (لا DRAFT، لا RETURNED، لا APPROVED ثانية)
+    if (inspection.approvalStatus !== "PENDING_APPROVAL")
+      return { error: "errors.inspectionNotPending" as const };
+
+    await prisma.inspectionRequest.update({
+      where: { id: parsed.data.id },
+      data: {
+        approvalStatus: "APPROVED",
+        approvedById: auth.userId,
+        approvedAt: new Date(),
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "INSPECTION_APPROVED",
+        entity: "InspectionRequest",
+        entityId: parsed.data.id,
+        details: `اعتمد المدير معاينة العميل ${inspection.customer.name}`,
+      },
+    });
+
+    // D-37: المكتب الفني يُخطَر **الآن فقط** (بعد الاعتماد) — جاهزة لإعادة التسعير
+    await notifyRole("TECHNICAL_OFFICE", {
+      title: "notifications.measurementsReadyTitle",
+      body: `مقاسات معتمدة للعميل ${inspection.customer.name} — جاهزة لإعادة التسعير`,
+      type: "MEASUREMENTS_READY",
+      entityId: parsed.data.id,
+      entityType: "InspectionRequest",
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[approveInspection]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+const returnInspectionSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  reason: z.string().trim().min(1, "errors.returnReasonRequired"),
+});
+
+export async function returnInspection(input: unknown) {
+  try {
+    const auth = await requireRole(MANAGER_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = returnInspectionSchema.safeParse(input);
+    if (!parsed.success)
+      return {
+        error:
+          parsed.error.flatten().fieldErrors.reason?.[0] ??
+          ("errors.invalidInput" as const),
+      };
+
+    const inspection = await prisma.inspectionRequest.findUnique({
+      where: { id: parsed.data.id },
+      select: {
+        id: true,
+        approvalStatus: true,
+        assigneeId: true,
+        customer: { select: { name: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // حارس: لا يُرجَع إلا PENDING_APPROVAL
+    if (inspection.approvalStatus !== "PENDING_APPROVAL")
+      return { error: "errors.inspectionNotPending" as const };
+
+    await prisma.inspectionRequest.update({
+      where: { id: parsed.data.id },
+      data: {
+        approvalStatus: "RETURNED",
+        // D-40/D-30: returnReason يبقى أثرًا — لا يُمسح عند إعادة التقديم
+        returnReason: parsed.data.reason,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "INSPECTION_RETURNED",
+        entity: "InspectionRequest",
+        entityId: parsed.data.id,
+        details: `أرجع المدير المعاينة للتصحيح — السبب: ${parsed.data.reason}`,
+      },
+    });
+
+    // إشعار REP المُسنَد بالسبب (إن وُجد مُسنَد) — نظام الإشعارات بالع (D-39)
+    if (inspection.assigneeId) {
+      await sendNotification({
+        userId: inspection.assigneeId,
+        title: "notifications.inspectionReturnedTitle",
+        body: `أُرجعت معاينة العميل ${inspection.customer.name} للتصحيح — السبب: ${parsed.data.reason}`,
+        type: "INSPECTION_RETURNED",
+        entityId: parsed.data.id,
+        entityType: "InspectionRequest",
+      });
+    }
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[returnInspection]", error);
     return { error: "errors.serverError" as const };
   }
 }

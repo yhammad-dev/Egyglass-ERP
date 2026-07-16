@@ -157,6 +157,7 @@
     "lowFactorApprovalTitle": "طلب موافقة على فاكتور منخفض",
     "newInspectionTitle": "طلب معاينة جديد",
     "inspectionByColleagueTitle": "زميل طلب معاينة لعميلك",
+    "inspectionReturnedTitle": "أُرجعت المعاينة للتصحيح",
     "inspectionScheduledTitle": "تم جدولة معاينة",
     "stageInspectionTitle": "نقل إلى مرحلة المعاينة",
     "stagePricedTitle": "نقل إلى مرحلة التسعير",
@@ -669,7 +670,24 @@
     "siteReady": "الموقع جاهز",
     "siteNotReady": "الموقع غير جاهز",
     "siteReadinessUnknown": "لم يُحدَّد",
-    "siteReadinessUpdated": "تم تحديث جاهزية الموقع"
+    "siteReadinessUpdated": "تم تحديث جاهزية الموقع",
+    "approval": {
+      "title": "اعتماد المعاينة",
+      "status_DRAFT": "مسودّة",
+      "status_PENDING_APPROVAL": "بانتظار الاعتماد",
+      "status_APPROVED": "معتمَدة",
+      "status_RETURNED": "مُرجَعة للتصحيح",
+      "returnedReason": "سبب الإرجاع",
+      "submit": "قدّم للاعتماد",
+      "needMeasurement": "أضِف مقاسًا واحدًا على الأقل قبل التقديم",
+      "approve": "اعتماد",
+      "return": "إرجاع",
+      "reasonPlaceholder": "سبب الإرجاع (إلزامي)",
+      "confirmReturn": "تأكيد الإرجاع",
+      "submitted": "قُدّمت المعاينة لاعتماد المدير",
+      "approved": "تم اعتماد المعاينة",
+      "returned": "تم إرجاع المعاينة للتصحيح"
+    }
   },
   "users": {
     "title": "المستخدمين",
@@ -782,7 +800,12 @@
     "discountRequestPending": "يوجد طلب خصم معلّق على هذا العرض بالفعل",
     "inspectionNotAssigned": "هذه المعاينة ليست مُسندة إليك — لا يمكنك التسجيل عليها",
     "invalidFileType": "نوع الملف غير مدعوم — يُقبل صور فقط",
-    "fileTooLarge": "حجم الملف أكبر من الحد المسموح (10 ميجابايت)"
+    "fileTooLarge": "حجم الملف أكبر من الحد المسموح (10 ميجابايت)",
+    "inspectionApprovedLocked": "المعاينة معتمَدة — لا يمكن تعديل أو حذف المقاسات بعد الاعتماد",
+    "inspectionNotSubmittable": "لا يمكن تقديم المعاينة في حالتها الحالية",
+    "inspectionNoMeasurements": "لا يمكن تقديم معاينة بلا مقاسات — أضِف مقاسًا واحدًا على الأقل",
+    "inspectionNotPending": "المعاينة ليست بانتظار الاعتماد",
+    "returnReasonRequired": "سبب الإرجاع مطلوب"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",

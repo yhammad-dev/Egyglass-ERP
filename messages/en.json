@@ -158,6 +158,7 @@
     "lowFactorApprovalTitle": "Low Factor Approval Requested",
     "newInspectionTitle": "New Inspection Request",
     "inspectionByColleagueTitle": "A colleague requested an inspection for your customer",
+    "inspectionReturnedTitle": "Inspection returned for correction",
     "inspectionScheduledTitle": "Inspection Scheduled",
     "stageInspectionTitle": "Moved to Inspection Stage",
     "stagePricedTitle": "Moved to Pricing Stage",
@@ -670,7 +671,24 @@
     "siteReady": "Site Ready",
     "siteNotReady": "Site Not Ready",
     "siteReadinessUnknown": "Not Determined",
-    "siteReadinessUpdated": "Site readiness updated"
+    "siteReadinessUpdated": "Site readiness updated",
+    "approval": {
+      "title": "Inspection approval",
+      "status_DRAFT": "Draft",
+      "status_PENDING_APPROVAL": "Pending approval",
+      "status_APPROVED": "Approved",
+      "status_RETURNED": "Returned for correction",
+      "returnedReason": "Return reason",
+      "submit": "Submit for approval",
+      "needMeasurement": "Add at least one measurement before submitting",
+      "approve": "Approve",
+      "return": "Return",
+      "reasonPlaceholder": "Return reason (required)",
+      "confirmReturn": "Confirm return",
+      "submitted": "Inspection submitted for manager approval",
+      "approved": "Inspection approved",
+      "returned": "Inspection returned for correction"
+    }
   },
   "users": {
     "title": "Users",
@@ -783,7 +801,12 @@
     "discountRequestPending": "A discount request is already pending on this quotation",
     "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it",
     "invalidFileType": "Unsupported file type — images only",
-    "fileTooLarge": "File exceeds the maximum allowed size (10MB)"
+    "fileTooLarge": "File exceeds the maximum allowed size (10MB)",
+    "inspectionApprovedLocked": "Inspection is approved — measurements cannot be edited or deleted after approval",
+    "inspectionNotSubmittable": "The inspection cannot be submitted in its current state",
+    "inspectionNoMeasurements": "Cannot submit an inspection with no measurements — add at least one",
+    "inspectionNotPending": "The inspection is not pending approval",
+    "returnReasonRequired": "Return reason is required"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

@@ -21,6 +21,9 @@ import {
   addInspectionAttachment,
   updateInspectionStatus,
   updateSiteReadiness,
+  submitInspectionForApproval,
+  approveInspection,
+  returnInspection,
 } from "../actions";
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
@@ -28,6 +31,17 @@ import type { MeasurementRow } from "@/lib/services/inspection-measurements";
 type InspectionStatus = "REQUESTED" | "SCHEDULED" | "DONE" | "OVERDUE";
 
 const STATUS_OPTIONS: InspectionStatus[] = ["REQUESTED", "SCHEDULED", "DONE", "OVERDUE"];
+
+// D-40/BL-109: تلوين شارة حالة اعتماد المعاينة
+const APPROVAL_BADGE: Record<
+  string,
+  "default" | "secondary" | "outline" | "destructive"
+> = {
+  DRAFT: "outline",
+  PENDING_APPROVAL: "secondary",
+  APPROVED: "default",
+  RETURNED: "destructive",
+};
 
 // 1ب (BL-81): وحدات المقاس المهيكل
 const UNITS = ["SQM", "CBM"] as const;
@@ -54,6 +68,8 @@ type InspectionDetail = {
     createdAt: string;
   }[];
   measurements: MeasurementRow[];
+  approvalStatus: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "RETURNED";
+  returnReason: string | null;
 };
 
 export function InspectionDetailClient({
@@ -86,6 +102,55 @@ export function InspectionDetailClient({
     }
     setSiteReadiness(value);
     toast.success(t("inspections.siteReadinessUpdated"));
+  }
+
+  // ── D-40/BL-109: بوابة اعتماد المعاينة ──
+  const [submitting, setSubmitting] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [returning, setReturning] = useState(false);
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnReasonInput, setReturnReasonInput] = useState("");
+
+  async function handleSubmitForApproval() {
+    setSubmitting(true);
+    const res = await submitInspectionForApproval({ id: inspection.id });
+    setSubmitting(false);
+    if ("error" in res) {
+      toast.error(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    setInspection((prev) => ({ ...prev, approvalStatus: "PENDING_APPROVAL" }));
+    toast.success(t("inspections.approval.submitted"));
+  }
+
+  async function handleApprove() {
+    setApproving(true);
+    const res = await approveInspection({ id: inspection.id });
+    setApproving(false);
+    if ("error" in res) {
+      toast.error(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    setInspection((prev) => ({ ...prev, approvalStatus: "APPROVED" }));
+    toast.success(t("inspections.approval.approved"));
+  }
+
+  async function handleReturn() {
+    setReturning(true);
+    const res = await returnInspection({ id: inspection.id, reason: returnReasonInput });
+    setReturning(false);
+    if ("error" in res) {
+      toast.error(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    setInspection((prev) => ({
+      ...prev,
+      approvalStatus: "RETURNED",
+      returnReason: returnReasonInput,
+    }));
+    setShowReturn(false);
+    setReturnReasonInput("");
+    toast.success(t("inspections.approval.returned"));
   }
 
   const [descriptionInput, setDescriptionInput] = useState("");
@@ -293,6 +358,83 @@ export function InspectionDetailClient({
           <p className="text-sm">{inspection.notes}</p>
         </div>
       )}
+
+      {/* ── D-40/BL-109: بوابة اعتماد المعاينة ── */}
+      <div className="max-w-xl space-y-3 rounded-md border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Label>{t("inspections.approval.title")}</Label>
+          <Badge variant={APPROVAL_BADGE[inspection.approvalStatus] ?? "outline"}>
+            {t(`inspections.approval.status_${inspection.approvalStatus}`)}
+          </Badge>
+        </div>
+
+        {inspection.approvalStatus === "RETURNED" && inspection.returnReason && (
+          <p className="text-sm text-destructive">
+            {t("inspections.approval.returnedReason")}: {inspection.returnReason}
+          </p>
+        )}
+
+        {(inspection.approvalStatus === "DRAFT" ||
+          inspection.approvalStatus === "RETURNED") && (
+          <div className="space-y-1">
+            <Button
+              type="button"
+              size="sm"
+              disabled={submitting || inspection.measurements.length === 0}
+              onClick={handleSubmitForApproval}
+            >
+              {t("inspections.approval.submit")}
+            </Button>
+            {inspection.measurements.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t("inspections.approval.needMeasurement")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {canManage && inspection.approvalStatus === "PENDING_APPROVAL" && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={approving || returning}
+                onClick={handleApprove}
+              >
+                {t("inspections.approval.approve")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={approving || returning}
+                onClick={() => setShowReturn((v) => !v)}
+              >
+                {t("inspections.approval.return")}
+              </Button>
+            </div>
+            {showReturn && (
+              <div className="space-y-2">
+                <Textarea
+                  value={returnReasonInput}
+                  onChange={(e) => setReturnReasonInput(e.target.value)}
+                  placeholder={t("inspections.approval.reasonPlaceholder")}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={returning || returnReasonInput.trim().length === 0}
+                  onClick={handleReturn}
+                >
+                  {t("inspections.approval.confirmReturn")}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {canManage && (
         <div className="space-y-2 max-w-xs">
