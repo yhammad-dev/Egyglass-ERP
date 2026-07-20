@@ -12,6 +12,13 @@ If any generated code or cached documentation suggests v16 APIs, ignore it.
 > - **سلاسل الاعتماد · الأدوار · الخصم:** النافذ في **BACKLOG قرارات محسومة (D-xx)** — لا هنا.
 > - **الأرشيف (`archive/`, `docs/reference/`):** ملفات تاريخية ملغاة أو بيانات مرجعية — **لا تُقرأ ولا تُفهرَس إلا إذا طُلب صراحة بالاسم**.
 
+## أدوات جاهزة — لا تعيد اختراعها
+- `/preflight` — بوابة ما قبل UAT: يفحص الكل، PASS/FAIL بالدليل، مايغيّرش حاجة.
+- `/money-audit` — تدقيق Decimal/VAT/الخصومات/العقود.
+- `/rbac-audit` — تدقيق الصلاحيات وسلسلة الاعتماد.
+- `/dead-schema` — يلاقي أعمدة/enums ميتة في الـ schema.
+- 7 subagents متخصصين (قراءة فقط) بيتفعّلوا تلقائيًا حسب السياق — سقف 3 في نفس الوقت (STD-18).
+
 # EgyGlass ERP — Agent Rules (Ground Truth)
 
 ## Stack (verified)
