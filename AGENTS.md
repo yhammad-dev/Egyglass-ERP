@@ -10,6 +10,7 @@ If any generated code or cached documentation suggests v16 APIs, ignore it.
 >
 > - **حالة الـschema (migrations · tags · SCR النافذة):** المرجع النافذ **`CLAUDE.md §7` + `BACKLOG.md`** — لا تُقرأ من هذا الملف (أقسامه أدناه مجمّدة عند Phase 1).
 > - **سلاسل الاعتماد · الأدوار · الخصم:** النافذ في **BACKLOG قرارات محسومة (D-xx)** — لا هنا.
+> - **الأرشيف (`archive/`, `docs/reference/`):** ملفات تاريخية ملغاة أو بيانات مرجعية — **لا تُقرأ ولا تُفهرَس إلا إذا طُلب صراحة بالاسم**.
 
 # EgyGlass ERP — Agent Rules (Ground Truth)
 
