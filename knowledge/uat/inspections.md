@@ -36,7 +36,7 @@ ready_for_uat: YES
 ## Screen 2 — Inspection detail
 - Schedule (scheduledAt + assignee), record measurements (width>0, height>0, notes), add attachment (fileName, filePath), change status.
 - **Validation:** `measurementsSchema` width/height `positive()`; `scheduleSchema` all required.
-- Measurements stored as `ActivityLog` MEASUREMENTS_RECORDED entries (rendered from log JSON).
+- Measurements stored as structured rows in `InspectionMeasurement` (description, width, height, unit, quantity) — see BL-81/SCR-018. The old ActivityLog-text path was fully removed.
 
 ## Missing features
 - SLA/OVERDUE is a status value; verify an automated job flips REQUESTED/SCHEDULED→OVERDUE past `dueDate` (recent commit d6c6161 mentions "OVERDUE inspections" — verify).
