@@ -19,6 +19,22 @@ export interface CreateStatementInput {
   notes?: string;
 }
 
+/**
+ * ⚠️ حاجز أمان احترازي مؤقت — وليس الحل النهائي.
+ * السلوك الصحيح للمستخلصات (هل كل مستخلص نسبة تراكمية تعوّض السابق، أم نسبة إضافية
+ * فوق آخر مستخلص؟) قرار عمل غير محسوم بعد. حتى يُحسم: نمنع فقط الحالة المستحيلة
+ * منطقيًا في أي تفسير — تجاوز إجمالي إنجاز العقد لـ 100%.
+ * الدالة نقية (بلا DB) عمدًا حتى تُختبر مباشرة.
+ */
+export function assertProgressWithinContractCap(
+  issuedPctSum: Prisma.Decimal,
+  newProgressPct: Prisma.Decimal
+) {
+  if (issuedPctSum.add(newProgressPct).gt(100)) {
+    throw new StatementError("errors.statementProgressExceeds100");
+  }
+}
+
 /** ينشئ مستخلص DRAFT — القيمة تُحسب Decimal من snapshot العقد، وتُجمَّد نهائيًا عند الإصدار */
 export async function createStatement(input: CreateStatementInput, actorId: string) {
   const contract = await prisma.contract.findUnique({
@@ -29,6 +45,16 @@ export async function createStatement(input: CreateStatementInput, actorId: stri
   if (!contract.totalValue) throw new StatementError("errors.contractValueMissing");
 
   const progressPct = new D(String(input.progressPct));
+
+  // مجموع نسب المستخلصات الصادرة فعلًا على نفس العقد.
+  // PAID مشمولة: المدفوع صدر بالضرورة، واستبعاده يفتح الثغرة من جديد على عقد مكتمل.
+  const issuedAgg = await prisma.progressStatement.aggregate({
+    where: { contractId: input.contractId, status: { in: ["ISSUED", "PAID"] } },
+    _sum: { progressPct: true },
+  });
+  const issuedPctSum = issuedAgg._sum.progressPct ?? new D(0);
+  assertProgressWithinContractCap(issuedPctSum, progressPct);
+
   const statementValue = contract.totalValue.mul(progressPct).div(100);
 
   const statement = await prisma.progressStatement.create({

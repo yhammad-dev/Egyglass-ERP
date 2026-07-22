@@ -751,6 +751,7 @@
     "discountExceedsMax": "Discount exceeds the maximum allowed",
     "discountMaxBelowBase": "The maximum must not be lower than the base threshold",
     "statementNotDraft": "Statement is not a draft — it cannot be issued",
+    "statementProgressExceeds100": "Issued statements on this contract plus this percentage exceed 100% — review the previous statements",
     "invoiceNotDraft": "Invoice is not a draft — it cannot be issued",
     "invoiceNotIssued": "Invoice is not issued — it cannot be cancelled",
     "cancelReasonRequired": "Cancellation reason is required",
