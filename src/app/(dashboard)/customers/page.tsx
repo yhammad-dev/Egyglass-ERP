@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { requireRole } from "@/lib/rbac";
-import { redirect } from "next/navigation";
+import { Unauthorized } from "@/components/unauthorized";
 import { getCustomers, getSalesReps } from "@/lib/services/customers";
 import { CustomersClient } from "./customers-client";
 
@@ -11,7 +11,7 @@ export default async function CustomersPage() {
     "SALES_REP",
     "VIEWER",
   ]);
-  if (!roleCheck.authorized) redirect("/dashboard");
+  if (!roleCheck.authorized) return <Unauthorized />;
 
   const [customers, salesReps] = await Promise.all([
     getCustomers(roleCheck.userId, roleCheck.role),

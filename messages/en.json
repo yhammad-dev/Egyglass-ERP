@@ -777,6 +777,8 @@
     "passwordMinLength8": "Password must be at least 8 characters",
     "passwordComplexity": "Password must include at least 3 of: uppercase, lowercase, digits, symbols",
     "notAuthorized": "Not authorized",
+    "notAuthorizedBody": "You do not have permission to access this page with your current role.",
+    "backToDashboard": "Back to dashboard",
     "emailAlreadyUsed": "This email is already in use",
     "lastActiveAdmin": "Cannot complete this operation — at least one active admin must remain.",
     "createFailed": "An error occurred while creating the user",

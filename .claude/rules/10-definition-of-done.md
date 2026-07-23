@@ -7,9 +7,15 @@ An unchecked box is not a formality. It is an unshipped defect.
 
 ## The gate
 
-- [ ] **Build GREEN**
+- [ ] **Build GREEN**      
       `docker compose exec app npm run build`
       → paste the last 10 lines of real output.
+      ⚠️ This does NOT verify types — Next.js skips type validation during
+      build ("Skipping validation of types"). See next line.
+
+- [ ] **Types verified**
+      `docker compose exec app npx tsc --noEmit`
+      → paste the last 10 lines, or confirm zero errors.
 
 - [ ] **Runtime verified**
       The affected page returns **HTTP 200** in a real authenticated session,

@@ -6,10 +6,28 @@ export interface NavItem {
 }
 
 export const navRegistry: NavItem[] = [
+  // dashboard بلا roles عمدًا — نقطة الرجوع الافتراضية لكل الأدوار (BL-136).
   { labelKey: "nav.dashboard", href: "/dashboard", icon: "dashboard" },
-  { labelKey: "nav.customers", href: "/customers", icon: "people" },
-  { labelKey: "nav.quotations", href: "/quotations", icon: "receipt" },
-  { labelKey: "nav.inspections", href: "/inspections", icon: "search" },
+  // BL-136: roles مطابقة لـrequireRole في كل page.tsx (مقروءة من الكود) —
+  // الرابط يختفي من القائمة للدور غير المصرَّح (getNavItems).
+  {
+    labelKey: "nav.customers",
+    href: "/customers",
+    icon: "people",
+    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
+  },
+  {
+    labelKey: "nav.quotations",
+    href: "/quotations",
+    icon: "receipt",
+    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
+  },
+  {
+    labelKey: "nav.inspections",
+    href: "/inspections",
+    icon: "search",
+    roles: ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"],
+  },
   {
     labelKey: "nav.technicalOffice",
     href: "/technical-office",
@@ -63,7 +81,7 @@ export const navRegistry: NavItem[] = [
     labelKey: "nav.accounting",
     href: "/accounting",
     icon: "payments",
-    roles: ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"],
+    roles: ["ADMIN", "ACCOUNTING", "PROJECTS"],
   },
   // دفعة هـ (سد انقطاع #2): المستخلصات والفواتير كانتا شاشتين بلا مدخل قائمة
   {

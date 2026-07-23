@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 import { notFound, redirect } from "next/navigation";
-import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getPricingFactors, getProductTypes } from "../../../../../../lib/pricing/actions";
@@ -11,16 +10,11 @@ export default async function EditQuotationPage(props: {
 }) {
   const { id } = await props.params;
 
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
+  // BL-127 (W-01): الحارس = PRICING_ROLES بالضبط. SALES_REP أُزيل (يطلب لا يسعّر)،
+  // و TECHNICAL_OFFICE/TEC_APPROVER أُضيفا — كانا محجوبين عن التعديل رغم أن
+  // updateQuotation (المستدعى من QuotationBuilder) محروس بـPRICING_ROLES التي تشملهما.
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
-
-  const customerWhere: Prisma.CustomerWhereInput = { deletedAt: null };
-  if (roleCheck.role === "SALES_REP") {
-    customerWhere.OR = [
-      { ownerId: roleCheck.userId },
-      { coveredById: roleCheck.userId },
-    ];
-  }
 
   const [quotation, customers, productTypes, pricingFactors] = await Promise.all([
     prisma.quotation.findUnique({
@@ -28,7 +22,7 @@ export default async function EditQuotationPage(props: {
       include: { items: true },
     }),
     prisma.customer.findMany({
-      where: customerWhere,
+      where: { deletedAt: null },
       select: { id: true, name: true, phone: true },
       orderBy: { name: "asc" },
     }),

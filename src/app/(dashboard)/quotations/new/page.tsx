@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
-import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getSystemSettings } from "@/lib/config";
@@ -10,22 +9,17 @@ import { QuotationBuilder } from "./_components/quotation-builder";
 export default async function NewQuotationPage(props: {
   searchParams: Promise<{ customerId?: string; requestId?: string }>;
 }) {
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "REVIEW"]);
+  // BL-127 (D-03/W-01): الحارس = PRICING_ROLES بالضبط (lib/pricing/actions.ts:17).
+  // REVIEW أُزيل — رقابة وجودة لا تسعير، وكل طفرات التسعير تستبعده أصلًا (حارس يتيم).
+  // المصفوفة صريحة لأن PRICING_ROLES يستحيل تصديره: الملف "use server" ⇒ لا يُصدَّر إلا async.
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/customers");
 
   const { customerId, requestId } = await props.searchParams;
 
-  const customerWhere: Prisma.CustomerWhereInput = { deletedAt: null };
-  if (roleCheck.role === "SALES_REP") {
-    customerWhere.OR = [
-      { ownerId: roleCheck.userId },
-      { coveredById: roleCheck.userId },
-    ];
-  }
-
   const [customers, productTypes, pricingFactors, settings] = await Promise.all([
     prisma.customer.findMany({
-      where: customerWhere,
+      where: { deletedAt: null },
       select: { id: true, name: true, phone: true },
       orderBy: { name: "asc" },
     }),

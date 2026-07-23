@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
@@ -15,6 +16,42 @@ import {
 // دفعة هـ (W-01): التسعير للمكتب الفني حصرًا. المندوب يطلب لا يسعّر.
 // SALES_MANAGER يبقى (إشراف/حالات مباشرة) — SALES_REP سُحب.
 const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
+
+// BL-127 (يوسف، 2026-07-17): قرّاء التسعير كانوا بلا حارس — أرقام التكلفة التجارية
+// (PricingFactor.value) تصل أي مستدعٍ مُصادَق (AUTHZ-002). الحارس الآن = PRICING_ROLES نفسها.
+// شكل الرفض = [] (لا خطأ صريح): نفس شكل فشل الـDB القائم في هذه القرّاء ⇒ لا يكسر .map
+// في المستدعين، ومتسق مع D-39 (بالع + سجّل).
+//
+// التسجيل **للمُصادَق فقط**: أكشن "use server" قابل للاستدعاء بـPOST من مجهول يملك
+// action ID، فكتابة صف عند كل رفض تفتح إغراق ActivityLog (DoS/تلويث الأثر). المجهول
+// يُسجَّل console فقط، بلا صف DB.
+//
+// auth() تُستدعى هنا لأن requireRole لا يُرجع هوية عند الرفض (rbac.ts:17 = {authorized:false}).
+// التسجيل نفسه محوَّط: فشله لا يمنع الإرجاع أبدًا.
+async function logPricingReadDenied(reader: string): Promise<void> {
+  try {
+    const session = await auth();
+    const actorId = session?.user?.id as string | undefined;
+    const actorRole = (session?.user?.role as string | undefined) ?? "ANONYMOUS";
+
+    if (!actorId) {
+      console.error(`[pricing] PRICING_READ_DENIED ${reader} — مجهول (بلا جلسة)`);
+      return;
+    }
+
+    await prisma.activityLog.create({
+      data: {
+        userId: actorId,
+        action: "PRICING_READ_DENIED",
+        entity: "Pricing",
+        entityId: reader,
+        details: `[تحذير آلي] رفض قراءة تسعير (${reader}) — الدور: ${actorRole}`,
+      },
+    });
+  } catch {
+    // آخر خط دفاع — التسجيل لا يجوز أن يرمي (وإلا حوّل رفضًا صامتًا إلى انهيار)
+  }
+}
 // RR-2: the low-factor floor is no longer hardcoded. It is read from
 // SystemSettings.factorMinimum (SCR-008) and enforced server-side below.
 const FACTOR_MINIMUM_FALLBACK = 1.5;
@@ -27,6 +64,12 @@ const toDec = (n: number) => new D(String(n));
 
 export async function getProductRecipes(productTypeId: string) {
   try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) {
+      await logPricingReadDenied("getProductRecipes");
+      return [];
+    }
+
     return await prisma.productRecipe.findMany({
       where: { productTypeId },
       include: { Material: true },
@@ -39,6 +82,12 @@ export async function getProductRecipes(productTypeId: string) {
 
 export async function getPricingFactors() {
   try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) {
+      await logPricingReadDenied("getPricingFactors");
+      return [];
+    }
+
     return await prisma.pricingFactor.findMany({
       where: { isActive: true },
       orderBy: { label: "asc" },
@@ -51,6 +100,12 @@ export async function getPricingFactors() {
 
 export async function getConfigTypes(productTypeId: string) {
   try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) {
+      await logPricingReadDenied("getConfigTypes");
+      return [];
+    }
+
     return await prisma.configType.findMany({
       where: { productTypeId },
       orderBy: { nameAr: "asc" },
@@ -63,6 +118,14 @@ export async function getConfigTypes(productTypeId: string) {
 
 export async function getConfigTypeOptions(productTypeId: string) {
   try {
+    // نقطة الدخول من الكلاينت (product-section.tsx:52) — الحارس هنا هو النافذ.
+    // getConfigTypes الداخلية محروسة أيضًا (دفاع بالعمق)؛ الرفض يخرج من هنا قبلها.
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) {
+      await logPricingReadDenied("getConfigTypeOptions");
+      return [];
+    }
+
     const configTypes = await getConfigTypes(productTypeId);
     return configTypes.map((c) => ({ id: c.id, nameAr: c.nameAr }));
   } catch (error) {
@@ -85,6 +148,12 @@ const QUOTATION_PRODUCT_TYPE_CODES = [
 
 export async function getProductTypes() {
   try {
+    const roleCheck = await requireRole(PRICING_ROLES);
+    if (!roleCheck.authorized) {
+      await logPricingReadDenied("getProductTypes");
+      return [];
+    }
+
     return await prisma.productType.findMany({
       where: { code: { in: QUOTATION_PRODUCT_TYPE_CODES }, isActive: true },
       select: { id: true, code: true, nameAr: true },

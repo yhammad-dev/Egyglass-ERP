@@ -10,7 +10,7 @@ import { allocateMilestoneAmounts, validateMilestonesSum } from "./engine";
 const D = Prisma.Decimal;
 
 // R-03 alignment: same read/write split as lib/accounting/actions.ts.
-const FINANCE_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"];
+const FINANCE_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS"];
 const FINANCE_WRITE_ROLES = ["ADMIN", "ACCOUNTING"];
 
 // ─── savePaymentPlan — replace the contract's planned milestones ─────────────

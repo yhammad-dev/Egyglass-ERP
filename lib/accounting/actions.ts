@@ -9,7 +9,7 @@ import { createContractCore } from "@/lib/services/contract-core";
 import { notifyRole } from "@/lib/notifications/send";
 
 // R-03: read-only financial visibility, least-privilege scoped by getFinanceScope.
-const ACCOUNTING_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS", "TECHNICAL_OFFICE"];
+const ACCOUNTING_READ_ROLES = ["ADMIN", "ACCOUNTING", "PROJECTS"];
 // Writes (recording payments) stay accounting-only — R-03 only expands reads.
 const ACCOUNTING_WRITE_ROLES = ["ADMIN", "ACCOUNTING"];
 

@@ -26,7 +26,10 @@ export default async function NewProductQuotationPage(props: {
     notFound();
   }
 
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
+  // BL-127 (W-01): الحارس = PRICING_ROLES بالضبط. SALES_REP أُزيل (يطلب لا يسعّر)،
+  // و TECHNICAL_OFFICE/TEC_APPROVER أُضيفا — كانا محجوبين عن شاشة التسعير رغم أن
+  // calculateProductPricing (المستدعى منها) محروس بـPRICING_ROLES التي تشملهما.
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const productType = await prisma.productType.findUnique({
