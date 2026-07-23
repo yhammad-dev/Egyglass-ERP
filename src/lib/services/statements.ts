@@ -104,6 +104,17 @@ export async function issueStatement(id: string, actorId: string) {
     if (statement.status !== "DRAFT") throw new StatementError("errors.statementNotDraft");
     if (!statement.contract.totalValue) throw new StatementError("errors.contractValueMissing");
 
+    // BL-130 (Q2 — قرار صاحب العمل 2026-07-23): نفس حاجز السقف المطبَّق في createStatement
+    // يُطبَّق أيضًا هنا عند الإصدار — كي لا تُفلت مسودة أُنشئت قبل هذا الحاجز من الحد وقت إصدارها.
+    // المسودة نفسها DRAFT فلا تدخل مجموع ISSUED+PAID؛ نجمع الصادر + نسبتها ونتحقق ≤ 100 (نفس منطق createStatement، PAID مشمولة).
+    // BL-130 (Q3، غير محسوم): "تراكمي أم إضافي" لا يزال فجوة معرفة — لا تغيير في معادلة statementValue أدناه.
+    const issuedAgg = await tx.progressStatement.aggregate({
+      where: { contractId: statement.contractId, status: { in: ["ISSUED", "PAID"] } },
+      _sum: { progressPct: true },
+    });
+    const issuedPctSum = issuedAgg._sum.progressPct ?? new D(0);
+    assertProgressWithinContractCap(issuedPctSum, statement.progressPct);
+
     const now = new Date();
     const route =
       statement.contract.quotation.quotationRequest?.technicalRoute ?? "PROJECTS";

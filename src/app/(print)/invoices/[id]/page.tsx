@@ -44,8 +44,20 @@ export default async function InvoicePrintPage(props: {
   );
   const due = inv.totalAmount.sub(paid);
 
+  // نِسب مشتقّة من الـ snapshot المجمّد حصريًا (لا قراءة config لايف — الرقم يطابق المعروض):
+  // نسبة الضريبة = القيمة ÷ الصافي بعد الخصم — نفس أساس احتساب vatAmount (net·taxPct/100، §5)
+  const vatBase = inv.subtotal.sub(inv.discountAmount);
+  const vatPct = vatBase.gt(0) ? inv.vatAmount.div(vatBase).mul(100) : null;
+  // نسبة السداد = المدفوع ÷ الإجمالي
+  const paidPct = inv.totalAmount.gt(0) ? paid.div(inv.totalAmount).mul(100) : null;
+
   const fmt = (n: Prisma.Decimal) =>
     new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(
+      n.toNumber()
+    );
+  // نسبة مئوية بأرقام لاتينية (مطابِقة لباقي القوالب) — تقريب لخانتين وإسقاط الأصفار
+  const fmtPct = (n: Prisma.Decimal) =>
+    new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
       n.toNumber()
     );
   const fmtDate = (d: Date) =>
@@ -160,7 +172,14 @@ export default async function InvoicePrintPage(props: {
             </div>
           )}
           <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
-            <span>{t("invoices.print.vat")}</span>
+            <span>
+              {t("invoices.print.vat")}{" "}
+              {vatPct !== null && (
+                <span className="text-gray-500" dir="ltr">
+                  ({fmtPct(vatPct)}%)
+                </span>
+              )}
+            </span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(inv.vatAmount)}</span>
           </div>
           <div className="flex justify-between px-3 py-2 bg-gray-800 text-white font-bold border-b border-gray-300">
@@ -171,7 +190,14 @@ export default async function InvoicePrintPage(props: {
           </div>
           <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
             <span>{t("invoices.print.paid")}</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(paid)}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {fmt(paid)}{" "}
+              {paidPct !== null && (
+                <span className="text-gray-500" dir="ltr">
+                  ({fmtPct(paidPct)}%)
+                </span>
+              )}
+            </span>
           </div>
           <div className="flex justify-between px-3 py-1.5 font-semibold">
             <span>{t("invoices.print.due")}</span>

@@ -31,3 +31,22 @@ export async function requireRole(
     role: session.user.role as string,
   };
 }
+
+// أي مستخدم مسجّل — بلا قيد دور. للأفعال الخدمية الذاتية (self-service) التي
+// يكون موردها دائمًا المستخدم الفاعل نفسه (تعديل بياناته/كلمة مروره).
+// نفس فحص الجلسة في requireRole بلا مرشّح الأدوار — لا منطق مصادقة جديد.
+export async function requireAuth(): Promise<
+  { authorized: true; userId: string; role: string } | { authorized: false }
+> {
+  const session = await auth();
+
+  if (!session?.user?.id || !session?.user?.role) {
+    return { authorized: false };
+  }
+
+  return {
+    authorized: true,
+    userId: session.user.id as string,
+    role: session.user.role as string,
+  };
+}

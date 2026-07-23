@@ -713,6 +713,25 @@
     "deletedMsg": "تم حذف المستخدم بنجاح",
     "reactivatedMsg": "تم إعادة تفعيل المستخدم بنجاح"
   },
+  "profile": {
+    "title": "الملف الشخصي",
+    "subtitle": "إدارة بياناتك الشخصية وكلمة المرور",
+    "accountSection": "معلومات الحساب",
+    "accountReadonlyHint": "البريد الإلكتروني والدور والقسم تُدار بواسطة إدارة النظام — لتغييرها تواصل مع الأدمن.",
+    "infoSection": "البيانات الشخصية",
+    "passwordSection": "تغيير كلمة المرور",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "department": "القسم",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmPassword": "تأكيد كلمة المرور الجديدة",
+    "changePassword": "تغيير كلمة المرور",
+    "passwordPolicyHint": "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتجمع 3 أنواع على الأقل من: حروف كبيرة، حروف صغيرة، أرقام، رموز.",
+    "infoUpdated": "تم تحديث بياناتك بنجاح",
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح"
+  },
   "roles": {
     "ADMIN": "مدير النظام",
     "SALES_MANAGER": "مدير المبيعات",
@@ -808,7 +827,10 @@
     "inspectionNotSubmittable": "لا يمكن تقديم المعاينة في حالتها الحالية",
     "inspectionNoMeasurements": "لا يمكن تقديم معاينة بلا مقاسات — أضِف مقاسًا واحدًا على الأقل",
     "inspectionNotPending": "المعاينة ليست بانتظار الاعتماد",
-    "returnReasonRequired": "سبب الإرجاع مطلوب"
+    "returnReasonRequired": "سبب الإرجاع مطلوب",
+    "incorrectPassword": "كلمة المرور الحالية غير صحيحة",
+    "passwordMismatch": "كلمتا المرور غير متطابقتين",
+    "passwordSameAsOld": "كلمة المرور الجديدة يجب أن تختلف عن الحالية"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",

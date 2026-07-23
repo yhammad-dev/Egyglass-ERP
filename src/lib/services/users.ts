@@ -8,6 +8,23 @@ export class LastAdminGuardError extends Error {
   }
 }
 
+// BL-136: كلمة المرور الحالية المُدخلة لا تطابق المخزّنة — يمنع تغيير كلمة
+// المرور دون معرفة الحالية (حماية ضد اختطاف الجلسة).
+export class InvalidCurrentPasswordError extends Error {
+  constructor() {
+    super("errors.incorrectPassword");
+    this.name = "InvalidCurrentPasswordError";
+  }
+}
+
+// BL-136: كلمة المرور الجديدة مطابقة للحالية — تغيير بلا معنى، يُرفض.
+export class SamePasswordError extends Error {
+  constructor() {
+    super("errors.passwordSameAsOld");
+    this.name = "SamePasswordError";
+  }
+}
+
 export interface UserRow {
   id: string;
   name: string;
@@ -233,6 +250,76 @@ export async function unlockUser(id: string, actorId: string) {
 
 export async function getUserById(id: string) {
   return prisma.user.findUnique({ where: { id } });
+}
+
+// BL-136: قراءة الملف الشخصي للمستخدم الحالي — حقول آمنة فقط. لا تُحمّل
+// passwordHash إلى صفحة تُعرَض للعميل (حارس ضد أي تسريب مستقبلي).
+export async function getOwnProfile(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true, role: true, department: true },
+  });
+}
+
+// BL-136: تحديث ذاتي للملف الشخصي — الاسم فقط. لا يمسّ role/department/email/
+// isActive إطلاقًا (تُدار إداريًا — L-06). المُعرّف يأتي من الجلسة لا من العميل،
+// والفاعل = الهدف (بصمة self-service في السجل).
+export async function updateOwnProfile(userId: string, input: { name: string }) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { name: input.name },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId,
+      action: "PROFILE_UPDATED",
+      entity: "User",
+      entityId: userId,
+      details: JSON.stringify({ name: input.name }),
+    },
+  });
+
+  return user;
+}
+
+// BL-136: تغيير المستخدم كلمة مروره بنفسه — يتحقق من الحالية قبل التعيين.
+// لا يُسجَّل أي مادة كلمة مرور في ActivityLog.
+export async function changeOwnPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("errors.notFound");
+
+  const currentMatches = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!currentMatches) throw new InvalidCurrentPasswordError();
+
+  const sameAsOld = await bcrypt.compare(newPassword, user.passwordHash);
+  if (sameAsOld) throw new SamePasswordError();
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  // التغيير + قيد التدقيق ذرّيان معًا — حدث أمني لا يُكتب بلا أثر.
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        userId,
+        action: "PASSWORD_CHANGED",
+        entity: "User",
+        entityId: userId,
+        details: JSON.stringify({ self: true }),
+      },
+    });
+  });
+
+  return { success: true as const };
 }
 
 export async function getUserByEmail(email: string) {

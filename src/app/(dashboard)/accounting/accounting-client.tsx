@@ -297,7 +297,13 @@ export function AccountingClient({
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <span dir="ltr">{row.number}</span>
+                    {/* رابط عرض السعر — نفس مسار [id] المعتمد في شيت العميل */}
+                    <Link
+                      href={`/quotations/${row.quotationId}`}
+                      className="underline underline-offset-2"
+                    >
+                      <span dir="ltr">{row.number}</span>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <span dir="ltr">{numberFormat.format(row.totalContract)}</span>

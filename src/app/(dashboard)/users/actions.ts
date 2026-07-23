@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { requireRole } from "@/lib/rbac";
 import { ALLOWED_EMAIL_DOMAIN } from "@/lib/config";
+import { passwordPolicy } from "@/lib/validation/password";
 import {
   createUser,
   updateUser,
@@ -27,16 +28,7 @@ const departmentEnum = z.enum([
   "PROCUREMENT", "INSTALLATIONS", "ACCOUNTING", "HR",
 ]);
 
-// SCR-016: سياسة كلمة المرور — طول ≥8 + 3 فئات على الأقل من 4 (كبير/صغير/رقم/رمز)
-const passwordPolicy = z
-  .string()
-  .min(8, "errors.passwordMinLength8")
-  .refine((p) => {
-    const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) =>
-      r.test(p)
-    ).length;
-    return classes >= 3;
-  }, "errors.passwordComplexity");
+// SCR-016: سياسة كلمة المرور موحّدة في @/lib/validation/password (passwordPolicy)
 
 // SCR-016: النطاق المسموح للإنشاء الجديد فقط (forward-looking) — القدامى خارج الفحص
 const emailWithDomain = z

@@ -714,6 +714,25 @@
     "deletedMsg": "User deleted successfully",
     "reactivatedMsg": "User reactivated successfully"
   },
+  "profile": {
+    "title": "My Profile",
+    "subtitle": "Manage your personal information and password",
+    "accountSection": "Account information",
+    "accountReadonlyHint": "Email, role and department are managed by the system administrator — contact an admin to change them.",
+    "infoSection": "Personal information",
+    "passwordSection": "Change password",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "department": "Department",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "changePassword": "Change password",
+    "passwordPolicyHint": "Password must be at least 8 characters and include at least 3 of: uppercase, lowercase, digits, symbols.",
+    "infoUpdated": "Your information was updated successfully",
+    "passwordChanged": "Your password was changed successfully"
+  },
   "roles": {
     "ADMIN": "Admin",
     "SALES_MANAGER": "Sales Manager",
@@ -809,7 +828,10 @@
     "inspectionNotSubmittable": "The inspection cannot be submitted in its current state",
     "inspectionNoMeasurements": "Cannot submit an inspection with no measurements — add at least one",
     "inspectionNotPending": "The inspection is not pending approval",
-    "returnReasonRequired": "Return reason is required"
+    "returnReasonRequired": "Return reason is required",
+    "incorrectPassword": "Current password is incorrect",
+    "passwordMismatch": "Passwords do not match",
+    "passwordSameAsOld": "New password must be different from the current one"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
