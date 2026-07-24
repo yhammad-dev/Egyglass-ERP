@@ -82,7 +82,33 @@ export default async function InvoicePrintPage(props: {
         <PrintButton />
       </div>
 
-      <div className="print-doc max-w-[794px] mx-auto p-6 bg-white text-[#1a1a1a]">
+      <div className="print-doc relative max-w-[794px] mx-auto p-6 bg-white text-[#1a1a1a]">
+        {/* BL-147: ختم "ملغاة" قطري أحمر فوق المحتوى للفاتورة الملغاة فقط — كي لا تُلبَس بفاتورة
+            سارية على الورق. لا نمط ختم قائم في أي قالب طباعة (grep)، فأُنشئ هنا بأسلوب الملف نفسه.
+            النص من نفس مفتاح حالة الفاتورة (invoices.status_CANCELLED) المستخدم في خلية الترويسة.
+            print-color-adjust:exact موروث من .print-doc فيُطبع الأحمر. semi-transparent فيبقى المحتوى مقروءًا. */}
+        {inv.status === "CANCELLED" && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
+          >
+            <span
+              className="font-extrabold whitespace-nowrap"
+              style={{
+                transform: "rotate(-30deg)",
+                fontSize: "110px",
+                color: "rgba(220, 38, 38, 0.30)",
+                border: "10px solid rgba(220, 38, 38, 0.40)",
+                borderRadius: "16px",
+                padding: "0.05em 0.35em",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {t("invoices.status_CANCELLED")}
+            </span>
+          </div>
+        )}
+
         {/* ── الترويسة ── */}
         <header className="border-b-4 border-double border-gray-800 pb-3 mb-4">
           <div className="flex items-center justify-between gap-4">
