@@ -3,8 +3,7 @@
   "configurations": [
     {
       "name": "egyglass-docker",
-      "runtimeExecutable": "docker",
-      "runtimeArgs": ["compose", "up"],
+      "url": "http://localhost:3100",
       "port": 3100,
       "autoPort": false
     }
