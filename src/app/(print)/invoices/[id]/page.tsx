@@ -52,16 +52,16 @@ export default async function InvoicePrintPage(props: {
   const paidPct = inv.totalAmount.gt(0) ? paid.div(inv.totalAmount).mul(100) : null;
 
   const fmt = (n: Prisma.Decimal) =>
-    new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(
+    new Intl.NumberFormat("ar-EG-u-nu-latn", { minimumFractionDigits: 2 }).format(
       n.toNumber()
     );
   // نسبة مئوية بأرقام لاتينية (مطابِقة لباقي القوالب) — تقريب لخانتين وإسقاط الأصفار
   const fmtPct = (n: Prisma.Decimal) =>
-    new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
+    new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 2 }).format(
       n.toNumber()
     );
   const fmtDate = (d: Date) =>
-    new Intl.DateTimeFormat("ar-EG", { dateStyle: "long" }).format(d);
+    new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "long" }).format(d);
 
   return (
     <>

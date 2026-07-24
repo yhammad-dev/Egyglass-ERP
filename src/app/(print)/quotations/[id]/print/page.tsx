@@ -81,9 +81,9 @@ export default async function QuotationPrintPage(props: {
     : settings?.warrantyTextProjects;
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(n);
+    new Intl.NumberFormat("ar-EG-u-nu-latn", { minimumFractionDigits: 2 }).format(n);
   const fmtDate = (d: Date) =>
-    new Intl.DateTimeFormat("ar-EG", { dateStyle: "long" }).format(d);
+    new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "long" }).format(d);
 
   const subtotal = q.subtotal.toNumber();
   const discountPct = q.discountPct.toNumber();
@@ -174,7 +174,7 @@ export default async function QuotationPrintPage(props: {
               <p className="bg-gray-100 px-2 py-1 font-semibold border-b border-gray-400">
                 {label}
               </p>
-              <p className="px-2 py-1">{value}</p>
+              <p className="px-2 py-1" dir="ltr">{value}</p>
             </div>
           ))}
         </section>

@@ -37,9 +37,9 @@ export default async function StatementPrintPage(props: {
   const logoUrl = settings?.companyLogoUrl ?? null;
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("ar-EG", { minimumFractionDigits: 2 }).format(n);
+    new Intl.NumberFormat("ar-EG-u-nu-latn", { minimumFractionDigits: 2 }).format(n);
   const fmtDate = (d: Date) =>
-    new Intl.DateTimeFormat("ar-EG", { dateStyle: "long" }).format(d);
+    new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "long" }).format(d);
 
   return (
     <>
