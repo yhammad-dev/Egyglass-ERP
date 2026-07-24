@@ -145,6 +145,11 @@ export const navRegistry: NavItem[] = [
     icon: "upload_file",
     roles: ["ADMIN"],
   },
+  // BL-136: بروفايل المستخدم الحالي — بلا roles عمدًا (بيانات الشخص نفسه، متاحة لأي مستخدم
+  // مسجَّل دخول مثل /dashboard تمامًا). labelKey = "profile.title" (namespace البروفايل القائم؛
+  // لا مفتاح nav.profile في ملفات اللغة). icon يعيد استخدام supervisor_account (UserCog) —
+  // لا مفتاح أيقونة "شخص" مخصص في NAV_ICONS بعد (إضافته = سطر واحد في layout.tsx، خارج نطاق هذه المهمة).
+  { labelKey: "profile.title", href: "/profile", icon: "supervisor_account" },
 ];
 
 export function getNavItems(role?: string): NavItem[] {
