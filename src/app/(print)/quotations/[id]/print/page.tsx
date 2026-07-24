@@ -348,20 +348,38 @@ export default async function QuotationPrintPage(props: {
           {fmtDate(q.validUntil)}
         </p>
 
-        {/* ── الملاحظات العامة (سوشيال: 11 · مشروعات: 21) ── */}
-        {(isSocial || isProjects) && (
-          <section className="border border-gray-400 mb-4">
-            <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
-              {t("quotations.print.generalNotes")}
-            </p>
-            {/* ضغط بصري للشروط فقط: خط 10px + تباعد أضيق — المحتوى الأساسي بوضوحه */}
-            <ol className="list-decimal ps-6 pe-3 py-1.5 space-y-0.5 text-[10px] leading-snug">
-              {(isProjects ? PROJECT_NOTE_KEYS : SOCIAL_NOTE_KEYS).map((key) => (
-                <li key={key}>{t(key)}</li>
-              ))}
-            </ol>
-          </section>
-        )}
+        {/* ── الملاحظات العامة (سوشيال · مشروعات) — عمودان بـCSS Grid يدوي، ترقيم متصل ── */}
+        {(isSocial || isProjects) &&
+          (() => {
+            const noteKeys = isProjects ? PROJECT_NOTE_KEYS : SOCIAL_NOTE_KEYS;
+            // النصف الأول = ceil(n/2) من الطول الفعلي — يبقى صحيحًا لو تغيّر عدد الملاحظات في i18n
+            const half = Math.ceil(noteKeys.length / 2);
+            return (
+              <section className="border border-gray-400 mb-4">
+                <p className="bg-gray-100 px-2 py-1 font-semibold text-sm border-b border-gray-400">
+                  {t("quotations.print.generalNotes")}
+                </p>
+                {/* عمودان (grid يدوي لا columns-2): DOM-order الأول → inline-start = يمين تحت RTL الموروث.
+                   ضغط بصري للشروط: خط 10px + تباعد أضيق — المحتوى الأساسي بوضوحه */}
+                <div className="grid grid-cols-2 gap-x-6">
+                  <ol className="list-decimal ps-6 pe-3 py-1.5 space-y-0.5 text-[10px] leading-snug">
+                    {noteKeys.slice(0, half).map((key) => (
+                      <li key={key}>{t(key)}</li>
+                    ))}
+                  </ol>
+                  {/* start = half+1 ليكمل الترقيم تسلسليًا (لا يعيده لـ1) */}
+                  <ol
+                    start={half + 1}
+                    className="list-decimal ps-6 pe-3 py-1.5 space-y-0.5 text-[10px] leading-snug"
+                  >
+                    {noteKeys.slice(half).map((key) => (
+                      <li key={key}>{t(key)}</li>
+                    ))}
+                  </ol>
+                </div>
+              </section>
+            );
+          })()}
 
         {/* ── الضمان (config: warrantyTextSocialMedia + warrantySocialOnQuotation) ── */}
         {showWarranty && (
