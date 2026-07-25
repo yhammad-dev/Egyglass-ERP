@@ -1303,7 +1303,11 @@
     "mfgNoContract": "No contract",
     "mfgNoPayment": "No payment recorded",
     "unassignedShowMore": "and {count} more",
-    "unassignedShowLess": "Show less"
+    "unassignedShowLess": "Show less",
+    "returnedTitle": "Quotations returned from review",
+    "quotationReturnedTitle": "Quotation returned from review",
+    "quotationReturnedReason": "Reason for return",
+    "quotationReturnedNoReason": "No reason recorded"
   },
   "import": {
     "title": "Import Data",

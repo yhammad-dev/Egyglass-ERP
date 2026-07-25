@@ -1302,7 +1302,11 @@
     "mfgNoContract": "لا يوجد عقد",
     "mfgNoPayment": "لا توجد دفعة مسجّلة",
     "unassignedShowMore": "و{count} طلبًا آخر",
-    "unassignedShowLess": "عرض أقل"
+    "unassignedShowLess": "عرض أقل",
+    "returnedTitle": "عروض مرتجعة من المراجعة",
+    "quotationReturnedTitle": "عرض السعر مُرجَع من المراجعة",
+    "quotationReturnedReason": "سبب الإرجاع",
+    "quotationReturnedNoReason": "لم يُسجَّل سبب للإرجاع"
   },
   "import": {
     "title": "استيراد البيانات",

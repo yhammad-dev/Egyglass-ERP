@@ -181,6 +181,13 @@ export function TecClient({
     : unassigned.slice(0, UNASSIGNED_PREVIEW_COUNT);
   const hiddenUnassignedCount = unassigned.length - UNASSIGNED_PREVIEW_COUNT;
 
+  // TO-09: العروض المرتجعة من المراجعة — بارزة فوق الجدول لأن الجدول مقسّم بتبويب
+  // المسار (PROJECTS/SOCIAL_MEDIA) وقابل للفلترة، فطلب مرتجع في التبويب الآخر يُدفن.
+  const returned = useMemo(
+    () => jobs.filter((j) => j.reviewStatus === "RETURNED"),
+    [jobs]
+  );
+
   return (
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-bold">{t("tec.title")}</h1>
@@ -236,6 +243,49 @@ export function TecClient({
                     {t("tec.details")}
                   </Link>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TO-09: قسم "عروض مرتجعة" — الوسم البصري كي لا يُدفن الطلب المرتجع.
+          سقف ارتفاع بلا توسعة/طي: القائمة يفترض أن تفرغ بالتصحيح لا أن تتراكم. */}
+      {returned.length > 0 && (
+        <div className="rounded-md border-2 border-destructive/40 bg-destructive/5 p-4">
+          <p className="mb-2 font-semibold text-destructive">
+            {t("tec.returnedTitle")} ({returned.length})
+          </p>
+          <div className="max-h-56 space-y-2 overflow-y-auto pe-1">
+            {returned.map((j) => (
+              <div
+                key={j.id}
+                className="flex flex-wrap items-start justify-between gap-2 text-sm"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <p className="truncate">
+                    <span dir="ltr">{j.code}</span> · {j.customerName} ·{" "}
+                    {t(j.technicalRoute === "PROJECTS" ? "tec.projects" : "tec.socialMedia")}
+                  </p>
+                  {j.reviewNote?.trim() ? (
+                    <p
+                      className="line-clamp-2 text-xs text-muted-foreground"
+                      title={j.reviewNote}
+                    >
+                      {t("tec.quotationReturnedReason")}: {j.reviewNote}
+                    </p>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">
+                      {t("tec.quotationReturnedNoReason")}
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href={`/technical-office/${j.id}`}
+                  className="shrink-0 underline text-destructive"
+                >
+                  {t("tec.details")}
+                </Link>
               </div>
             ))}
           </div>
@@ -347,7 +397,21 @@ export function TecClient({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell dir="ltr">{job.quotationNumber}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <p dir="ltr">{job.quotationNumber}</p>
+                      {/* TO-09: وسم الصف المرتجع — السبب في title كي لا يتمدد العمود */}
+                      {job.reviewStatus === "RETURNED" && (
+                        <Badge
+                          variant="destructive"
+                          className="text-xs"
+                          title={job.reviewNote ?? undefined}
+                        >
+                          {t("review.status_RETURNED")}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{job.engineerName ?? "—"}</TableCell>
                   <TableCell>
                     <Badge
