@@ -47,7 +47,7 @@
     "pipelineDistribution": "Pipeline Distribution",
     "activeCustomers": "Active Customers",
     "quotationsThisMonth": "Quotations This Month",
-    "conversionRate": "Conversion Rate",
+    "conversionRate": "Quote-to-Contract Rate",
     "pendingInspections": "Pending Inspections",
     "mfgInProduction": "Manufacturing In Progress",
     "totalRevenue": "Total Revenue",
@@ -1132,7 +1132,7 @@
     "kpi": {
       "activeCustomers": "Total Active Customers",
       "quotationsThisMonth": "Quotations This Month",
-      "conversionRate": "Conversion Rate",
+      "conversionRate": "Quote-to-Contract Rate",
       "mfgInProduction": "Manufacturing Orders In Production",
       "installationsScheduledThisWeek": "Installations Scheduled This Week",
       "approvedRevenue": "Total Approved Revenue",
