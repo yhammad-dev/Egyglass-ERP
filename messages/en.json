@@ -1,4 +1,13 @@
 {
+  "newRequestFlow": {
+    "button": "New Quotation",
+    "title": "New Quotation Request",
+    "tabExisting": "Existing customer",
+    "tabNew": "New customer",
+    "noResults": "No matching customers",
+    "next": "Next",
+    "selectedCustomer": "Customer: {name}"
+  },
   "app": {
     "name": "EgyGlass ERP",
     "loading": "Loading...",
@@ -879,7 +888,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "customers": "Sales",
+    "customers": "Customers",
     "quotations": "Quotations",
     "inspections": "Inspections",
     "technicalOffice": "Technical Office",
