@@ -15,5 +15,13 @@ export default async function ReviewDetailPage(props: {
   const quotation = await getReviewQuotationDetail(id);
   if (!quotation) notFound();
 
-  return <ReviewDetail quotation={quotation} />;
+  // TO-04: هوية الفاعل تُمرَّر لإظهار/إخفاء زر إعادة التقديم فقط. الحارس النافذ
+  // هو resubmitQuotationAction نفسه (server-side) — الإخفاء إضافة لا بديل.
+  return (
+    <ReviewDetail
+      quotation={quotation}
+      currentUserId={roleCheck.userId}
+      currentUserRole={roleCheck.role}
+    />
+  );
 }
