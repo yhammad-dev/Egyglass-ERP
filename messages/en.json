@@ -1131,7 +1131,6 @@
       "overdueMfgOrders": "Overdue manufacturing orders (past expected date)",
       "overdueInstallations": "Overdue installations",
       "mfgUnderReview": "Orders under review",
-      "drawingsAwaitingCeo": "Drawings awaiting executive approval",
       "totalCollected": "Total collected",
       "totalOutstanding": "Total outstanding"
     },

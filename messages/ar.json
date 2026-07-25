@@ -1130,7 +1130,6 @@
       "overdueMfgOrders": "أوامر تصنيع متأخرة (تجاوزت الموعد المتوقع)",
       "overdueInstallations": "تركيبات فات موعدها",
       "mfgUnderReview": "أوامر قيد المراجعة",
-      "drawingsAwaitingCeo": "رسومات بانتظار اعتماد الإدارة العليا",
       "totalCollected": "إجمالي التحصيل",
       "totalOutstanding": "إجمالي المستحق"
     },
