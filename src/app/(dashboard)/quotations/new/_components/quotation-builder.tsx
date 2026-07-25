@@ -99,11 +99,14 @@ export function QuotationBuilder({
     setError(null);
 
     if (isEdit) {
+      // SF-13: توحيد حارس الإجمالي مع مسار create (sections.some(s=>s.subtotal<=0)).
+      // كان `unitPrice < 0` يسمح ببند بسعر صفر (منها البند اليدوي المُضاف حديثًا الذي
+      // يبدأ unitPrice:0) فيُحفظ عرض بإجمالي مُلوَّث — الآن `<= 0` يمنعه بنفس رسالة create.
       if (
         !customerId ||
         !title ||
         editItems.length === 0 ||
-        editItems.some((i) => !i.description || i.quantity <= 0 || i.unitPrice < 0)
+        editItems.some((i) => !i.description || i.quantity <= 0 || i.unitPrice <= 0)
       ) {
         setError(t("errors.invalidInput"));
         return;
