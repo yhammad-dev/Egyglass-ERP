@@ -1291,7 +1291,9 @@
     "mfgNoQuotation": "لا يوجد عرض سعر بعد",
     "mfgNoApprovedDrawing": "الرسمة غير معتمدة",
     "mfgNoContract": "لا يوجد عقد",
-    "mfgNoPayment": "لا توجد دفعة مسجّلة"
+    "mfgNoPayment": "لا توجد دفعة مسجّلة",
+    "unassignedShowMore": "و{count} طلبًا آخر",
+    "unassignedShowLess": "عرض أقل"
   },
   "import": {
     "title": "استيراد البيانات",

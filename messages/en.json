@@ -1292,7 +1292,9 @@
     "mfgNoQuotation": "No quotation yet",
     "mfgNoApprovedDrawing": "Drawing not approved",
     "mfgNoContract": "No contract",
-    "mfgNoPayment": "No payment recorded"
+    "mfgNoPayment": "No payment recorded",
+    "unassignedShowMore": "and {count} more",
+    "unassignedShowLess": "Show less"
   },
   "import": {
     "title": "Import Data",
