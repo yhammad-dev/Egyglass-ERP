@@ -1,4 +1,13 @@
 {
+  "newRequestFlow": {
+    "button": "إنشاء عرض سعر جديد",
+    "title": "طلب عرض سعر جديد",
+    "tabExisting": "عميل موجود",
+    "tabNew": "عميل جديد",
+    "noResults": "لا يوجد عملاء مطابقون",
+    "next": "التالي",
+    "selectedCustomer": "العميل: {name}"
+  },
   "app": {
     "name": "EgyGlass ERP",
     "loading": "جارٍ التحميل...",

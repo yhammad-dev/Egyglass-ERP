@@ -25,6 +25,10 @@ import {
 } from "@/components/ui/table";
 import type { QuotationRow } from "@/lib/services/quotations";
 import { QUOTATION_STATUS_COLORS } from "@/lib/status-colors";
+import {
+  NewQuotationRequestDialog,
+  type CustomerLite,
+} from "./new-quotation-request-dialog";
 
 const columnHelper = createColumnHelper<QuotationRow>();
 
@@ -32,9 +36,11 @@ const columnHelper = createColumnHelper<QuotationRow>();
 export function QuotationsClient({
   initialQuotations,
   currentRole,
+  customers,
 }: {
   initialQuotations: QuotationRow[];
   currentRole: string;
+  customers: CustomerLite[];
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -145,10 +151,16 @@ export function QuotationsClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t("quotations.title")}</h1>
-        {!isViewer && (
-          <Button render={<Link href="/quotations/new" />}>
-            إنشاء عرض سعر جديد
-          </Button>
+        {/* SF-01: المندوب يطلب عرض سعر (تدفّق عميل→طلب)، لا يُسعّر مباشرة (W-01).
+            ADMIN/SALES_MANAGER يحتفظان بمسار الباني /quotations/new كما كان. */}
+        {currentRole === "SALES_REP" ? (
+          <NewQuotationRequestDialog customers={customers} />
+        ) : (
+          !isViewer && (
+            <Button render={<Link href="/quotations/new" />}>
+              {t("newRequestFlow.button")}
+            </Button>
+          )
         )}
       </div>
 
