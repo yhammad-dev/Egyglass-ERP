@@ -827,6 +827,7 @@
     "serverError": "A server error occurred, please try again",
     "rateLimited": "Too many requests, please try again later",
     "cannotApproveSelf": "Cannot approve your own drawing",
+    "selfApprovalNotAllowed": "You cannot approve a quotation you created — approval must come from someone else",
     "gateRemoved": "Gate removed — no longer part of the approval chain",
     "noApprovedDrawing": "Cannot issue a manufacturing order without a technically approved drawing",
     "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",

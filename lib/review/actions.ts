@@ -96,6 +96,17 @@ export async function approveQuotationAction(input: unknown) {
     });
     if (!quotation) return { error: "errors.notFound" as const };
 
+    // TO-01 — فصل الواجبات: من أنشأ العرض لا يعتمده. الحارس هنا (server-side) لا في
+    // الواجهة، فهو الحد الفاصل الحقيقي. نفس نمط اعتماد الرسمة
+    // (technical-office/actions.ts — فحص errors.cannotApproveSelf) وقرار الخصم D-20
+    // (lib/actions/discount.ts — منع تمرير المدير لطلبه).
+    // 🔴 فرق مقصود عن نمط الرسمة: **بلا استثناء لـADMIN**. الرسمة تعفي ADMIN، أما اعتماد
+    // التسعير فرقابة مالية على قيمة تُجمَّد في العقد ⇒ القاعدة تسري على الجميع، ومن ضمنهم
+    // ADMIN و TEC_APPROVER، متى كان هو المنشئ (قرار المالك — Wave TO-A).
+    if (quotation.createdById === roleCheck.userId) {
+      return { error: "errors.selfApprovalNotAllowed" as const };
+    }
+
     await prisma.quotation.update({
       where: { id: parsed.data.id },
       data: {
