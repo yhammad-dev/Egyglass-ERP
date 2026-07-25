@@ -236,7 +236,24 @@ export function TecClient({
                   <TableCell className="font-mono text-sm" dir="ltr">
                     {job.code}
                   </TableCell>
-                  <TableCell>{job.customerName}</TableCell>
+                  <TableCell>
+                    <div className="max-w-[20rem] space-y-0.5">
+                      <p>{job.customerName}</p>
+                      {/* TO-12: مقتطف من وصف الطلب — سطران بحد أقصى كي لا يتمدد الصف */}
+                      {job.summary?.trim() ? (
+                        <p
+                          className="text-xs text-muted-foreground line-clamp-2"
+                          title={job.summary}
+                        >
+                          {job.summary}
+                        </p>
+                      ) : (
+                        <p className="text-xs italic text-muted-foreground">
+                          {t("quotationRequest.noSummary")}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell dir="ltr">{job.quotationNumber}</TableCell>
                   <TableCell>{job.engineerName ?? "—"}</TableCell>
                   <TableCell>
