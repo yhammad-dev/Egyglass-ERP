@@ -81,7 +81,10 @@ export function NotificationsBell() {
               onClick={() => markAsRead(notification.id)}
               className="flex flex-col items-start gap-0.5 whitespace-normal"
             >
-              <span className="text-sm font-medium">{notification.title}</span>
+              {/* SF-19: title مخزَّن كمفتاح ترجمة كامل (notifications.* / discount.* /
+                  invoices.* / tec.*) — لازم t() الجذري ليُحلّ. كان يُعرض خامًا. body نص
+                  عربي حرفي (لا مفتاح) فيبقى بلا t(). نقطة استهلاك واحدة تُصلح كل الإشعارات. */}
+              <span className="text-sm font-medium">{t(notification.title)}</span>
               <span className="text-xs text-muted-foreground">{notification.body}</span>
             </DropdownMenuItem>
           ))
