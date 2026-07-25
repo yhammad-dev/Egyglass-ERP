@@ -171,6 +171,7 @@
     "inspectionScheduledTitle": "Inspection Scheduled",
     "stageInspectionTitle": "Moved to Inspection Stage",
     "stagePricedTitle": "Moved to Pricing Stage",
+    "coverageAssignedTitle": "Customer coverage assigned",
     "quotationReadyTitle": "Quotation Ready",
     "replacementRequestedTitle": "Replacement requested — awaiting REVIEW investigation",
     "investigationJudgedTitle": "Management verdict issued on an investigation"

@@ -2,7 +2,7 @@
 
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { notifyRole, notifyDepartment } from "@/lib/notifications/send";
+import { notifyRole, notifyDepartment, sendNotification } from "@/lib/notifications/send";
 import { z } from "zod";
 
 const stageChangeSchema = z.object({
@@ -180,7 +180,7 @@ export async function setCustomerCoverage(
 
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    select: { id: true, coveredById: true },
+    select: { id: true, coveredById: true, name: true },
   });
   if (!customer) return { error: "errors.notFound" };
 
@@ -201,6 +201,22 @@ export async function setCustomerCoverage(
       }),
     },
   });
+
+  // SF-05 (الجزء 1): إشعار المستخدم المُسنَد حديثًا لتغطية العميل — فقط عند إسناد فعلي
+  // جديد (coveredById غير فارغ ومختلف عن السابق): لا عند إلغاء التغطية (null)، ولا عند
+  // إعادة تعيين نفس المستخدم (لا "جديد"). النمط مطابق للموجود: title=مفتاح t()، body=نص
+  // عربي مُدرَج. sendNotification بالع + تسجيل (send.ts:45-65، D-39) — لا يرمي أبدًا،
+  // فلا يكسر مسار setCustomerCoverage لو فشل الإشعار (لا حاجة try/catch حوله).
+  if (coveredById && coveredById !== customer.coveredById) {
+    await sendNotification({
+      userId: coveredById,
+      title: "notifications.coverageAssignedTitle",
+      body: `تم إسنادك لتغطية العميل ${customer.name}`,
+      type: "COVERAGE_UPDATED",
+      entityId: customerId,
+      entityType: "Customer",
+    });
+  }
 
   return { success: true };
 }
