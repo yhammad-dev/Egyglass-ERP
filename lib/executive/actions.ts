@@ -171,3 +171,48 @@ export async function getDashboardKPIs() {
     return null;
   }
 }
+
+// ── SF-03: تقرير مُجمّع لأسباب رفض العملاء (بيانات backend فقط — الواجهة في موجة
+// الداشبورد لاحقًا، لا UI هنا). القراءة لإدارة المبيعات + الأدمن: تحليلات الرفض أداة
+// إدارة مبيعات. ⚠️ حدّ بياناتي مُوثَّق: القيمة المخزَّنة في rejectReason نصّ مركَّب
+// مترجَم (label[: نص حر]) يُبنى في stage-change-dialog.tsx (buildRejectReason) — وليست
+// مفتاح enum بنيويًا؛ لذا التجميع أدناه يتفتّت متى أُلحِق نص حر أو اختلفت لغة العرض.
+// العدّ الإجمالي (total) دقيق قطعًا؛ التصنيف النظيف حسب الفئة يحتاج عمود مُهيكل
+// (rejectReasonCode) = migration ⇒ SCR منفصل (خارج نطاق Wave B). لا caching (يوافق
+// نمط الداشبورد force-dynamic).
+export async function getRejectedCustomersReport(): Promise<{
+  total: number;
+  totalCustomers: number;
+  rejectionRate: number;
+  byReason: Array<{ reason: string | null; count: number }>;
+} | null> {
+  try {
+    const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER"]);
+    if (!roleCheck.authorized) return null;
+
+    const [total, totalCustomers, grouped] = await Promise.all([
+      prisma.customer.count({ where: { stage: "REJECTED", deletedAt: null } }),
+      prisma.customer.count({ where: { deletedAt: null } }),
+      prisma.customer.groupBy({
+        by: ["rejectReason"],
+        where: { stage: "REJECTED", deletedAt: null },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const rejectionRate =
+      totalCustomers > 0 ? (total / totalCustomers) * 100 : 0;
+
+    return {
+      total,
+      totalCustomers,
+      rejectionRate,
+      byReason: grouped
+        .map((g) => ({ reason: g.rejectReason, count: g._count._all }))
+        .sort((a, b) => b.count - a.count),
+    };
+  } catch (error) {
+    console.error("[getRejectedCustomersReport]", error);
+    return null;
+  }
+}
