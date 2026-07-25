@@ -16,6 +16,7 @@ import {
   type ConfigTypeOption,
   type PricingFactorOption,
   type ApprovalInfo,
+  type ItemPricingInput,
 } from "./product-recipe-form";
 
 export type ProductTypeOption = { id: string; code: string; nameAr: string };
@@ -33,7 +34,12 @@ export function ProductSection({
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
   onRemove: () => void;
-  onSubtotalChange: (subtotal: number, approvalInfo?: ApprovalInfo) => void;
+  // TO-05: `pricing` يمر كما هو حتى `createQuotation` — تسجيل تكلفة فقط، بلا أثر على السعر.
+  onSubtotalChange: (
+    subtotal: number,
+    approvalInfo?: ApprovalInfo,
+    pricing?: ItemPricingInput
+  ) => void;
 }) {
   const t = useTranslations();
   const [productTypeId, setProductTypeId] = useState<string>("");
@@ -99,7 +105,9 @@ export function ProductSection({
           configTypes={configTypes}
           pricingFactors={pricingFactors}
           defaultPricingFactorId={defaultPricingFactorId}
-          onResult={(subtotal, approvalInfo) => onSubtotalChange(subtotal, approvalInfo)}
+          onResult={(subtotal, approvalInfo, pricing) =>
+            onSubtotalChange(subtotal, approvalInfo, pricing)
+          }
         />
       )}
     </div>

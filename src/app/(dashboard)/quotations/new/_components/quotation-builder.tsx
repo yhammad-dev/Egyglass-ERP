@@ -16,11 +16,21 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ProductSection, type ProductTypeOption } from "./product-section";
-import type { PricingFactorOption, ApprovalInfo } from "./product-recipe-form";
+import type {
+  PricingFactorOption,
+  ApprovalInfo,
+  ItemPricingInput,
+} from "./product-recipe-form";
 
 type CustomerOption = { id: string; name: string; phone: string };
 
-type Section = { key: number; subtotal: number; approvalInfo?: ApprovalInfo };
+// TO-05: `pricing` مرافق للبند حتى الحفظ فقط — لا يدخل في أي حساب هنا.
+type Section = {
+  key: number;
+  subtotal: number;
+  approvalInfo?: ApprovalInfo;
+  pricing?: ItemPricingInput;
+};
 
 type EditItem = { key: number; description: string; quantity: number; unitPrice: number };
 
@@ -78,8 +88,15 @@ export function QuotationBuilder({
     setSections((prev) => prev.filter((s) => s.key !== key));
   }
 
-  function updateSubtotal(key: number, subtotal: number, approvalInfo?: ApprovalInfo) {
-    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, subtotal, approvalInfo } : s)));
+  function updateSubtotal(
+    key: number,
+    subtotal: number,
+    approvalInfo?: ApprovalInfo,
+    pricing?: ItemPricingInput
+  ) {
+    setSections((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, subtotal, approvalInfo, pricing } : s))
+    );
   }
 
   function addEditItem() {
@@ -166,6 +183,8 @@ export function QuotationBuilder({
         description: `${title} - ${i + 1}`,
         quantity: 1,
         unitPrice: s.subtotal,
+        // TO-05: مدخلات إعادة حساب التكلفة — السيرفر يعيد الحساب بنفسه ولا يثق برقم من هنا.
+        ...(s.pricing ? { pricing: s.pricing } : {}),
       })),
       needsApproval: anyNeedsApproval,
       pricingFactor: lowestFactor,

@@ -24,7 +24,13 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import {
+  groupRecipeLines,
+  selectRecipeLines,
+  type ItemPricingInput,
+} from "../../../../../../lib/pricing/recipe-selection";
 
+export type { ItemPricingInput };
 export type ConfigTypeOption = { id: string; nameAr: string };
 export type PricingFactorOption = { id: string; label: string; value: number };
 export type ApprovalInfo = { requiresApproval: true; factor: number };
@@ -79,10 +85,17 @@ export function ProductRecipeForm({
   configTypes: ConfigTypeOption[];
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
-  onResult?: (grandTotal: number, approvalInfo?: ApprovalInfo) => void;
+  // TO-05: `pricing` = مدخلات إعادة حساب تكلفة الكتالوج على السيرفر وقت الحفظ.
+  onResult?: (
+    grandTotal: number,
+    approvalInfo?: ApprovalInfo,
+    pricing?: ItemPricingInput
+  ) => void;
 }) {
   const t = useTranslations();
   const [result, setResult] = useState<CalculationResult | null>(null);
+  // TO-05: مدخلات آخر حساب ناجح — السيرفر لا يعرفها وقت الحفظ إلا إذا أُرسلت معه.
+  const [lastInput, setLastInput] = useState<FormData | null>(null);
   const [approvalInfo, setApprovalInfo] = useState<ApprovalInfo | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -107,6 +120,7 @@ export function ProductRecipeForm({
     setSubmitting(true);
     setServerError(null);
     setResult(null);
+    setLastInput(null);
     setApprovalInfo(null);
     setSelections({});
 
@@ -123,6 +137,7 @@ export function ProductRecipeForm({
     }
 
     setResult(response.data);
+    setLastInput(data);
 
     if (response.requiresApproval && response.factor !== undefined) {
       setApprovalInfo({ requiresApproval: true, factor: response.factor });
@@ -131,39 +146,25 @@ export function ProductRecipeForm({
     }
   }
 
-  const groupedLines = useMemo(() => {
-    const groups: Record<string, RecipeLine[]> = {};
-    if (!result) return groups;
-    for (const line of result.lines) {
-      const key = line.notes ?? "OTHER";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(line);
-    }
-    return groups;
-  }, [result]);
+  // TO-05: التجميع والاختيار انتقلا إلى `lib/pricing/recipe-selection` ليستخدم السيرفر
+  // **نفس** القاعدة عند حساب تكلفة الكتالوج — نسخة ثانية منها = انحراف صامت بين السعر
+  // والتكلفة. السلوك هنا مطابق حرفيًا لما كان مكتوبًا inline (تلقائي ثم مختار، بنفس الترتيب).
+  const groupedLines = useMemo<Record<string, RecipeLine[]>>(
+    () => (result ? groupRecipeLines(result.lines) : {}),
+    [result]
+  );
 
   // Groups with more than one option require the user to choose one.
   // Groups with exactly one option (e.g. silicone) are always included.
-  const selectableCategories = Object.keys(groupedLines).filter(
-    (category) => groupedLines[category].length > 1
+  const selectableCategories = useMemo(
+    () => Object.keys(groupedLines).filter((category) => groupedLines[category].length > 1),
+    [groupedLines]
   );
-  const autoIncludedLines = Object.keys(groupedLines)
-    .filter((category) => groupedLines[category].length <= 1)
-    .flatMap((category) => groupedLines[category]);
 
-  const selectedLines = useMemo(() => {
-    const lines: RecipeLine[] = [...autoIncludedLines];
-    for (const category of selectableCategories) {
-      const materialId = selections[category];
-      if (!materialId) continue;
-      const line = groupedLines[category]?.find(
-        (l) => l.materialId === materialId
-      );
-      if (line) lines.push(line);
-    }
-    return lines;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupedLines, selections]);
+  const selectedLines = useMemo(
+    () => selectRecipeLines(groupedLines, selections),
+    [groupedLines, selections]
+  );
 
   const subtotalBeforeFixed = selectedLines
     .filter((l) => l.factorMode === "STANDARD" || l.factorMode === "CUSTOM_FACTOR")
@@ -173,10 +174,24 @@ export function ProductRecipeForm({
     .reduce((sum, l) => sum + l.lineTotal, 0);
   const grandTotal = subtotalBeforeFixed + fixedTotal;
 
+  // TO-05: يُبنى من مدخلات آخر حساب + الاختيارات الحالية. `selections` جزء من الاعتماديات
+  // عمدًا: تبديل خامة بخامة بنفس السعر لا يغيّر grandTotal، فلولا هذا لبقيت الصورة قديمة.
+  const pricing = useMemo<ItemPricingInput | undefined>(() => {
+    if (!result || !lastInput) return undefined;
+    return {
+      productTypeCode,
+      height: lastInput.height,
+      width: lastInput.width,
+      ...(lastInput.configTypeId ? { configTypeId: lastInput.configTypeId } : {}),
+      pricingFactorId: lastInput.pricingFactorId,
+      selections,
+    };
+  }, [result, lastInput, productTypeCode, selections]);
+
   useEffect(() => {
-    onResult?.(result ? grandTotal : 0, approvalInfo ?? undefined);
+    onResult?.(result ? grandTotal : 0, approvalInfo ?? undefined, pricing);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, grandTotal, approvalInfo]);
+  }, [result, grandTotal, approvalInfo, pricing]);
 
   function categoryLabel(category: string) {
     const knownKey = KNOWN_CATEGORY_LABEL_KEY[category];

@@ -7,6 +7,11 @@ import { requireRole } from "@/lib/rbac";
 import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
+import {
+  groupRecipeLines,
+  selectRecipeLines,
+  type ItemPricingInput,
+} from "./recipe-selection";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import {
   recomputeQuotationRequestStatus,
@@ -267,11 +272,79 @@ export async function calculateProductPricing(
   }
 }
 
+// TO-05: مدخلات إعادة حساب تكلفة الكتالوج على السيرفر. **اختيارية** — بند بلا وصفة
+// (يدوي) يُحفظ كما كان بلا صورة تكلفة، فلا يكسر أي مسار قائم.
+const quotationItemPricingSchema = z.object({
+  productTypeCode: z.string().min(1, "errors.invalidInput"),
+  height: z.coerce.number().positive("errors.invalidInput"),
+  width: z.coerce.number().positive("errors.invalidInput"),
+  configTypeId: z.string().optional(),
+  pricingFactorId: z.string().min(1, "errors.invalidInput"),
+  selections: z.record(z.string(), z.string()),
+});
+
 const createQuotationItemSchema = z.object({
   description: z.string().min(1, "errors.invalidInput"),
   quantity: z.coerce.number().positive("errors.invalidInput"),
   unitPrice: z.coerce.number().nonnegative("errors.invalidInput"),
+  // TO-05: تُقرأ للتسجيل فقط — لا تدخل في unitPrice ولا في أي إجمالي.
+  pricing: quotationItemPricingSchema.optional(),
 });
+
+// TO-05 — تكلفة الكتالوج للوحدة الواحدة وقت التسعير، محسوبة **server-side** من نفس
+// مسار `calculateRecipe` الذي أنتج السعر: نفس الوصفات، نفس الأبعاد، نفس قاعدة الاختيار.
+// الفرق الوحيد: بلا معامل ربح — نجمع (كمية × Material.cost) للأسطر المختارة فقط.
+//
+// الطبقة المالية: الكمية تأتي من `calculateRecipe` (مشتقة من الأبعاد، ليست مبلغًا)،
+// أما **التكلفة فتُقرأ Decimal من الصف مباشرة** (`Material.cost`) لا من `line.unitCost`
+// المحوَّل إلى number — فلا يمر أي مبلغ عبر float (L-07).
+//
+// null تعني «غير معروفة» ولا تُلفَّق أبدًا: نوع منتج/عامل مفقود، أو صفر سطر مختار،
+// أو خامة اختفت بين لحظة الحساب ولحظة الحفظ ⇒ null، لا صفر.
+async function computeCatalogCostSnapshot(
+  pricing: ItemPricingInput
+): Promise<Prisma.Decimal | null> {
+  const productType = await prisma.productType.findUnique({
+    where: { code: pricing.productTypeCode },
+  });
+  if (!productType) return null;
+
+  const [configType, pricingFactor, recipes] = await Promise.all([
+    pricing.configTypeId
+      ? prisma.configType.findUnique({ where: { id: pricing.configTypeId } })
+      : Promise.resolve(null),
+    prisma.pricingFactor.findUnique({ where: { id: pricing.pricingFactorId } }),
+    getProductRecipes(productType.id),
+  ]);
+
+  if (pricing.configTypeId && !configType) return null;
+  if (!pricingFactor) return null;
+
+  const dimensions = {
+    area: pricing.height * pricing.width,
+    length: pricing.height + pricing.width + pricing.width,
+    configCount: configType?.anglesCount ?? 0,
+  };
+
+  // المعامل لا يؤثر على التكلفة (نتجاهل lineTotal)؛ يُمرَّر كما هو للحفاظ على نفس المسار.
+  const { lines } = calculateRecipe(recipes, dimensions, pricingFactor.value.toNumber());
+  const selected = selectRecipeLines(groupRecipeLines(lines), pricing.selections);
+  if (selected.length === 0) return null;
+
+  const costByMaterialId = new Map(
+    recipes.filter((r) => r.Material).map((r) => [r.Material!.id, r.Material!.cost])
+  );
+
+  let cost = new D(0);
+  for (const line of selected) {
+    const unitCost = costByMaterialId.get(line.materialId);
+    // `undefined` صراحةً لا `!unitCost` — تكلفة صفر قيمة مشروعة (خامة مجانية/مضمَّنة).
+    if (unitCost === undefined) return null;
+    cost = cost.add(toDec(line.qty).mul(unitCost));
+  }
+
+  return cost;
+}
 
 const createQuotationSchema = z.object({
   customerId: z.string().min(1, "errors.invalidInput"),
@@ -354,6 +427,25 @@ export async function createQuotation(
     const count = await prisma.quotation.count();
     const number = `Q-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 
+    // TO-05: صورة تكلفة الكتالوج لكل بند — **تسجيل فقط**. لا تدخل في أي مبلغ أعلاه
+    // (subtotal/discount/tax/total كلها مُشتقّة قبل هذا السطر ولا تُقرأ منه).
+    // فشل بند لا يُسقط العرض: يُسجَّل ويُكمَل بـnull (D-39: بالع + سجّل) — العرض
+    // مستند تجاري، وضياع رقم إحصائي لا يبرر منع حفظه.
+    const costSnapshots: (Prisma.Decimal | null)[] = [];
+    for (const item of items) {
+      if (!item.pricing) {
+        costSnapshots.push(null);
+        continue;
+      }
+      try {
+        costSnapshots.push(await computeCatalogCostSnapshot(item.pricing));
+      } catch (error) {
+        console.error("[createQuotation] costSnapshot", error);
+        costSnapshots.push(null);
+      }
+    }
+    const snapshotCount = costSnapshots.filter((c) => c !== null).length;
+
     const quotation = await prisma.quotation.create({
       data: {
         number,
@@ -379,6 +471,8 @@ export async function createQuotation(
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             lineTotal: lineTotals[i],
+            // TO-05: null = «غير معروفة» لا صفر (انظر التعليق على العمود في schema).
+            costSnapshot: costSnapshots[i],
           })),
         },
       },
@@ -402,7 +496,8 @@ export async function createQuotation(
         action: "CREATE",
         entity: "Quotation",
         entityId: quotation.id,
-        details: `تم إنشاء عرض سعر "${title}" للعميل ${customer.name} برقم ${number}${quotationRequestId ? ` (من طلب ${quotationRequestId})` : ""}`,
+        // TO-05: عدد البنود التي حُفظت لها صورة تكلفة — أثر صريح يميّز «لا تكلفة» عن «تكلفة صفر».
+        details: `تم إنشاء عرض سعر "${title}" للعميل ${customer.name} برقم ${number}${quotationRequestId ? ` (من طلب ${quotationRequestId})` : ""} — صورة تكلفة الكتالوج محفوظة لـ${snapshotCount} من ${items.length} بند`,
       },
     });
 
