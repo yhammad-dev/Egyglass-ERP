@@ -13,6 +13,13 @@ execution_policy: Execute P0 only; after each task run QA regression, update Rel
 > plus direct source inspection of `src/lib/auth.config.ts`, `src/proxy.ts`, `src/lib/rbac.ts`,
 > `src/app/api/cleanup/route.ts`, `src/app/(dashboard)/customers/actions.ts` (2026-07-06).
 
+> 🔴 **تصحيح مؤرَّخ — 2026-07-25 · المرجع: TO-14 / TO-17.**
+> `src/proxy.ts` المذكور ضمن مصادر الفحص أعلاه كان **ملفًا ميتًا لم يُحمَّل ولا مرة**
+> (اسم `proxy.ts` اصطلاح **Next.js 16** والمشروع على **15.3.4**)، وحُذف في TO-14.
+> أي استنتاج في هذه الوثيقة يفترض وجود طبقة مصادقة على مستوى الشبكة **غير صحيح**:
+> الحماية مصدرها `src/app/(dashboard)/layout.tsx:72-73` + `requireRole`، والحارس الشبكي
+> الوحيد اليوم هو `src/middleware.ts` بنطاق **`/uploads` فقط** (TO-07، أُصلح في TO-13).
+
 ## Priority legend
 
 | Code | Class | Meaning |
@@ -41,6 +48,14 @@ execution_policy: Execute P0 only; after each task run QA regression, update Rel
 | Release Blocking | **YES** |
 
 **Evidence:** `src/app/api/cleanup/route.ts` calls `deleteMany()` on ActivityLog, Quotation(+items/approvals), Inspection(+measurements/photos), Attachment, Notification, Payment, Customer, Project, etc. No `auth()`, no `requireRole`, no `NODE_ENV` guard. The `proxy.ts` matcher explicitly excludes `/api`, so it is not even behind the (already-broken) auth middleware. Any actor able to reach the server can destroy all business data with one POST. OWASP A01 Broken Access Control / A04 Insecure Design.
+
+> 🔴 **تصحيح مؤرَّخ — 2026-07-25 · المرجع: TO-14 / TO-17.**
+> **تقييم الخطورة صحيح والمسار حُذف فعلًا (SEC-001)، لكن التعليل المذكور غير دقيق.**
+> لم تكن المشكلة أن matcher الـ`proxy.ts` يستثني `/api`؛ بل إن **`proxy.ts` لم يُحمَّل إطلاقًا**
+> (اصطلاح **Next.js 16** على مشروع **15.3.4**) ⇒ **لا `/api` ولا أي مسار آخر** كان خلف طبقة شبكة.
+> الفرق مهم: العبارة توحي بأن باقي المسارات كانت محمية شبكيًا وأن `/api` وحده استثناء — وهذا خطأ.
+> حماية باقي المسارات كانت (ولا تزال) من `src/app/(dashboard)/layout.tsx:72-73` و`requireRole`.
+> حُذف `proxy.ts` في TO-14.
 
 ### SEC-002 — Middleware only authenticates `/dashboard`; all other routes fall through
 | Field | Value |
