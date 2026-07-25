@@ -272,6 +272,23 @@ export function TecDetailClient({
         )}
       </div>
 
+      {/* TO-12: وصف طلب العميل كما سجّلته المبيعات — الأساس الذي يُسعَّر عليه،
+          فيسبق كل بيان ثانوي. نص حر (لا بنود مهيكلة) → نحفظ فواصل الأسطر. */}
+      <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-5 space-y-2">
+        <h2 className="text-sm font-semibold text-primary">
+          {t("quotationRequest.summary")}
+        </h2>
+        {initialJob.summary?.trim() ? (
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            {initialJob.summary}
+          </p>
+        ) : (
+          <p className="text-sm italic text-muted-foreground">
+            {t("quotationRequest.noSummary")}
+          </p>
+        )}
+      </div>
+
       {/* Info Card */}
       <div className="rounded-lg border p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
         <div>

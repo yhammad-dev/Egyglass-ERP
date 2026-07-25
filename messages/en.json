@@ -536,6 +536,7 @@
     "salesType_PROJECTS": "Projects",
     "referralTag": "Referral (personal connection)",
     "summary": "Request description",
+    "noSummary": "No request description recorded",
     "summaryPlaceholder": "What does the customer want? (product, rough sizes, notes)",
     "submit": "Send request",
     "created": "Quotation request sent to the technical office",
@@ -1300,7 +1301,9 @@
     "mfgNoQuotation": "No quotation yet",
     "mfgNoApprovedDrawing": "Drawing not approved",
     "mfgNoContract": "No contract",
-    "mfgNoPayment": "No payment recorded"
+    "mfgNoPayment": "No payment recorded",
+    "unassignedShowMore": "and {count} more",
+    "unassignedShowLess": "Show less"
   },
   "import": {
     "title": "Import Data",

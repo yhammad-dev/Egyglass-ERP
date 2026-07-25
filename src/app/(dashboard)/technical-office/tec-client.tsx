@@ -32,6 +32,9 @@ type TechnicalRoute = "PROJECTS" | "SOCIAL_MEDIA";
 
 const STATUS_OPTIONS: TecJobStatus[] = ["NEW", "IN_PROGRESS", "ON_HOLD", "DONE"];
 
+// TO-19: سقف العرض الافتراضي لقائمة "طلبات تحتاج إسنادًا"
+const UNASSIGNED_PREVIEW_COUNT = 5;
+
 
 const TABS: { id: TechnicalRoute; labelKey: string }[] = [
   { id: "PROJECTS", labelKey: "tec.projects" },
@@ -55,6 +58,8 @@ export function TecClient({
   const [pendingStatus, setPendingStatus] = useState<Record<string, TecJobStatus>>({});
   const [pendingEngineer, setPendingEngineer] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  // TO-19: توسعة/طي قائمة غير المُسنَد — حالة محلية بحتة، بلا استعلام جديد
+  const [unassignedExpanded, setUnassignedExpanded] = useState(false);
 
   const isApprover = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
   const isTecOffice = currentRole === "TECHNICAL_OFFICE";
@@ -120,8 +125,61 @@ export function TecClient({
     day: "2-digit",
   });
 
+  /**
+   * TO-19: أداة الإسناد الوحيدة في الشاشة — تُستدعى من مكانين (المربع الأصفر والجدول).
+   * دالة عرض لا مكوّن: تعريف مكوّن داخل جسم TecClient يُنشئ نوعًا جديدًا في كل render
+   * فيُعاد تركيب الـSelect ويفقد حالته. الاستدعاء المباشر يُدرج نفس الـJSX بلا هذا الأثر.
+   * الصلاحية تبقى كما هي (isApprover) — الحارس النافذ هو assignEngineerAction نفسه.
+   */
+  function renderAssignControl(job: TecJobRow) {
+    return (
+      <div className="flex items-center gap-1">
+        <Select
+          value={pendingEngineer[job.id] ?? ""}
+          onValueChange={(v) => setPendingEngineer((p) => ({ ...p, [job.id]: v }))}
+        >
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder={t("tec.assignEngineer")} />
+          </SelectTrigger>
+          <SelectContent>
+            {engineers.map((e) => (
+              <SelectItem key={e.id} value={e.id}>
+                {e.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          disabled={loading[`eng-${job.id}`] || !pendingEngineer[job.id]}
+          onClick={() => handleAssignEngineer(job)}
+        >
+          {loading[`eng-${job.id}`] ? t("app.loading") : t("tec.assignEngineer")}
+        </Button>
+      </div>
+    );
+  }
+
   // دفعة هـ: الطلبات غير المُسنَدة (engineerId=null) — بارزة كي لا تتراكم بلا مالك
-  const unassigned = jobs.filter((j) => !j.engineerId && j.status !== "DONE");
+  // TO-19: الأقدم أولًا — الأطول انتظارًا في الأعلى (createdAt موجود في TecJobRow، بلا حقل جديد)
+  const unassigned = useMemo(
+    () =>
+      jobs
+        .filter((j) => !j.engineerId && j.status !== "DONE")
+        .sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ),
+    [jobs]
+  );
+
+  // TO-19: عرض أول 5 فقط افتراضيًا كي لا يزحم المربع الشاشة مع نمو العدد
+  const visibleUnassigned = unassignedExpanded
+    ? unassigned
+    : unassigned.slice(0, UNASSIGNED_PREVIEW_COUNT);
+  const hiddenUnassignedCount = unassigned.length - UNASSIGNED_PREVIEW_COUNT;
 
   return (
     <div className="space-y-4 p-6">
@@ -130,19 +188,54 @@ export function TecClient({
       {/* دفعة هـ: قسم "طلبات تحتاج إسنادًا" بارز أعلى الشاشة */}
       {unassigned.length > 0 && (
         <div className="rounded-md border-2 border-amber-300 bg-amber-50 p-4">
-          <p className="font-semibold text-amber-900 mb-2">
-            {t("tec.unassignedTitle")} ({unassigned.length})
-          </p>
-          <div className="space-y-1">
-            {unassigned.map((j) => (
-              <div key={j.id} className="flex items-center justify-between text-sm py-1">
-                <span dir="ltr">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="font-semibold text-amber-900">
+              {t("tec.unassignedTitle")} ({unassigned.length})
+            </p>
+            {/* TO-19: عدّاد المخفي + توسعة/طي — بلا استعلام جديد */}
+            {hiddenUnassignedCount > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-amber-900 hover:bg-amber-100"
+                onClick={() => setUnassignedExpanded((v) => !v)}
+              >
+                {unassignedExpanded
+                  ? t("tec.unassignedShowLess")
+                  : t("tec.unassignedShowMore", { count: hiddenUnassignedCount })}
+              </Button>
+            )}
+          </div>
+          <div
+            className={cn(
+              "space-y-1",
+              // TO-19: سقف ارتفاع عند التوسعة فلا يتمدد المربع بلا حد
+              unassignedExpanded && "max-h-72 overflow-y-auto pe-1"
+            )}
+          >
+            {visibleUnassigned.map((j) => (
+              <div
+                key={j.id}
+                className="flex flex-wrap items-center justify-between gap-2 text-sm py-1"
+              >
+                <span dir="ltr" className="min-w-0 truncate">
                   {j.code} · {j.customerName} ·{" "}
                   {t(j.technicalRoute === "PROJECTS" ? "tec.projects" : "tec.socialMedia")}
                 </span>
-                <a href={`/technical-office/${j.id}`} className="underline text-amber-800">
-                  {t("tec.assignNow")}
-                </a>
+                {/* TO-19: كان رابطًا باسم "إسناد" يقود لصفحة بلا أداة إسناد (طريق مسدود).
+                    صار أداة الإسناد نفسها — نفس Select+زر الجدول عبر renderAssignControl.
+                    غير المصرَّح له يرى رابط تفاصيل صادقًا، لا زرًا يوحي بفعل لا يملكه. */}
+                {isApprover ? (
+                  renderAssignControl(j)
+                ) : (
+                  <Link
+                    href={`/technical-office/${j.id}`}
+                    className="shrink-0 underline text-amber-800"
+                  >
+                    {t("tec.details")}
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -236,7 +329,24 @@ export function TecClient({
                   <TableCell className="font-mono text-sm" dir="ltr">
                     {job.code}
                   </TableCell>
-                  <TableCell>{job.customerName}</TableCell>
+                  <TableCell>
+                    <div className="max-w-[20rem] space-y-0.5">
+                      <p>{job.customerName}</p>
+                      {/* TO-12: مقتطف من وصف الطلب — سطران بحد أقصى كي لا يتمدد الصف */}
+                      {job.summary?.trim() ? (
+                        <p
+                          className="text-xs text-muted-foreground line-clamp-2"
+                          title={job.summary}
+                        >
+                          {job.summary}
+                        </p>
+                      ) : (
+                        <p className="text-xs italic text-muted-foreground">
+                          {t("quotationRequest.noSummary")}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell dir="ltr">{job.quotationNumber}</TableCell>
                   <TableCell>{job.engineerName ?? "—"}</TableCell>
                   <TableCell>
@@ -296,42 +406,9 @@ export function TecClient({
                         </div>
                       )}
 
-                      {/* Assign Engineer — ADMIN / TEC_APPROVER only */}
-                      {isApprover && (
-                        <div className="flex items-center gap-1">
-                          <Select
-                            value={pendingEngineer[job.id] ?? ""}
-                            onValueChange={(v) =>
-                              setPendingEngineer((p) => ({ ...p, [job.id]: v }))
-                            }
-                          >
-                            <SelectTrigger className="h-8 w-40 text-xs">
-                              <SelectValue placeholder={t("tec.assignEngineer")} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {engineers.map((e) => (
-                                <SelectItem key={e.id} value={e.id}>
-                                  {e.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            disabled={
-                              loading[`eng-${job.id}`] || !pendingEngineer[job.id]
-                            }
-                            onClick={() => handleAssignEngineer(job)}
-                          >
-                            {loading[`eng-${job.id}`]
-                              ? t("app.loading")
-                              : t("tec.assignEngineer")}
-                          </Button>
-                        </div>
-                      )}
+                      {/* Assign Engineer — ADMIN / TEC_APPROVER only.
+                          TO-19: نفس الأداة المستخدمة في مربع "طلبات تحتاج إسنادًا" — مصدر واحد. */}
+                      {isApprover && renderAssignControl(job)}
 
                       <Link href={`/technical-office/${job.id}`}>
                         <Button type="button" size="sm" variant="outline" className="h-8 text-xs">
