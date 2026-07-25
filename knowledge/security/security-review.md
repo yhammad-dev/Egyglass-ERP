@@ -21,6 +21,11 @@ Static inspection of the entire `src/`, `lib/`, `scripts/`, and config surface:
 server actions, services, API routes, middleware/proxy, auth config, RBAC, Prisma access
 patterns, env/secrets, and client render paths. Cross-checked against OWASP Top 10 (2021).
 
+> 🔴 **تصحيح مؤرَّخ — 2026-07-25 · المرجع: TO-14 / TO-17.** عبارة «middleware/proxy» أعلاه توحي
+> بفحص طبقة شبكة عاملة. **لم تكن هناك طبقة كهذه:** `src/proxy.ts` (اصطلاح **Next.js 16** على مشروع
+> **15.3.4**) **لم يُحمَّل ولا مرة**، وحُذف في TO-14. الفحص الساكن قرأ ملفًا لا ينفّذه الإطار.
+> تفاصيل الأثر على البنود 4 و6 و12 في قسم **«تصحيحات TO-17»** بعد المصفوفة.
+
 ## 20-point result matrix
 
 | # | Control | Verdict | Worst finding |
@@ -28,15 +33,15 @@ patterns, env/secrets, and client render paths. Cross-checked against OWASP Top 
 | 1 | Authentication | ✅ PASS | Credentials + bcrypt(12); inactive-user block (`auth.ts:26`) |
 | 2 | Authorization (RBAC) | ✅ PASS | `requireRole` on every mutation |
 | 3 | Server Actions | ✅ PASS (1 note) | Read catalog actions ungated — P3 AUTHZ-002 |
-| 4 | Route Protection | ✅ PASS (remediated) | Was P0 SEC-002 — **fixed** |
+| 4 | Route Protection | ✅ PASS (remediated) | Was P0 SEC-002 — **fixed** — 🔴 **صُحِّح: السبب المذكور خاطئ، انظر «تصحيحات TO-17»** |
 | 5 | API Protection | ✅ PASS | notifications: rateLimit+auth+zod+ownership |
-| 6 | Middleware | ✅ PASS (remediated) | `proxy.ts` matcher + fixed `authorized()` |
+| 6 | Middleware | ✅ PASS (remediated) | `proxy.ts` matcher + fixed `authorized()` — 🔴 **صُحِّح: انظر «تصحيحات TO-17» بعد المصفوفة** |
 | 7 | Role Matrix | ⚠ MINOR | `REVIEW` role absent from `roleHierarchy` — P3 RBAC-001 |
 | 8 | Input Validation (Zod) | ✅ PASS | `safeParse` on every action & API body |
 | 9 | Soft-Delete Consistency | ✅ PASS | `deletedAt:null` on all list + detail reads (DATA-002 closed) |
 | 10 | Audit Log Completeness | ⚠ MINOR | `createQuotation` audit unconfirmed — P2 AUDIT-001 (DATA-003) |
 | 11 | File Upload Security | ⚠ LATENT | Attachment `fileName`/`filePath` stored unvalidated — P2 UPL-001 |
-| 12 | File Download Security | ✅ N/A | No server-side file read/serve handler exists |
+| 12 | File Download Security | ✅ N/A | No server-side file read/serve handler exists — 🔴 **صُحِّح: الادعاء خاطئ، انظر «تصحيحات TO-17»** |
 | 13 | Admin-only Endpoints | ✅ PASS (remediated) | `/api/cleanup` removed (P0 SEC-001) |
 | 14 | Environment Variables | ✅ PASS | `.env` untracked; `.env.example` value-free |
 | 15 | Secrets Management | ⚠ MINOR | Hardcoded dev DB creds in `scripts/cleanup.mjs:6` — P2 ENV-001 |
@@ -45,6 +50,27 @@ patterns, env/secrets, and client render paths. Cross-checked against OWASP Top 
 | 18 | XSS Protection | ✅ PASS | No `dangerouslySetInnerHTML`; React auto-escape |
 | 19 | SQL Injection | ✅ PASS | 100% Prisma parameterized; no `$queryRawUnsafe` |
 | 20 | Business Authorization | ⚠ **GAP** | SALES_REP can self-approve quotation — **P1 BIZ-001** |
+
+## 🔴 تصحيحات TO-17 — 2026-07-25 (المرجع: TO-14)
+
+> **صيغة موحّدة:** التاريخ · المرجع · الادعاء السابق · الوضع الفعلي. السجل الأصلي أعلاه **لم يُحذف ولم يُعَد كتابته** عمدًا.
+
+**الجذر المشترك:** `src/proxy.ts` **لم يُحمَّل ولا مرة واحدة**. اسم `proxy.ts` اصطلاح **Next.js 16**
+بينما المشروع على **15.3.4**، فلا يتعرّف عليه الإطار إطلاقًا. أي **لم تكن هناك طبقة شبكة عاملة**
+طوال الفترة التي وثّقت فيها هذه المراجعة وجودها. حُذف الملف في **TO-14**.
+
+| البند | الادعاء السابق | الوضع الفعلي (2026-07-25) |
+|---|---|---|
+| **6 — Middleware** | «`proxy.ts` matcher + fixed `authorized()`» ⇒ PASS | `proxy.ts` ميت، و`authorized()` في `src/lib/auth.config.ts` **لم يُنفَّذ قط** لعدم وجود ملف middleware يحمّله. الحارس الشبكي الوحيد اليوم هو **`src/middleware.ts`** ونطاقه **`/uploads` فقط** (أُنشئ في TO-07، أُصلح في TO-13). |
+| **4 — Route Protection** | مُصلَح بـSEC-002 عند طبقة الـmiddleware | **النتيجة صحيحة، السبب خاطئ.** الحماية قائمة فعلًا لكن مصدرها **طبقة الصفحات**: `src/app/(dashboard)/layout.tsx:72-73` (`await auth()` ثم `redirect("/login")`) يغطي مجموعة `(dashboard)` كاملة، بالإضافة إلى `requireRole` في الصفحات والأكشنات. مُتحقَّق runtime: 14 مسارًا (`/customers` `/quotations` `/users` `/hr` `/accounting` `/inspections` `/projects` `/review` `/manufacturing` `/installations` `/executive` `/audit` `/dashboard` `/admin/pricing`) تعيد **307 → /login** بلا جلسة. |
+| **12 — File Download Security** | «No server-side file read/serve handler exists» ⇒ N/A | **خاطئ وقت كتابته.** `src/app/uploads/[...path]/route.ts` موجود ويقرأ من القرص ويخدم الملفات. والأخطر أن الملفات تحت `public/uploads/**` كان يخدمها Next **ساكنًا بلا أي مصادقة** — أُغلق في TO-07 عبر `src/middleware.ts`، وأُصلح انحدار فيه في TO-13. ⚠️ **الحد القائم:** الحماية «مُصادَق فقط» لا «مصرَّح له بهذا الملف تحديدًا». |
+| **الحكم P0 SEC-002** | «Critical Broken-Access-Control closed» | الثغرة **مغطّاة فعلًا اليوم** (طبقة الصفحات)، لكنها **لم تُغلق بالتغيير المنسوب إليها** — تعديل `authorized()` لم ينفَّذ قط. الإغلاق كان قائمًا من `layout.tsx` بصرف النظر عن SEC-002. |
+
+**بند مكشوف واحد (توصية، لم يُنفَّذ في هذه الموجة — وثائق فقط):**
+سطر التحقق «Logged-in user on `/login` redirected to `/dashboard` — PASS (preserved)» **غير صحيح اليوم**:
+هذا السلوك يعيش حصرًا في `authorized()` الميت، ولا حارس ذاتي في `src/app/(auth)/login/page.tsx`.
+مُتحقَّق بجلسة حيّة: المستخدم المسجَّل يفتح `/login` فيبقى عليه ويرى فورم الدخول.
+**التصنيف: خلل تجربة استخدام لا ثغرة أمنية** (لا تسريب بيانات ولا تجاوز صلاحية). يُسجَّل كبند منفصل.
 
 ## Findings by priority
 
