@@ -98,7 +98,6 @@ export async function getDashboardKPIs() {
       overdueMfgOrders,
       overdueInstallations,
       mfgUnderReview,
-      drawingsAwaitingCeo,
       paymentsSum,
     ] = await Promise.all([
       prisma.project.count({ where: { status: "ACTIVE" } }),
@@ -115,7 +114,19 @@ export async function getDashboardKPIs() {
         },
       }),
       prisma.manufacturingOrder.count({ where: { status: "UNDER_REVIEW" } }),
-      prisma.drawing.count({ where: { status: "INS_VERIFIED" } }),
+      // TO-03: حُذف عدّاد "رسومات بانتظار اعتماد الإدارة العليا" الذي كان يقرأ
+      // DrawingStatus.INS_VERIFIED — حالة **صفر-كاتب**: لا سطر في الكود يكتبها،
+      // فبوابتا G2/G3 مُعطَّلتان (verifyDrawingAction/ceoApproveDrawingAction تُرجعان
+      // errors.gateRemoved — D-02/D-05)، وكُتّاب Drawing.status الثلاثة الوحيدون يكتبون
+      // DRAFT (default) و TEC_APPROVED و SUPERSEDED فقط.
+      // 🔴 الضرر الفعلي (مُتحقَّق بالقاعدة الحيّة، لا افتراض): الجدول يحمل صفًا واحدًا
+      // بـINS_VERIFIED من بيانات سابقة لإلغاء البوابتين، فكانت البطاقة تعرض "1" **مجمَّدًا
+      // إلى الأبد** — أسوأ من صفر: توهم الإدارة بأن رسمة تنتظر اعتمادًا، ولا فعل بشري
+      // في النظام كله يمكنه تحريك هذا الرقم صعودًا أو نزولًا.
+      // ⚠️ تنظيف قيم enum DrawingStatus الميتة (INS_VERIFIED/CEO_APPROVED/
+      // RELEASED_TO_FACTORY) مؤجَّل بقرار المالك لجلسة تنظيف لاحقة (BL-20) — لا يُمس هنا.
+      // ملاحظة لذلك التنظيف: 6 صفوف حيّة تحمل قيمًا ميتة (1 INS_VERIFIED + 5
+      // RELEASED_TO_FACTORY) ⇒ سيلزم ترحيل بيانات، لا مجرد إسقاط قيم من الـenum.
       prisma.payment.aggregate({ _sum: { amount: true } }),
     ]);
 
@@ -138,7 +149,6 @@ export async function getDashboardKPIs() {
         overdueMfgOrders,
         overdueInstallations,
         mfgUnderReview,
-        drawingsAwaitingCeo,
         totalCollected: collectedDec.toNumber(),
         totalOutstanding: outstandingDec.toNumber(),
       },

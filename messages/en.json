@@ -827,6 +827,7 @@
     "serverError": "A server error occurred, please try again",
     "rateLimited": "Too many requests, please try again later",
     "cannotApproveSelf": "Cannot approve your own drawing",
+    "selfApprovalNotAllowed": "You cannot approve a quotation you created — approval must come from someone else",
     "gateRemoved": "Gate removed — no longer part of the approval chain",
     "noApprovedDrawing": "Cannot issue a manufacturing order without a technically approved drawing",
     "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",
@@ -840,6 +841,7 @@
     "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it",
     "invalidFileType": "Unsupported file type — images only",
     "fileTooLarge": "File exceeds the maximum allowed size (10MB)",
+    "invalidFileContent": "File content does not match the selected type — upload a valid file of the correct type",
     "inspectionApprovedLocked": "Inspection is approved — measurements cannot be edited or deleted after approval",
     "inspectionNotSubmittable": "The inspection cannot be submitted in its current state",
     "inspectionNoMeasurements": "Cannot submit an inspection with no measurements — add at least one",
@@ -1129,7 +1131,6 @@
       "overdueMfgOrders": "Overdue manufacturing orders (past expected date)",
       "overdueInstallations": "Overdue installations",
       "mfgUnderReview": "Orders under review",
-      "drawingsAwaitingCeo": "Drawings awaiting executive approval",
       "totalCollected": "Total collected",
       "totalOutstanding": "Total outstanding"
     },

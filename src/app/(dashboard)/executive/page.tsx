@@ -56,7 +56,9 @@ export default async function ExecutivePage() {
       alert: kpis.overdueInstallations > 0,
     },
     { label: t("executive.kpi.mfgUnderReview"), value: kpis.mfgUnderReview },
-    { label: t("executive.kpi.drawingsAwaitingCeo"), value: kpis.drawingsAwaitingCeo },
+    // TO-03: أُزيلت بطاقة "رسومات بانتظار اعتماد الإدارة العليا" — كانت تعرض عدّاد
+    // حالة صفر-كاتب (INS_VERIFIED) بعد إلغاء بوابتي G2/G3، أي رقم مجمَّد من بيانات
+    // قديمة لا يحرّكه أي فعل في النظام. التفاصيل والدليل في lib/executive/actions.ts.
     {
       label: t("executive.kpi.totalCollected"),
       value: <span dir="ltr">{numberFormat.format(kpis.totalCollected)}</span>,
