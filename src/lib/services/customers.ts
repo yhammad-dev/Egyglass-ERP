@@ -253,6 +253,16 @@ export interface CustomerProfileData {
     dueDate: Date;
     createdAt: Date;
   }>;
+  // SF-05 (الجزء 2): فواتير العميل — بيانات على مستوى الخدمة فقط. العرض في الواجهة قرار
+  // Wave C منفصل. total = totalAmount (Decimal) مُحوَّلًا لـnumber عند حدّ الـDTO، مطابقًا
+  // لنمط quotations.total الموجود في نفس الملف.
+  invoices: Array<{
+    id: string;
+    documentNumber: string | null;
+    status: string;
+    total: number;
+    createdAt: Date;
+  }>;
 }
 
 export async function getCustomerById(
@@ -309,6 +319,17 @@ export async function getCustomerById(
           address: true,
           scheduledAt: true,
           dueDate: true,
+          createdAt: true,
+        },
+      },
+      // SF-05 (الجزء 2): علاقة Customer.invoices (schema.prisma:87) — بلا تعديل schema
+      invoices: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          documentNumber: true,
+          status: true,
+          totalAmount: true,
           createdAt: true,
         },
       },
@@ -377,6 +398,13 @@ export async function getCustomerById(
       scheduledAt: ins.scheduledAt,
       dueDate: ins.dueDate,
       createdAt: ins.createdAt,
+    })),
+    invoices: customer.invoices.map((inv) => ({
+      id: inv.id,
+      documentNumber: inv.documentNumber,
+      status: inv.status,
+      total: Number(inv.totalAmount),
+      createdAt: inv.createdAt,
     })),
   };
 }
