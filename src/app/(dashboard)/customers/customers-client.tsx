@@ -248,7 +248,7 @@ export function CustomersClient({
       columnHelper.accessor("name", {
         header: t("customers.name"),
         cell: (info) => (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <Link
               href={`/customers/${info.row.original.id}`}
               className="text-primary hover:underline font-medium"
@@ -305,7 +305,7 @@ export function CustomersClient({
               id: "actions",
               header: t("app.actions"),
               cell: (info) => (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
