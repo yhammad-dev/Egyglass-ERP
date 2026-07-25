@@ -10,9 +10,17 @@ import { requireRole } from "@/lib/rbac";
  *
  * التنطيق (قرار Wave C الصريح):
  * - `SALES_MANAGER`: تجميع الفريق كامل — بلا قيد ownership.
- * - `SALES_REP`: مُنطَّق على عملائه عبر `Customer.ownerId` **فقط**.
- *   ⚠️ فرق مقصود عن `services/customers.ts:46-51` الذي يوسّع لـ`OR[ownerId, coveredById]`:
- *   التكليف نصّ على "ownerId فقط"، فعملاء التغطية خارج أرقام المندوب هنا عمدًا.
+ * - `SALES_REP`: مُنطَّق على عملائه عبر `Customer.ownerId` **فقط — بلا `coveredById`**.
+ *   ⚠️ الفرق عن `services/customers.ts:46-51` (`OR[ownerId, coveredById]`) **مقصود لا سهو**:
+ *   التغطية = صلاحية **وصول** تشغيلية (يرد على عميل زميله وقت غيابه). الملكية = إسناد
+ *   **أداء** (مَن يُحتسب له الإنجاز في التارجت). هذا الداشبورد يقيس الإنجاز، فضمّ عملاء
+ *   التغطية يُضخّم رقم المندوب بشغل زميله ويفسد غرض الشاشة. نمط customers.ts صحيح في
+ *   سياقه — شاشة وصول لا شاشة قياس.
+ *
+ * قرار العقود (D-44): المعيار **وجود العقد** لا `signedAt IS NOT NULL`. السبب: 6 من 10
+ * عقود بلا `signedAt` = بيانات بذرة سابقة لوجود الحقل في `contract-form`، ليست حالة عمل
+ * (التطبيق يكتب الحقل دائمًا الآن). الفلترة به اليوم تُسقط عقدًا **منفَّذًا فعليًا** — أي أن
+ * بيانات اختبار وسخة تفسد مؤشرًا صحيحًا. بعد تنظيف البذرة يصير التحويل أدق (SF-22).
  *
  * 🔴 صفر أرقام إيرادات/تحصيل مالي في هذه الطبقة (D-11/D-15).
  */
@@ -37,6 +45,11 @@ export interface SalesDashboardData {
   requestTypes: Record<SalesRequestTypeKey, number>;
   /** D-45 بُعد (2): تاج التوصية — عدّاد منفصل، **لا يُدمج** في تجميع نوع الطلب */
   referralTagged: number;
+  /**
+   * SF-06: معاينات غير منتهية **مُنطَّقة** بعملاء المندوب/الفريق — تصحيحًا للعدّاد العام
+   * غير المُنطَّق في `dashboard/page.tsx` (كان المندوب يرى رقم الشركة كله).
+   */
+  pendingInspections: number;
 }
 
 export async function getSalesDashboard(): Promise<SalesDashboardData | null> {
@@ -48,8 +61,13 @@ export async function getSalesDashboard(): Promise<SalesDashboardData | null> {
   const customerScope = isManager ? undefined : { ownerId: roleCheck.userId };
   const scopedByCustomer = customerScope ? { customer: customerScope } : {};
 
-  const [contractRows, quotationRows, requestTypeRows, referralTagged] =
-    await Promise.all([
+  const [
+    contractRows,
+    quotationRows,
+    requestTypeRows,
+    referralTagged,
+    pendingInspections,
+  ] = await Promise.all([
       // D-44: السلسلة الفعلية Contract → Quotation → ManufacturingOrder[] → InstallationOrder?
       // (Contract.quotationId فريد ⇒ 1:1 · ManufacturingOrder.quotationId غير فريد ⇒ قد
       //  يحمل العقد عدة أوامر تصنيع بأوامر تركيب متعددة — أوامر W-06 البديلة).
@@ -78,6 +96,9 @@ export async function getSalesDashboard(): Promise<SalesDashboardData | null> {
       }),
       prisma.quotationRequest.count({
         where: { isReferralTag: true, deletedAt: null, ...scopedByCustomer },
+      }),
+      prisma.inspectionRequest.count({
+        where: { deletedAt: null, status: { not: "DONE" }, ...scopedByCustomer },
       }),
     ]);
 
@@ -144,5 +165,6 @@ export async function getSalesDashboard(): Promise<SalesDashboardData | null> {
     customersPerOwner,
     requestTypes,
     referralTagged,
+    pendingInspections,
   };
 }

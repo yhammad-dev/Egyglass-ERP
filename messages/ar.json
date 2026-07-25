@@ -49,7 +49,16 @@
     "conversionRate": "معدل التحويل",
     "pendingInspections": "معاينات معلقة",
     "mfgInProduction": "أوامر تصنيع قيد التنفيذ",
-    "totalRevenue": "إجمالي الإيرادات"
+    "totalRevenue": "إجمالي الإيرادات",
+    "scopeTeam": "النطاق: الفريق كامل",
+    "scopeOwn": "النطاق: عملاؤك",
+    "contractsAwaiting": "عقود بانتظار التنفيذ",
+    "contractsExecuted": "عقود منفَّذة",
+    "quotationsByStatus": "عروض الأسعار حسب الحالة",
+    "requestTypes": "أنواع الطلبات",
+    "referralTagged": "منها بتاج توصية:",
+    "customersPerOwner": "عدد العملاء لكل موظف",
+    "noOwner": "بلا مسؤول"
   },
   "customers": {
     "title": "العملاء",
