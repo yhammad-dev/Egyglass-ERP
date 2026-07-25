@@ -39,11 +39,20 @@ type ReviewQuotationDetailData = {
   items: { id: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[];
 };
 
-export function ReviewDetail({ quotation }: { quotation: ReviewQuotationDetailData }) {
+export function ReviewDetail({
+  quotation,
+  currentUserId,
+  currentUserRole,
+}: {
+  quotation: ReviewQuotationDetailData;
+  currentUserId: string;
+  currentUserRole: string;
+}) {
   const t = useTranslations();
   const router = useRouter();
 
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>(quotation.reviewStatus);
+  const [reviewNote, setReviewNote] = useState<string | null>(quotation.reviewNote);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +68,14 @@ export function ReviewDetail({ quotation }: { quotation: ReviewQuotationDetailDa
   });
 
   const pending = reviewStatus === "PENDING_REVIEW";
+
+  // TO-04: مرآة حارس resubmitQuotationAction — المنشئ أو المكتب الفني أو ADMIN،
+  // وعلى RETURNED حصرًا. الإخفاء تحسين تجربة؛ الرفض الحقيقي server-side.
+  const canResubmit =
+    reviewStatus === "RETURNED" &&
+    (quotation.createdBy.id === currentUserId ||
+      currentUserRole === "TECHNICAL_OFFICE" ||
+      currentUserRole === "ADMIN");
 
   async function handleApprove() {
     setError(null);
@@ -95,7 +112,29 @@ export function ReviewDetail({ quotation }: { quotation: ReviewQuotationDetailDa
     }
 
     setReviewStatus("RETURNED");
+    setReviewNote(reason);
     toast.success(t("review.rejected"));
+    router.refresh();
+  }
+
+  // TO-04: إعادة تقديم عرض مرتجع — RETURNED → PENDING_REVIEW، فيعود العرض
+  // لطابور المراجعة وتظهر أزرار الاعتماد/الرفض من جديد في نفس الشاشة.
+  async function handleResubmit() {
+    setError(null);
+    setSubmitting(true);
+    const { resubmitQuotationAction } = await import("../../../../../lib/review/actions");
+    const response = await resubmitQuotationAction({ id: quotation.id });
+    setSubmitting(false);
+
+    if ("error" in response) {
+      setError(t(response.error ?? "errors.invalidInput"));
+      return;
+    }
+
+    setReviewStatus("PENDING_REVIEW");
+    setReviewNote(null);
+    setReason("");
+    toast.success(t("review.resubmitted"));
     router.refresh();
   }
 
@@ -117,9 +156,7 @@ export function ReviewDetail({ quotation }: { quotation: ReviewQuotationDetailDa
         </Badge>
       </div>
 
-      {quotation.reviewNote && (
-        <p className="text-sm text-red-500">{quotation.reviewNote}</p>
-      )}
+      {reviewNote && <p className="text-sm text-red-500">{reviewNote}</p>}
 
       <div className="rounded-md border">
         <Table>
@@ -189,6 +226,16 @@ export function ReviewDetail({ quotation }: { quotation: ReviewQuotationDetailDa
               {t("review.reject")}
             </Button>
           </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+        </div>
+      )}
+
+      {canResubmit && (
+        <div className="space-y-2 max-w-md">
+          <Button type="button" onClick={handleResubmit} disabled={submitting}>
+            {t("review.resubmit")}
+          </Button>
+          <p className="text-sm text-muted-foreground">{t("review.resubmitHint")}</p>
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>
       )}

@@ -182,6 +182,7 @@
     "stagePricedTitle": "Moved to Pricing Stage",
     "coverageAssignedTitle": "Customer coverage assigned",
     "quotationReadyTitle": "Quotation Ready",
+    "quotationResubmittedTitle": "Quotation resubmitted for review",
     "replacementRequestedTitle": "Replacement requested — awaiting REVIEW investigation",
     "investigationJudgedTitle": "Management verdict issued on an investigation"
   },
@@ -309,7 +310,10 @@
     "reject": "Reject",
     "approved": "Quotation approved",
     "rejected": "Quotation returned",
-    "rejectReasonPlaceholder": "Rejection reason"
+    "rejectReasonPlaceholder": "Rejection reason",
+    "resubmit": "Resubmit for review",
+    "resubmitted": "Quotation resubmitted for review",
+    "resubmitHint": "Returns the quotation to the review queue once the rejection reason has been addressed"
   },
   "quotations": {
     "title": "Quotations",
@@ -837,6 +841,8 @@
     "rateLimited": "Too many requests, please try again later",
     "cannotApproveSelf": "Cannot approve your own drawing",
     "selfApprovalNotAllowed": "You cannot approve a quotation you created — approval must come from someone else",
+    "quotationAlreadyApproved": "This quotation is already approved — it cannot be approved again",
+    "quotationMustBeResubmitted": "This quotation was returned — it must be resubmitted for review before approval",
     "gateRemoved": "Gate removed — no longer part of the approval chain",
     "noApprovedDrawing": "Cannot issue a manufacturing order without a technically approved drawing",
     "noContractForManufacturing": "Cannot issue a manufacturing order for a project without a contract",

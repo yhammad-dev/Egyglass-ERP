@@ -181,6 +181,7 @@
     "stagePricedTitle": "نقل إلى مرحلة التسعير",
     "coverageAssignedTitle": "إسناد تغطية عميل",
     "quotationReadyTitle": "عرض السعر جاهز",
+    "quotationResubmittedTitle": "عرض سعر أُعيد تقديمه للمراجعة",
     "replacementRequestedTitle": "طلب بديل — بانتظار تحقيق REVIEW",
     "investigationJudgedTitle": "صدر حكم الإدارة في تحقيق"
   },
@@ -308,7 +309,10 @@
     "reject": "رفض",
     "approved": "تمت الموافقة على العرض",
     "rejected": "تم إرجاع العرض",
-    "rejectReasonPlaceholder": "سبب الرفض"
+    "rejectReasonPlaceholder": "سبب الرفض",
+    "resubmit": "إعادة تقديم للمراجعة",
+    "resubmitted": "أُعيد تقديم العرض للمراجعة",
+    "resubmitHint": "يعيد العرض إلى طابور المراجعة بعد معالجة سبب الإرجاع"
   },
   "quotations": {
     "title": "عروض الأسعار",
@@ -836,6 +840,8 @@
     "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا",
     "cannotApproveSelf": "لا يمكن اعتماد رسم رفعته بنفسك",
     "selfApprovalNotAllowed": "لا يمكن اعتماد عرض سعر أنشأته بنفسك — الاعتماد لجهة أخرى",
+    "quotationAlreadyApproved": "عرض السعر معتمَد بالفعل — لا يُعاد اعتماده",
+    "quotationMustBeResubmitted": "عرض السعر مرتجع — يجب إعادة تقديمه للمراجعة قبل اعتماده",
     "gateRemoved": "بوابة ملغاة — لم تعد جزءًا من سلسلة الاعتماد",
     "noApprovedDrawing": "لا يمكن إصدار أمر تصنيع بلا رسمة معتمدة فنيًا",
     "noContractForManufacturing": "لا يمكن إصدار أمر تصنيع لمشروع بلا عقد",

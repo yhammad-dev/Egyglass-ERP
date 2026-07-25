@@ -3,11 +3,17 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
-import { sendNotification } from "@/lib/notifications/send";
+import { notifyRole, sendNotification } from "@/lib/notifications/send";
 
 // PHASE 2 (D-03): اعتماد عرض السعر ملك المدير التنفيذي (مدير المكتب الهندسي = TEC_APPROVER).
 // محمد حسام (REVIEW) لا علاقة له بالتسعير — دوره على أمر التصنيع (PHASE 3).
 const QUOTATION_APPROVAL_ROLES = ["TEC_APPROVER", "ADMIN"];
+
+// TO-04: بوابة الدور لإعادة التقديم = الأدوار القادرة على إنشاء عرض أصلًا
+// (نفس PRICING_ROLES في lib/pricing/actions.ts — تُكرَّر صراحةً لأن الملف "use server"
+// فلا يُصدَّر منه إلا async؛ نفس أسلوب quotations/new/page.tsx).
+// الصلاحية الفعلية تُضيَّق بعدها داخل الأكشن: المنشئ نفسه أو TECHNICAL_OFFICE أو ADMIN.
+const RESUBMIT_GATE_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
 
 export async function getPendingReviewQuotations() {
   try {
@@ -95,6 +101,20 @@ export async function approveQuotationAction(input: unknown) {
       where: { id: parsed.data.id },
     });
     if (!quotation) return { error: "errors.notFound" as const };
+
+    // TO-04 — حارس انتقال الحالة: الاعتماد شرعي من PENDING_REVIEW فقط.
+    // يسبق فحص اعتماد الذات مطابقةً لنمط اعتماد الرسمة المرجعي
+    // (technical-office/actions.ts: فحص الحالة أولًا ثم cannotApproveSelf).
+    // بدونه: عرض مرفوض (RETURNED) يُقلب إلى APPROVED بلا تصحيح فيصير سبب الرفض
+    // في reviewNote أثرًا ميتًا، وعرض APPROVED يُعاد اعتماده فتتكرر إشعارات العميل
+    // ويُستبدل المعتمِد المسجَّل. رسالتان متمايزتان لأن الإجراء المطلوب مختلف:
+    // APPROVED = لا فعل، RETURNED = يلزم إعادة تقديم عبر resubmitQuotationAction.
+    if (quotation.reviewStatus === "APPROVED") {
+      return { error: "errors.quotationAlreadyApproved" as const };
+    }
+    if (quotation.reviewStatus === "RETURNED") {
+      return { error: "errors.quotationMustBeResubmitted" as const };
+    }
 
     // TO-01 — فصل الواجبات: من أنشأ العرض لا يعتمده. الحارس هنا (server-side) لا في
     // الواجهة، فهو الحد الفاصل الحقيقي. نفس نمط اعتماد الرسمة
@@ -211,6 +231,90 @@ export async function rejectQuotationAction(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[rejectQuotationAction]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+const resubmitSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+});
+
+/**
+ * TO-04 — إعادة تقديم عرض مرتجع للمراجعة (RETURNED → PENDING_REVIEW).
+ *
+ * سبب وجوده: مُتحقَّق بالـgrep أن كاتبَي reviewStatus في المشروع كله اثنان فقط
+ * (APPROVED و RETURNED)، وأن **لا كود يكتب PENDING_REVIEW إطلاقًا** — مصدرها الوحيد
+ * `@default(PENDING_REVIEW)` في الـschema. فبمجرد إضافة حارس الانتقال في
+ * approveQuotationAction يصير RETURNED طريقًا مسدودًا بلا هذا الأكشن.
+ *
+ * الصلاحية: بوابة دور أولًا (L-05)، ثم تضييق على المورد نفسه — المنشئ أو المكتب
+ * الفني (مالك إعادة التسعير — W-02) أو ADMIN. مدير المبيعات لا يُعيد تقديم عرض غيره.
+ *
+ * سبب الإرجاع: يُصفَّر من `reviewNote` (العمود = حالة حيّة تخصّ الدورة الجارية)
+ * لكنه **يُحفظ في ActivityLog** قبل التصفير — الأثر التدقيقي append-only لا يُمس.
+ */
+export async function resubmitQuotationAction(input: unknown) {
+  try {
+    const roleCheck = await requireRole(RESUBMIT_GATE_ROLES);
+    if (!roleCheck.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = resubmitSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: parsed.data.id },
+    });
+    if (!quotation) return { error: "errors.notFound" as const };
+
+    // إعادة التقديم شرعية من RETURNED فقط (PENDING_REVIEW مُعاد تقديمه أصلًا،
+    // و APPROVED سند نهائي لا يُعاد فتحه من هنا).
+    if (quotation.reviewStatus !== "RETURNED") {
+      return { error: "errors.illegalStatusTransition" as const };
+    }
+
+    // تضييق على المورد: بوابة الدور وحدها لا تكفي — SALES_MANAGER داخل البوابة
+    // لكنه لا يملك إعادة تقديم عرض أنشأه غيره.
+    const isOwner = quotation.createdById === roleCheck.userId;
+    const isTechnicalOffice = roleCheck.role === "TECHNICAL_OFFICE";
+    const isAdmin = roleCheck.role === "ADMIN";
+    if (!isOwner && !isTechnicalOffice && !isAdmin) {
+      return { error: "errors.notAuthorized" as const };
+    }
+
+    const previousNote = quotation.reviewNote;
+
+    await prisma.quotation.update({
+      where: { id: parsed.data.id },
+      data: {
+        reviewStatus: "PENDING_REVIEW",
+        // الدورة الجديدة تبدأ نظيفة — السبب القديم محفوظ في ActivityLog أدناه
+        reviewNote: null,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: roleCheck.userId,
+        action: "QUOTATION_RESUBMITTED",
+        entity: "Quotation",
+        entityId: quotation.id,
+        details: `أُعيد تقديم عرض السعر ${quotation.number} للمراجعة${
+          previousNote ? ` — سبب الإرجاع السابق: ${previousNote}` : ""
+        }`,
+      },
+    });
+
+    await notifyRole("TEC_APPROVER", {
+      title: "notifications.quotationResubmittedTitle",
+      body: `عرض السعر ${quotation.number} أُعيد تقديمه للمراجعة`,
+      type: "QUOTATION_RESUBMITTED",
+      entityId: quotation.id,
+      entityType: "Quotation",
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[resubmitQuotationAction]", error);
     return { error: "errors.serverError" as const };
   }
 }
