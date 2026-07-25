@@ -50,7 +50,16 @@
     "conversionRate": "Quote-to-Contract Rate",
     "pendingInspections": "Pending Inspections",
     "mfgInProduction": "Manufacturing In Progress",
-    "totalRevenue": "Total Revenue"
+    "totalRevenue": "Total Revenue",
+    "scopeTeam": "Scope: whole team",
+    "scopeOwn": "Scope: your customers",
+    "contractsAwaiting": "Contracts Awaiting Execution",
+    "contractsExecuted": "Contracts Executed",
+    "quotationsByStatus": "Quotations by Status",
+    "requestTypes": "Request Types",
+    "referralTagged": "of which referral-tagged:",
+    "customersPerOwner": "Customers per Employee",
+    "noOwner": "Unassigned"
   },
   "customers": {
     "title": "Customers",

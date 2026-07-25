@@ -3,9 +3,21 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/server-translations";
 import { getDashboardKPIs } from "../../../../lib/executive/actions";
+import { getSalesDashboard } from "@/lib/services/sales-dashboard";
+import { SalesDashboard } from "./_components/sales-dashboard";
 
 export default async function DashboardPage() {
   const session = await auth();
+
+  // SF-06 (Wave C): فرع المبيعات وحده. أي دور آخر (ADMIN/TEC/REVIEW/…) يتخطّى هذه الكتلة
+  // ويصل للسلوك القائم أدناه حرفيًا بلا أي تغيير. الحارس داخل getSalesDashboard (L-05).
+  if (session?.user?.role === "SALES_REP" || session?.user?.role === "SALES_MANAGER") {
+    const salesData = await getSalesDashboard();
+    if (salesData) {
+      return <SalesDashboard data={salesData} userName={session.user.name} />;
+    }
+  }
+
   const dashboardData = await getDashboardKPIs();
   const pendingInspections = await prisma.inspectionRequest.count({
     where: { status: { not: "DONE" } },
