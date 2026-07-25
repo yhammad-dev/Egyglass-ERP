@@ -841,6 +841,7 @@
     "inspectionNotAssigned": "This inspection is not assigned to you — you cannot record on it",
     "invalidFileType": "Unsupported file type — images only",
     "fileTooLarge": "File exceeds the maximum allowed size (10MB)",
+    "invalidFileContent": "File content does not match the selected type — upload a valid file of the correct type",
     "inspectionApprovedLocked": "Inspection is approved — measurements cannot be edited or deleted after approval",
     "inspectionNotSubmittable": "The inspection cannot be submitted in its current state",
     "inspectionNoMeasurements": "Cannot submit an inspection with no measurements — add at least one",

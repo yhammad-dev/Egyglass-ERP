@@ -148,12 +148,49 @@ const uploadDrawingSchema = z.object({
   fileType: z.enum(["PDF", "DWG", "JPG"]),
   originalName: z.string().min(1),
   mimeType: z.string().min(1),
+  // TO-02: يُقبل للتوافق مع الكلاينت لكنه **لا يُستخدم إطلاقًا** — الحجم المكتوب في
+  // القاعدة يُحسب من الـBuffer الفعلي. رقم قادم من العميل ليس دليلًا على شيء.
   sizeBytes: z.number().int().positive(),
   base64: z.string().min(1),
   label: z.string().optional(),
   notes: z.string().optional(),
   revision: z.string().optional(),
 });
+
+/** TO-02: سقف حجم الرسمة الفعلي — يُفرض على الـBuffer لا على رقم العميل. */
+const MAX_DRAWING_BYTES = 10 * 1024 * 1024;
+
+/**
+ * TO-02 — تحقق من توقيع الملف الفعلي (magic bytes) مقروءًا من الـBuffer.
+ * الشرط: التوقيع يطابق `fileType` المُرسَل تحديدًا — لا يكفي أن يكون توقيعًا صالحًا
+ * لنوع آخر (ملف محتواه PDF مُرسَل كـJPG يُرفض).
+ * DWG: best-effort — كل إصدارات AutoCAD الحديثة (R13+: AC1012/AC1015/AC1018/AC1021/
+ * AC1024/AC1027/AC1032) تشترك في البادئة "AC10"؛ إصدارات ما قبل R13 لا تُقبل.
+ */
+function matchesFileSignature(buffer: Buffer, fileType: DrawingFileType): boolean {
+  switch (fileType) {
+    case "PDF":
+      // %PDF
+      return (
+        buffer.length >= 4 &&
+        buffer[0] === 0x25 &&
+        buffer[1] === 0x50 &&
+        buffer[2] === 0x44 &&
+        buffer[3] === 0x46
+      );
+    case "JPG":
+      return (
+        buffer.length >= 3 &&
+        buffer[0] === 0xff &&
+        buffer[1] === 0xd8 &&
+        buffer[2] === 0xff
+      );
+    case "DWG":
+      return buffer.length >= 4 && buffer.subarray(0, 4).toString("ascii") === "AC10";
+    default:
+      return false;
+  }
+}
 
 export async function uploadDrawingAction(input: unknown) {
   try {
@@ -163,13 +200,13 @@ export async function uploadDrawingAction(input: unknown) {
     const parsed = uploadDrawingSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
+    // TO-02: sizeBytes عمدًا خارج التفكيك — لا يُقرأ من العميل في أي مسار.
     const {
       quotationRequestId,
       category,
       fileType,
       originalName,
       mimeType,
-      sizeBytes,
       base64,
       label,
       notes,
@@ -182,11 +219,21 @@ export async function uploadDrawingAction(input: unknown) {
     });
     if (!job) return { error: "errors.notFound" as const };
 
+    // TO-02: التحقق يسبق أي كتابة على القرص — الملف المرفوض لا يلمس الـfilesystem أصلًا.
+    const buffer = Buffer.from(base64, "base64");
+
+    if (buffer.length > MAX_DRAWING_BYTES) {
+      return { error: "errors.fileTooLarge" as const };
+    }
+
+    if (!matchesFileSignature(buffer, fileType)) {
+      return { error: "errors.invalidFileContent" as const };
+    }
+
     const ext = fileType === "PDF" ? "pdf" : fileType === "DWG" ? "dwg" : "jpg";
     const filename = `${randomUUID()}.${ext}`;
     const uploadDir = join(process.cwd(), "public", "uploads", "drawings");
     await mkdir(uploadDir, { recursive: true });
-    const buffer = Buffer.from(base64, "base64");
     await writeFile(join(uploadDir, filename), buffer);
     const url = `/uploads/drawings/${filename}`;
 
@@ -198,7 +245,8 @@ export async function uploadDrawingAction(input: unknown) {
         filename,
         originalName,
         mimeType,
-        sizeBytes,
+        // TO-02: الحجم الحقيقي المحسوب من المحتوى — لا رقم العميل
+        sizeBytes: buffer.length,
         url,
         label: label ?? null,
         notes: notes ?? null,
