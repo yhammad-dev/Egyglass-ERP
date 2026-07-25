@@ -22,9 +22,12 @@ const stageChangeSchema = z.object({
 export async function changeCustomerStage(
   input: z.infer<typeof stageChangeSchema>
 ): Promise<{ success: true } | { error: string }> {
-  // دفعة هـ · Phase 4: المرحلة مشتقّة آليًا — التغيير اليدوي استثناء ADMIN فقط
-  // (override + قرار الرفض البشري). باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
-  const roleCheck = await requireRole(["ADMIN"]);
+  // دفعة هـ · Phase 4: المرحلة مشتقّة آليًا — التغيير اليدوي هو الاستثناء. SF-03
+  // (قرار حوكمة صريح، يوسف 2026-07-25): فُتِح لإدارة المبيعات والمندوب حقُّ **تسجيل
+  // الرفض فقط** (REJECTED) — تقييد لا توسيع. باقي انتقالات PipelineStage (override
+  // للحالة المشتقّة) تبقى محصورة على ADMIN وحده كما كانت. requireRole يسمح للأدوار
+  // الثلاثة بالدخول، ثم الحارس أدناه يفرض REJECTED-only على غير-ADMIN (least privilege).
+  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
   if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
   const parsed = stageChangeSchema.safeParse(input);
@@ -32,6 +35,13 @@ export async function changeCustomerStage(
 
   const { customerId, newStage, rejectReason } = parsed.data;
 
+  // SF-03: غير-ADMIN (SALES_MANAGER/SALES_REP) مسموح له بانتقال REJECTED فقط — تسجيل
+  // قرار رفض العميل. أي انتقال آخر من هذين الدورين = override محصور بـADMIN → يُرفض.
+  if (roleCheck.role !== "ADMIN" && newStage !== "REJECTED") {
+    return { error: "errors.notAuthorized" };
+  }
+
+  // إلزام سبب الرفض ساري لكل الأدوار الثلاثة عند REJECTED — لا استثناء، لا تخفيف.
   if (newStage === "REJECTED" && !rejectReason?.trim()) {
     return { error: "errors.rejectReasonRequired" };
   }
@@ -43,6 +53,11 @@ export async function changeCustomerStage(
 
   if (!customer) return { error: "errors.notFound" };
 
+  // SF-03 (قيد ملكية): SALES_REP يرفض عملاءه فقط (ownerId === نفسه). مع قيد REJECTED-only
+  // أعلاه ⇒ المندوب يرفض عملاءه لا غير. ownerId مُحمَّل سلفًا في الـselect (بلا استعلام
+  // إضافي — صفر أثر أداء). عميل موجود لكن لمندوب آخر ⇒ خطأ صلاحيات صريح (لا "غير موجود"؛
+  // ذاك للـid المفقود أعلاه). SALES_MANAGER بلا هذا القيد (نطاق إشرافي عام يوافق
+  // assignCustomer/setCustomerCoverage). ADMIN بلا قيد.
   if (roleCheck.role === "SALES_REP" && customer.ownerId !== roleCheck.userId) {
     return { error: "errors.notAuthorized" };
   }
