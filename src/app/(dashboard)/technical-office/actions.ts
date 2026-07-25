@@ -7,6 +7,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
 import { getTecJobs } from "@/lib/services/tec";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import type { TecFilters } from "@/lib/services/tec";
@@ -232,10 +233,11 @@ export async function uploadDrawingAction(input: unknown) {
 
     const ext = fileType === "PDF" ? "pdf" : fileType === "DWG" ? "dwg" : "jpg";
     const filename = `${randomUUID()}.${ext}`;
-    const uploadDir = join(process.cwd(), "public", "uploads", "drawings");
+    // TO-11: الجذر خارج public/ — الـURL المخزَّن لا يتغيّر (/uploads/drawings/…)
+    const uploadDir = uploadDirFor("drawings");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(join(uploadDir, filename), buffer);
-    const url = `/uploads/drawings/${filename}`;
+    const url = uploadUrl("drawings", filename);
 
     const drawing = await prisma.drawing.create({
       data: {

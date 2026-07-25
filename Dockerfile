@@ -25,6 +25,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
-RUN mkdir -p /app/public/uploads/company /app/public/uploads/drawings
+# TO-11: جذر الملفات المرفوعة خارج public/ — لا يُخدَم ساكنًا إطلاقًا.
+# الأقسام الأربعة كلها (كان ينقص inspections و documents فيُنشآن وقت التشغيل).
+RUN mkdir -p /app/var/uploads/company /app/var/uploads/drawings \
+             /app/var/uploads/inspections /app/var/uploads/documents
 EXPOSE 3000
 CMD ["npm", "start"]

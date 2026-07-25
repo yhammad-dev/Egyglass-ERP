@@ -11,5 +11,7 @@ debug-*
 e exec app npx prisma validate
 
 # uploaded files (runtime artifacts — not source)
+# TO-11: الجذر الجديد خارج public/. القديم يبقى مُتجاهَلًا لبيئات لم تُهاجَر بعد.
+var/uploads/
 public/uploads/
 tsconfig.tsbuildinfo

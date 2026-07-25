@@ -5,9 +5,11 @@ import { requireRole } from "@/lib/rbac";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
 
 const ALL_ROLES = ["ADMIN", "SALES_MANAGER", "SALES_REP", "INSPECTION_MANAGER", "REVIEW", "VIEWER"];
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads", "documents");
+// TO-11: الجذر خارج public/ — الـURL المخزَّن لا يتغيّر (/uploads/documents/…)
+const UPLOAD_DIR = uploadDirFor("documents");
 
 export async function uploadDocument(
   entityType: string,
@@ -32,7 +34,7 @@ export async function uploadDocument(
     const bytes = await file.arrayBuffer();
     await writeFile(join(UPLOAD_DIR, stored), Buffer.from(bytes));
 
-    const url = `/uploads/documents/${stored}`;
+    const url = uploadUrl("documents", stored);
 
     const doc = await prisma.document.create({
       data: {

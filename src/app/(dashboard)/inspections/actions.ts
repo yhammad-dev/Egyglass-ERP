@@ -6,6 +6,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
 import type { AttachmentCategory } from "@prisma/client";
 import {
   createInspection,
@@ -364,10 +365,11 @@ export async function addInspectionAttachment(input: unknown) {
     const ext = IMAGE_EXT[mimeType];
 
     const filename = `${randomUUID()}.${ext}`;
-    const uploadDir = join(process.cwd(), "public", "uploads", "inspections");
+    // TO-11: الجذر خارج public/ — الـfilePath المخزَّن لا يتغيّر (/uploads/inspections/…)
+    const uploadDir = uploadDirFor("inspections");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(join(uploadDir, filename), buffer);
-    const filePath = `/uploads/inspections/${filename}`;
+    const filePath = uploadUrl("inspections", filename);
 
     const attachment = await prisma.attachment.create({
       data: {

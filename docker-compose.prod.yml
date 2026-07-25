@@ -29,7 +29,9 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - egyglass_uploads:/app/public/uploads
+      # TO-11: نفس الـvolume، نقطة تركيب جديدة خارج public/ ⇒ المحتوى يظهر كما هو
+      # (لا نقل ملفات). القديم كان /app/public/uploads فكان Next يخدمه ساكنًا.
+      - egyglass_uploads:/app/var/uploads
 volumes:
   egyglass_db_data:
   egyglass_uploads:
