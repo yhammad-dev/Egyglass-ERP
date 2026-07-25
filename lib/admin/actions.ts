@@ -7,6 +7,7 @@ import { getSystemSettings } from "@/lib/config";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
 
 const ADMIN_ROLES = ["ADMIN"];
 
@@ -446,7 +447,8 @@ export async function uploadCompanyLogo(formData: FormData) {
     if (file.size > 2 * 1024 * 1024) return { error: "الملف يتجاوز 2 ميغابايت" as const };
     if (!file.type.startsWith("image/")) return { error: "يجب أن يكون الملف صورة" as const };
 
-    const uploadDir = join(process.cwd(), "public", "uploads", "company");
+    // TO-11: الجذر خارج public/ — الـURL المخزَّن لا يتغيّر (/uploads/company/…)
+    const uploadDir = uploadDirFor("company");
     await mkdir(uploadDir, { recursive: true });
 
     const ext = file.name.split(".").pop() ?? "png";
@@ -454,7 +456,7 @@ export async function uploadCompanyLogo(formData: FormData) {
     const bytes = await file.arrayBuffer();
     await writeFile(join(uploadDir, filename), Buffer.from(bytes));
 
-    const url = `/uploads/company/${filename}`;
+    const url = uploadUrl("company", filename);
 
     await prisma.systemSettings.upsert({
       where: { id: "singleton" },
