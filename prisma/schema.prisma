@@ -1031,6 +1031,9 @@ model QuotationRequest {
   code                String         @unique @db.VarChar(50)
   status              TecJobStatus   @default(NEW)
   technicalRoute      TechnicalRoute @default(PROJECTS)
+  // SCR-019 (D-45): تصنيف تقريري للداشبورد — مستقل تمامًا عن technicalRoute
+  salesRequestType    SalesRequestType
+  isReferralTag       Boolean        @default(false)
   summary             String?        @db.Text
   notes               String?        @db.Text
   customerId          String
@@ -1055,6 +1058,7 @@ model QuotationRequest {
   @@index([status])
   @@index([technicalRoute])
   @@index([status, technicalRoute])
+  @@index([salesRequestType])
   @@index([customerId])
   @@index([engineerId])
   @@index([inspectionRequestId])
@@ -1175,6 +1179,11 @@ enum TecJobStatus {
 enum TechnicalRoute {
   PROJECTS
   SOCIAL_MEDIA
+}
+enum SalesRequestType {
+  INDIVIDUAL
+  SOCIAL_MEDIA
+  PROJECTS
 }
 
 enum DrawingCategory {

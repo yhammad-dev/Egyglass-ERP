@@ -63,6 +63,11 @@ export function NewQuotationRequestDialog({
 
   // فورم الطلب
   const [route, setRoute] = useState<"" | "PROJECTS" | "SOCIAL_MEDIA">("");
+  // SCR-019 (D-45): نوع الطلب (تصنيف تقريري) + تاج التوصية — مستقلان عن المسار الفني
+  const [salesType, setSalesType] = useState<
+    "" | "INDIVIDUAL" | "SOCIAL_MEDIA" | "PROJECTS"
+  >("");
+  const [referralTag, setReferralTag] = useState(false);
   const [summary, setSummary] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +91,8 @@ export function NewQuotationRequestDialog({
     setNewType("INDIVIDUAL");
     setNewSource("VISIT");
     setRoute("");
+    setSalesType("");
+    setReferralTag(false);
     setSummary("");
     setError(null);
     setSubmitting(false);
@@ -146,6 +153,10 @@ export function NewQuotationRequestDialog({
       setError(t("errors.routeRequired"));
       return;
     }
+    if (!salesType) {
+      setError(t("errors.salesTypeRequired"));
+      return;
+    }
     if (!summary.trim()) {
       setError(t("errors.required"));
       return;
@@ -154,6 +165,8 @@ export function NewQuotationRequestDialog({
     const result = await createQuotationRequestAction({
       customerId: selected.id,
       technicalRoute: route,
+      salesRequestType: salesType,
+      isReferralTag: referralTag,
       summary,
     });
     setSubmitting(false);
@@ -327,6 +340,39 @@ export function NewQuotationRequestDialog({
                 ))}
               </div>
             </div>
+
+            {/* SCR-019 (D-45): نوع الطلب — تصنيف تقريري إلزامي، مستقل تمامًا عن المسار الفني أعلاه */}
+            <div className="space-y-2">
+              <Label>{t("quotationRequest.salesType")} *</Label>
+              <div className="flex flex-wrap gap-3">
+                {(["INDIVIDUAL", "SOCIAL_MEDIA", "PROJECTS"] as const).map((s) => (
+                  <label
+                    key={s}
+                    className={`flex items-center gap-2 border rounded-md px-3 py-2 cursor-pointer text-sm ${
+                      salesType === s ? "border-blue-600 bg-blue-50" : "border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="nqr-salesType"
+                      checked={salesType === s}
+                      onChange={() => setSalesType(s)}
+                    />
+                    {t(`quotationRequest.salesType_${s}`)}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* تاج التوصية — اختياري، افتراضي غير مفعّل، بلا أثر على المسار/التسعير/الموافقات */}
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={referralTag}
+                onChange={(e) => setReferralTag(e.target.checked)}
+              />
+              {t("quotationRequest.referralTag")}
+            </label>
 
             <div className="space-y-1">
               <Label htmlFor="nqr-summary">{t("quotationRequest.summary")} *</Label>

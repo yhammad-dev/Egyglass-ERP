@@ -94,6 +94,12 @@ export async function updateCustomerAction(data: unknown) {
 const requestSchema = z.object({
   customerId: z.string().min(1, "errors.invalidInput"),
   technicalRoute: z.enum(["PROJECTS", "SOCIAL_MEDIA"], { message: "errors.routeRequired" }),
+  // SCR-019 (D-45): نوع الطلب إلزامي — تصنيف تقريري منفصل عن technicalRoute (لا اشتقاق بينهما).
+  salesRequestType: z.enum(["INDIVIDUAL", "SOCIAL_MEDIA", "PROJECTS"], {
+    message: "errors.salesTypeRequired",
+  }),
+  // تاج التوصية اختياري بافتراضي false صريح (لا NULL كحالة صامتة — STD-05).
+  isReferralTag: z.boolean().default(false),
   summary: z.string().min(1, "errors.required"),
 });
 

@@ -10,9 +10,16 @@ export class QuotationRequestError extends Error {
   }
 }
 
+// SCR-019 (D-45): تصنيف تقريري للداشبورد — **مستقل تمامًا** عن technicalRoute (سير العمل).
+export type SalesRequestTypeValue = "INDIVIDUAL" | "SOCIAL_MEDIA" | "PROJECTS";
+
 export interface CreateQuotationRequestInput {
   customerId: string;
   technicalRoute: "PROJECTS" | "SOCIAL_MEDIA";
+  // SCR-019 (D-45): إلزامي بلا افتراضي — يختاره الموظف (أي default = تصنيف صامت خاطئ، STD-05).
+  salesRequestType: SalesRequestTypeValue;
+  // تاج "توصية" — شكلي/بياني بالكامل: صفر أثر على المسار أو التسعير أو أي حارس صلاحيات (D-45).
+  isReferralTag: boolean;
   summary: string;
 }
 
@@ -30,6 +37,9 @@ export async function createQuotationRequest(
       code,
       customerId: input.customerId,
       technicalRoute: input.technicalRoute,
+      // SCR-019: الترقيم والمسار يبقيان على technicalRoute وحده — هذان للتقرير فقط
+      salesRequestType: input.salesRequestType,
+      isReferralTag: input.isReferralTag,
       summary: input.summary,
       salesOwnerId: actorId,
       status: "NEW",
