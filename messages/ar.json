@@ -1122,7 +1122,7 @@
     "kpi": {
       "activeCustomers": "إجمالي العملاء النشطين",
       "quotationsThisMonth": "عروض الأسعار هذا الشهر",
-      "conversionRate": "معدل التحويل",
+      "conversionRate": "نسبة تحويل العروض إلى عقود",
       "mfgInProduction": "أوامر التصنيع الجارية",
       "installationsScheduledThisWeek": "تركيبات مجدولة هذا الأسبوع",
       "approvedRevenue": "إجمالي الإيرادات المعتمدة",

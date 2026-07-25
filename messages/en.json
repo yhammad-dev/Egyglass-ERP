@@ -1123,7 +1123,7 @@
     "kpi": {
       "activeCustomers": "Total Active Customers",
       "quotationsThisMonth": "Quotations This Month",
-      "conversionRate": "Conversion Rate",
+      "conversionRate": "Quote-to-Contract Rate",
       "mfgInProduction": "Manufacturing Orders In Production",
       "installationsScheduledThisWeek": "Installations Scheduled This Week",
       "approvedRevenue": "Total Approved Revenue",
