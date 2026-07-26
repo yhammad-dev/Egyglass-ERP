@@ -747,6 +747,8 @@ export async function updateQuotation(
         where: { id },
         data: {
           customerId,
+          // TO-23: آخر مُعدِّل — إضافة فقط، بلا مساس بأي مبلغ (كلها مُشتقّة أعلاه).
+          updatedById: roleCheck.userId,
           subtotal,
           discountAmount, // kept in lockstep with total (was left stale before)
           taxAmount,
@@ -805,6 +807,8 @@ export async function updateQuotationStatus(
       // approvedById يُكتب فقط عند الانتقال إلى APPROVED؛ مغادرة APPROVED لا تمحوه (أثر تاريخي)
       data: {
         status,
+        // TO-23: يُكتب في **كل** انتقال حالة، بعكس approvedById المشروط أعلاه.
+        updatedById: roleCheck.userId,
         ...(status === "APPROVED" ? { approvedById: roleCheck.userId } : {}),
       },
     });
@@ -848,7 +852,8 @@ export async function requestFactorApproval(
 
     await prisma.quotation.update({
       where: { id: quotationId },
-      data: { needsApproval: true },
+      // TO-23: آخر مُعدِّل — إضافة فقط.
+      data: { needsApproval: true, updatedById: roleCheck.userId },
     });
 
     await prisma.activityLog.create({

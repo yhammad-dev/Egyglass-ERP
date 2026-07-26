@@ -17,10 +17,14 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
   },
   {
+    // TO-23-C: مطابقة roles لحارس /quotations بعد TO-23. المكتب الفني والتيم ليدر
+    // كانا مصرَّحًا لهما في الحارس ولا يريان الرابط ⇒ شاشة مبنية بلا مدخل (الدرس 2).
+    // ما يراه كلٌّ منهما **مُنطَّق** في getQuotations (عروضه هو · عروض مساره) —
+    // الرابط يفتح الباب، والنطاق يحدّد المحتوى.
     labelKey: "nav.quotations",
     href: "/quotations",
     icon: "receipt",
-    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
+    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER", "TECHNICAL_OFFICE", "TEC_LEAD"],
   },
   {
     labelKey: "nav.inspections",

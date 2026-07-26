@@ -35,6 +35,8 @@ export interface UserRow {
   createdAt: Date;
   deletedAt: Date | null;
   lockedUntil: Date | null;
+  // TO-23-B: مسار تيم ليدر المكتب الفني. غير null لـTEC_LEAD فقط (SCR-021).
+  leadRoute: string | null;
 }
 
 export interface CreateUserInput {
@@ -43,6 +45,8 @@ export interface CreateUserInput {
   password: string;
   role: string;
   department: string;
+  // TO-23-B: `null` صريحة لكل دور غير TEC_LEAD — الأكشن يفرضها، لا الواجهة.
+  leadRoute?: string | null;
 }
 
 export interface UpdateUserInput {
@@ -52,6 +56,9 @@ export interface UpdateUserInput {
   role?: string;
   department?: string;
   isActive?: boolean;
+  // TO-23-B: `null` تُكتب فعلًا (الشرط أدناه `!== undefined`) ⇒ تغيير الدور
+  // بعيدًا عن TEC_LEAD **يمسح** المسار ولا يتركه قيمة يتيمة.
+  leadRoute?: string | null;
 }
 
 export async function getUsers(): Promise<UserRow[]> {
@@ -67,6 +74,7 @@ export async function getUsers(): Promise<UserRow[]> {
       createdAt: true,
       deletedAt: true,
       lockedUntil: true,
+      leadRoute: true,
     },
   });
   return users;
@@ -82,6 +90,8 @@ export async function createUser(input: CreateUserInput, actorId: string) {
       passwordHash,
       role: input.role as any,
       department: input.department as any,
+      // TO-23-B: الأكشن يمرّرها null صراحةً لغير TEC_LEAD (فُرضت server-side).
+      leadRoute: (input.leadRoute ?? null) as any,
     },
   });
 
@@ -145,6 +155,9 @@ export async function updateUser(
     if (input.role !== undefined) data.role = input.role;
     if (input.department !== undefined) data.department = input.department;
     if (input.isActive !== undefined) data.isActive = input.isActive;
+    // TO-23-B: `!== undefined` عمدًا لا `!= null` — الأكشن يرسل `null` صريحة عند
+    // مغادرة دور TEC_LEAD، وهي القيمة التي **يجب** أن تُكتب لمسح المسار القديم.
+    if (input.leadRoute !== undefined) data.leadRoute = input.leadRoute;
     if (input.password) {
       data.passwordHash = await bcrypt.hash(input.password, 12);
     }

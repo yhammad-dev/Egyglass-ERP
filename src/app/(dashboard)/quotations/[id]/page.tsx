@@ -10,17 +10,36 @@ export default async function QuotationDetailPage(props: {
 }) {
   const { id } = await props.params;
 
+  // TO-23: يُفتح للمكتب الفني — لكن **الوصول ليس الرؤية**. الحارس يقول «الدور مسموح»،
+  // والنطاق أدناه يقول «هذا العرض بالذات مسموح». بلا الثاني يصير فتح الحارس ثغرة IDOR:
+  // أي عنوان `/quotations/<id>` يُظهر أي عرض في الشركة.
   const roleCheck = await requireRole([
     "ADMIN",
     "SALES_MANAGER",
     "SALES_REP",
     "VIEWER",
+    "TECHNICAL_OFFICE",
+    "TEC_LEAD",
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
+  // نطاق المورد للدورين الجديدين فقط. نفس قاعدة `getQuotations` حرفيًا، مطبَّقة على
+  // عرض واحد. ⚠️ أدوار المبيعات **لم تُمس** (نطاقها القائم خارج نطاق TO-23).
+  const scope: Record<string, unknown> = { id };
+  if (roleCheck.role === "TECHNICAL_OFFICE") {
+    scope.createdById = roleCheck.userId;
+  } else if (roleCheck.role === "TEC_LEAD") {
+    const lead = await prisma.user.findUnique({
+      where: { id: roleCheck.userId },
+      select: { leadRoute: true },
+    });
+    if (!lead?.leadRoute) notFound();
+    scope.quotationRequest = { technicalRoute: lead.leadRoute };
+  }
+
   const [quotation, discountRequest, settings] = await Promise.all([
-    prisma.quotation.findUnique({
-      where: { id },
+    prisma.quotation.findFirst({
+      where: scope,
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         createdBy: { select: { id: true, name: true } },
@@ -36,6 +55,15 @@ export default async function QuotationDetailPage(props: {
 
   if (!quotation) notFound();
 
+  // TO-23: `updatedById` عمود scalar بلا relation (SCR-021) — الاسم باستعلام منفصل،
+  // نفس نمط approvedById في قالب الطباعة (print/page.tsx:56-59).
+  const lastUpdater = quotation.updatedById
+    ? await prisma.user.findUnique({
+        where: { id: quotation.updatedById },
+        select: { name: true },
+      })
+    : null;
+
   return (
     <QuotationDetail
       quotation={{
@@ -50,6 +78,8 @@ export default async function QuotationDetailPage(props: {
         total: quotation.total.toNumber(),
         customer: quotation.customer,
         createdBy: quotation.createdBy,
+        lastUpdatedBy: lastUpdater?.name ?? null,
+        lastUpdatedAt: quotation.updatedAt.toISOString(),
         items: quotation.items.map((item) => ({
           id: item.id,
           description: item.description,

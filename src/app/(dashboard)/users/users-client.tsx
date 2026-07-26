@@ -55,6 +55,8 @@ type UserFormData = {
   password: string;
   role: string;
   department: string;
+  // TO-23-B: مسار تيم ليدر المكتب الفني — "" = لم يُختر. يتحوّل إلى null قبل الإرسال.
+  leadRoute: string;
 };
 
 const ROLES = [
@@ -72,7 +74,12 @@ const ROLES = [
   "PROJECTS",
   "TECHNICAL_OFFICE",
   "TEC_APPROVER",
+  "TEC_LEAD",
 ] as const;
+
+// TO-23-B: قيم `enum TechnicalRoute` كما هي في السكيما — لا قيم مخترعة.
+const LEAD_ROUTES = ["PROJECTS", "SOCIAL_MEDIA"] as const;
+const TEC_LEAD_ROLE = "TEC_LEAD";
 
 const DEPARTMENTS = [
   "EXECUTIVE",
@@ -95,6 +102,17 @@ function buildFormSchema(requirePassword: boolean) {
       : z.string().optional(),
     role: z.string().min(1, "errors.required"),
     department: z.string().min(1, "errors.required"),
+    leadRoute: z.string().optional(),
+  })
+  // TO-23-B: مرآة للتحقق الخادمي (users/actions.ts) — راحة للمستخدم لا بديلًا عنه.
+  .superRefine((v, ctx) => {
+    if (v.role === TEC_LEAD_ROLE && !v.leadRoute) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["leadRoute"],
+        message: "errors.leadRouteRequired",
+      });
+    }
   });
 }
 
@@ -123,14 +141,19 @@ export function UsersClient({
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(formSchema) as Resolver<UserFormData>,
   });
 
+  // TO-23-B: الدور مُراقَب ليظهر حقل المسار **شرطيًا** — لا حقل دائم يربك بقية الأدوار.
+  const selectedRole = watch("role");
+  const isTecLead = selectedRole === TEC_LEAD_ROLE;
+
   function openCreate() {
     setEditingUser(null);
-    reset({ name: "", email: "", password: "", role: "", department: "" });
+    reset({ name: "", email: "", password: "", role: "", department: "", leadRoute: "" });
     setOpen(true);
   }
 
@@ -142,6 +165,7 @@ export function UsersClient({
       password: "",
       role: user.role,
       department: user.department,
+      leadRoute: user.leadRoute ?? "",
     });
     setOpen(true);
   }
@@ -164,10 +188,16 @@ export function UsersClient({
   async function onSubmit(formData: UserFormData) {
     setSubmitting(true);
     try {
+      // TO-23-B: "" ليست قيمة صالحة في enum — تتحوّل إلى null. ودور غير TEC_LEAD
+      // يُرسَل بـnull دائمًا فلا تبقى قيمة قديمة. (السيرفر يعيد فرض هذا — لا يثق بنا.)
+      const payload = {
+        ...formData,
+        leadRoute: formData.role === TEC_LEAD_ROLE ? formData.leadRoute || null : null,
+      };
       if (isEditing) {
         const result = await updateUserAction({
           id: editingUser!.id,
-          ...formData,
+          ...payload,
         });
         if (!result.success) {
           toast.error(
@@ -179,7 +209,7 @@ export function UsersClient({
         }
         toast.success(t("users.updated"));
       } else {
-        const result = await createUserAction(formData);
+        const result = await createUserAction(payload);
         if (!result.success) {
           toast.error(
             typeof result.error === "string"
@@ -241,7 +271,23 @@ export function UsersClient({
     }),
     columnHelper.accessor("role", {
       header: t("users.role"),
-      cell: (info) => t(`roles.${info.getValue()}`),
+      // TO-23-B: المسار وسم بجوار الدور — يُرى بلا فتح الفورم. تيم ليدر بلا مسار
+      // يظهر بوسم تحذيري لأنه حساب لا يرى شيئًا (لا يُخفى الخلل بصمت).
+      cell: (info) => {
+        const row = info.row.original;
+        const roleLabel = t(`roles.${info.getValue()}`);
+        if (info.getValue() !== TEC_LEAD_ROLE) return roleLabel;
+        return (
+          <span className="flex items-center gap-2">
+            {roleLabel}
+            {row.leadRoute ? (
+              <Badge variant="secondary">{t(`quotationRequest.route_${row.leadRoute}`)}</Badge>
+            ) : (
+              <Badge variant="destructive">{t("users.leadRouteMissing")}</Badge>
+            )}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("department", {
       header: t("users.department"),
@@ -429,6 +475,30 @@ export function UsersClient({
               </Select>
               <FieldError message={fe(errors.role)} />
             </div>
+
+            {/* TO-23-B: يظهر **فقط** لـTEC_LEAD. بلا مسار لا يرى الليدر أي عرض
+                (فشل TO-23 المغلق) — لذلك الحقل إلزامي هنا وعلى السيرفر معًا. */}
+            {isTecLead && (
+              <div className="space-y-1">
+                <Label>{t("users.leadRoute")}</Label>
+                <Select
+                  onValueChange={(v) => setValue("leadRoute", v ?? "")}
+                  defaultValue={editingUser?.leadRoute ?? undefined}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("users.leadRoute")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEAD_ROUTES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {t(`quotationRequest.route_${r}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError message={fe(errors.leadRoute)} />
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label>{t("users.department")}</Label>
