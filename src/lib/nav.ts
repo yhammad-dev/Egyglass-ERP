@@ -17,10 +17,14 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
   },
   {
+    // TO-23-C: مطابقة roles لحارس /quotations بعد TO-23. المكتب الفني والتيم ليدر
+    // كانا مصرَّحًا لهما في الحارس ولا يريان الرابط ⇒ شاشة مبنية بلا مدخل (الدرس 2).
+    // ما يراه كلٌّ منهما **مُنطَّق** في getQuotations (عروضه هو · عروض مساره) —
+    // الرابط يفتح الباب، والنطاق يحدّد المحتوى.
     labelKey: "nav.quotations",
     href: "/quotations",
     icon: "receipt",
-    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER"],
+    roles: ["ADMIN", "SALES_MANAGER", "SALES_REP", "VIEWER", "TECHNICAL_OFFICE", "TEC_LEAD"],
   },
   {
     labelKey: "nav.inspections",
@@ -29,10 +33,11 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"],
   },
   {
+    // TO-25: مطابقة roles لحارس /technical-office — التيم ليدر يوزّع على مهندسيه.
     labelKey: "nav.technicalOffice",
     href: "/technical-office",
     icon: "drafting_compass",
-    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
+    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"],
   },
   {
     // PHASE 2 (D-03): شاشة اعتماد عروض الأسعار = المدير التنفيذي (TEC_APPROVER)،

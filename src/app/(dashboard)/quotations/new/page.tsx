@@ -12,7 +12,10 @@ export default async function NewQuotationPage(props: {
   // BL-127 (D-03/W-01): الحارس = PRICING_ROLES بالضبط (lib/pricing/actions.ts:17).
   // REVIEW أُزيل — رقابة وجودة لا تسعير، وكل طفرات التسعير تستبعده أصلًا (حارس يتيم).
   // المصفوفة صريحة لأن PRICING_ROLES يستحيل تصديره: الملف "use server" ⇒ لا يُصدَّر إلا async.
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
+  // TO-26: TEC_LEAD يسعّر بنفسه — الزر كان ظاهرًا له والأكشن يرفضه (وعد بما لا يقع).
+  const roleCheck = await requireRole([
+    "ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
+  ]);
   if (!roleCheck.authorized) redirect("/customers");
 
   const { customerId, requestId } = await props.searchParams;

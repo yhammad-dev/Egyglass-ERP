@@ -130,6 +130,8 @@ export async function approveQuotationAction(input: unknown) {
     await prisma.quotation.update({
       where: { id: parsed.data.id },
       data: {
+        // TO-23: `updatedById` **فقط** — منطق reviewStatus/TO-04 لم يُمس إطلاقًا.
+        updatedById: roleCheck.userId,
         reviewStatus: "APPROVED",
         reviewedAt: new Date(),
         reviewedById: roleCheck.userId,
@@ -211,6 +213,8 @@ export async function rejectQuotationAction(input: unknown) {
     await prisma.quotation.update({
       where: { id: parsed.data.id },
       data: {
+        // TO-23: `updatedById` **فقط** — منطق reviewStatus/TO-04 لم يُمس إطلاقًا.
+        updatedById: roleCheck.userId,
         reviewStatus: "RETURNED",
         reviewNote: parsed.data.reason,
         reviewedAt: new Date(),
@@ -286,6 +290,8 @@ export async function resubmitQuotationAction(input: unknown) {
     await prisma.quotation.update({
       where: { id: parsed.data.id },
       data: {
+        // TO-23: `updatedById` **فقط** — منطق reviewStatus/TO-04 لم يُمس إطلاقًا.
+        updatedById: roleCheck.userId,
         reviewStatus: "PENDING_REVIEW",
         // الدورة الجديدة تبدأ نظيفة — السبب القديم محفوظ في ActivityLog أدناه
         reviewNote: null,

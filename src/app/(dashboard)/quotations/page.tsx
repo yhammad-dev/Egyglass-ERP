@@ -6,11 +6,16 @@ import { getCustomers } from "@/lib/services/customers";
 import { QuotationsClient } from "./quotations-client";
 
 export default async function QuotationsPage() {
+  // TO-23: المكتب الفني كان **ينشئ** عروضًا ولا يملك أي شاشة تعرضها (`/quotations/new`
+  // مسموحة له، وهذه لم تكن). الوصول يُفتح هنا، و**النطاق** يفرضه `getQuotations`:
+  // TECHNICAL_OFFICE → عروضه · TEC_LEAD → عروض مساره. فتح الحارس وحده لا يكفي.
   const roleCheck = await requireRole([
     "ADMIN",
     "SALES_MANAGER",
     "SALES_REP",
     "VIEWER",
+    "TECHNICAL_OFFICE",
+    "TEC_LEAD",
   ]);
   if (!roleCheck.authorized) return <Unauthorized />;
 

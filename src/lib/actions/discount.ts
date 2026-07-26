@@ -101,7 +101,8 @@ export async function requestDiscountAction(
     await prisma.$transaction([
       prisma.quotation.update({
         where: { id: quotationId },
-        data: { status: "PENDING_APPROVAL", needsApproval: true },
+        // TO-23: آخر مُعدِّل — إضافة فقط، بلا مساس بمنطق الخصم.
+        data: { status: "PENDING_APPROVAL", needsApproval: true, updatedById: roleCheck.userId },
       }),
       prisma.discountRequest.create({
         data: {
@@ -261,7 +262,8 @@ export async function decideDiscountAction(
         }),
         prisma.quotation.update({
           where: { id: discountRequest.quotationId },
-          data: { status: "DRAFT", needsApproval: false },
+          // TO-23: آخر مُعدِّل — إضافة فقط، بلا مساس بمنطق الخصم.
+          data: { status: "DRAFT", needsApproval: false, updatedById: roleCheck.userId },
         }),
         prisma.activityLog.create({
           data: {
@@ -314,6 +316,8 @@ export async function decideDiscountAction(
         data: {
           status: "APPROVED",
           approvedById: roleCheck.userId,
+          // TO-23: مستقل عن approvedById — «آخر من لمس» لا «من اعتمد».
+          updatedById: roleCheck.userId,
           discountPct: finalPct,
           discountAmount,
           taxAmount,

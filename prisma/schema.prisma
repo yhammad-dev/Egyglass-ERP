@@ -56,6 +56,18 @@ model User {
   // ── SCR-018: اعتماد المعاينة + مقاسات مهيكلة (BL-81 / BL-86) ──
   approvedInspections      InspectionRequest[]     @relation("InspectionApprover")
   createdMeasurements      InspectionMeasurement[] @relation("MeasurementCreator")
+
+  /// TO-23: مسار تيم ليدر المكتب الفني. يُملأ لـTEC_LEAD **فقط** ويبقى null لبقية
+  /// الأدوار الأربعة عشر. null لـTEC_LEAD = بلا مسار مُسنَد ⇒ **لا يرى أي عرض**
+  /// (فشل مغلق: أوضح وأأمن من رؤية الكل بالخطأ). ليس قيدًا في القاعدة — يُفرض تطبيقيًا.
+  leadRoute TechnicalRoute?
+
+  /// TO-25: تيم ليدر المهندس. يُملأ لـTECHNICAL_OFFICE فقط، ويبقى null لبقية الأدوار.
+  /// null = مهندس بلا تيم ليدر — **حالة صالحة** لا خطأ: لا يظهر في قائمة إسناد أي ليدر،
+  /// ويبقى المدير (TEC_APPROVER/ADMIN) قادرًا على إسناده لأنه يرى كل المهندسين.
+  teamLeadId  String?
+  teamLead    User?   @relation("TecTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  teamMembers User[]  @relation("TecTeamLead")
 }
 
 model Customer {
@@ -168,6 +180,7 @@ model Quotation {
   contract            Contract?
   quotationRequest    QuotationRequest?
   invoices            Invoice[]
+  updatedById String?   // TO-23: آخر من عدّل العرض. التفاصيل الكاملة في ActivityLog — لا تُكرَّر هنا.
 
   @@index([customerId])
   @@index([status])
@@ -635,6 +648,8 @@ enum Role {
   PROJECTS
   TECHNICAL_OFFICE
   TEC_APPROVER
+  TEC_LEAD          
+  // TO-23: تيم ليدر المكتب الفني — يوزّع على مهندسي مساره ويرى عملهم
 }
 
 enum Department {

@@ -173,7 +173,8 @@ export async function linkQuotationToProject(input: unknown) {
 
     await prisma.quotation.update({
       where: { id: parsed.data.quotationId },
-      data: { projectId: parsed.data.projectId },
+      // TO-23: آخر مُعدِّل — إضافة فقط، بلا مساس بربط المشروع.
+      data: { projectId: parsed.data.projectId, updatedById: roleCheck.userId },
     });
 
     await prisma.activityLog.create({

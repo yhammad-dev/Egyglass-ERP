@@ -67,7 +67,12 @@ export interface EngineerOption {
   name: string;
 }
 
-function buildWhere(userId: string, role: string, filters?: TecFilters) {
+/**
+ * TO-25: `buildWhere` صارت غير متزامنة لأن نطاق TEC_LEAD يحتاج قراءة `leadRoute`
+ * من القاعدة (الجلسة تحمل userId/role فقط — `src/lib/rbac.ts:28-32`). نفس السبب
+ * والنمط في `getQuotations` (TO-23).
+ */
+async function buildWhere(userId: string, role: string, filters?: TecFilters) {
   const where: Record<string, any> = { deletedAt: null };
 
   const and: Record<string, any>[] = [];
@@ -75,6 +80,23 @@ function buildWhere(userId: string, role: string, filters?: TecFilters) {
   if (role === "TECHNICAL_OFFICE") {
     // دفعة هـ: المهندس يرى طلباته + الطلبات غير المُسنَدة (كي يلتقطها/يوزّعها المدير)
     and.push({ OR: [{ engineerId: userId }, { engineerId: null }] });
+  }
+
+  if (role === "TEC_LEAD") {
+    // TO-25: التيم ليدر يرى **طلبات مساره فقط** — لا كل الطلبات ولا المسند إليه وحده،
+    // فهو يوزّع ما يرد على مساره. `technicalRoute` حقل إلزامي على QuotationRequest
+    // (@default(PROJECTS)) ⇒ لا طلب بلا مسار، فلا حالة «غير معروف» هنا.
+    const lead = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { leadRoute: true },
+    });
+    // بلا مسار مُسنَد ⇒ صفر طلب (فشل مغلق — نفس قاعدة TO-23 حرفيًا).
+    // `false` مستحيلة التحقق ⇒ نتيجة فارغة مضمونة بلا تعطيل بقية الفلاتر.
+    if (!lead?.leadRoute) {
+      and.push({ id: { in: [] } });
+    } else {
+      and.push({ technicalRoute: lead.leadRoute });
+    }
   }
 
   if (filters?.route) where.technicalRoute = filters.route;
@@ -98,7 +120,7 @@ export async function getTecJobs(
   role: string,
   filters?: TecFilters
 ): Promise<TecJobRow[]> {
-  const where = buildWhere(userId, role, filters);
+  const where = await buildWhere(userId, role, filters);
 
   const jobs = await prisma.quotationRequest.findMany({
     where,
@@ -143,7 +165,7 @@ export async function getTecJobDetail(
   userId: string,
   role: string
 ): Promise<TecJobDetail | null> {
-  const where = buildWhere(userId, role);
+  const where = await buildWhere(userId, role);
   where.id = id;
 
   const job = await prisma.quotationRequest.findFirst({
@@ -228,10 +250,52 @@ export async function getTecJobDetail(
   };
 }
 
-export async function getEngineers(): Promise<EngineerOption[]> {
+/**
+ * TO-25 — قائمة الإسناد مُنطَّقة بالدور:
+ * - `TEC_LEAD` → **مهندسوه فقط** (`teamLeadId = userId`).
+ * - `ADMIN` / `TEC_APPROVER` → كل المهندسين (كما كان حرفيًا).
+ *
+ * ⚠️ هذه واجهة عرض لا حارس. القيد النافذ في `assignEngineerAction` (server-side):
+ * إسناد لمهندس خارج الفريق يُرفض حتى لو زُوِّر الطلب بلا مرور بالقائمة.
+ * الوسيطان **إلزاميان** لا اختياريان — مستدعٍ ينسى التمرير = خطأ بناء لا قائمة مفتوحة.
+ */
+export async function getEngineers(
+  userId: string,
+  role: string
+): Promise<EngineerOption[]> {
+  const where: Record<string, any> = {
+    role: "TECHNICAL_OFFICE",
+    isActive: true,
+    deletedAt: null,
+  };
+
+  if (role === "TEC_LEAD") where.teamLeadId = userId;
+
   return prisma.user.findMany({
-    where: { role: "TECHNICAL_OFFICE", isActive: true, deletedAt: null },
+    where,
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+}
+
+/**
+ * TO-25 — هل يملك هذا المستخدم إسناد هذا المهندس؟ مصدر واحد للقاعدة يستعمله
+ * `assignEngineerAction`. TEC_LEAD مقيَّد بفريقه؛ ADMIN/TEC_APPROVER بلا قيد.
+ */
+export async function canAssignEngineer(
+  actorId: string,
+  actorRole: string,
+  engineerId: string
+): Promise<boolean> {
+  const engineer = await prisma.user.findUnique({
+    where: { id: engineerId },
+    select: { role: true, isActive: true, deletedAt: true, teamLeadId: true },
+  });
+
+  // المهندس يجب أن يكون مكتبًا فنيًا نشطًا — يمنع إسناد الطلب لأي دور آخر.
+  if (!engineer || engineer.role !== "TECHNICAL_OFFICE") return false;
+  if (!engineer.isActive || engineer.deletedAt) return false;
+
+  if (actorRole === "TEC_LEAD") return engineer.teamLeadId === actorId;
+  return true;
 }

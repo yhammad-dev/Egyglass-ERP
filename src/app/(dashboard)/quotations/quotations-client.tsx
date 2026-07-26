@@ -131,6 +131,21 @@ export function QuotationsClient({
             day: "2-digit",
           }).format(new Date(info.getValue())),
       }),
+      // TO-23: آخر مُعدِّل — الاسم والتاريخ فقط. **لا تفاصيل هنا**: ما تغيّر ومتى
+      // بالضبط يبقى في ActivityLog، وتكراره في الجدول يخلق مصدرًا ثانيًا للحقيقة.
+      columnHelper.accessor("lastUpdatedBy", {
+        header: t("quotations.lastUpdated"),
+        cell: (info) => {
+          const name = info.getValue();
+          if (!name) return t("quotations.dash");
+          const at = new Intl.DateTimeFormat("ar-EG", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(new Date(info.row.original.lastUpdatedAt));
+          return `${name} — ${at}`;
+        },
+      }),
     ],
     [t, isViewer]
   );

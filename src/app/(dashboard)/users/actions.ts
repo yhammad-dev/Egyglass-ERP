@@ -11,6 +11,7 @@ import {
   reactivateUser,
   unlockUser,
   getUsers,
+  isValidTeamLead,
   LastAdminGuardError,
 } from "@/lib/services/users";
 
@@ -20,7 +21,60 @@ const roleEnum = z.enum([
   "VIEWER", "REVIEW", "PROCUREMENT",
   "INSTALLATIONS", "ACCOUNTING", "HR",
   "PROJECTS", "TECHNICAL_OFFICE", "TEC_APPROVER",
+  "TEC_LEAD",
 ]);
+
+// TO-23-B: قيم `enum TechnicalRoute` (prisma/schema.prisma:1182-1185) — لا قيم مخترعة.
+// `errorMap` عمدًا: رسالة zod الافتراضية نص إنجليزي خام ("Invalid enum value…")،
+// والواجهة تمرّر رسالة الخطأ إلى `t()` ⇒ نص غير قابل للترجمة يظهر للمستخدم.
+// (نفس العيب قائم في roleEnum/departmentEnum — سابق لهذه الموجة ولم أمسّهما.)
+const leadRouteEnum = z.enum(["PROJECTS", "SOCIAL_MEDIA"], {
+  errorMap: () => ({ message: "errors.leadRouteRequired" }),
+});
+
+/**
+ * TO-23-B — تحقق مشترك: `TEC_LEAD` بلا مسار = حساب **معطوب بنيويًا**، يُنشأ بنجاح
+ * ثم لا يرى أي عرض إطلاقًا (فشل TO-23 المغلق المقصود في `getQuotations`).
+ * الرفض هنا أصدق من إنشاء صامت لمستخدم لا يعمل.
+ * ملاحظة: في التعديل قد يكون `role` غير مُرسَل ⇒ لا حكم (لا نفترض دورًا لم يُطلب تغييره).
+ */
+function refineLeadRoute(
+  value: { role?: string; leadRoute?: string | null },
+  ctx: z.RefinementCtx
+) {
+  if (value.role === "TEC_LEAD" && !value.leadRoute) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["leadRoute"],
+      message: "errors.leadRouteRequired",
+    });
+  }
+}
+
+/**
+ * التطبيع: المسار يُحفظ **فقط** مع TEC_LEAD. أي دور آخر ⇒ `null` صريحة تمسح أي
+ * قيمة قديمة. `undefined` (دور لم يُرسَل في التعديل) ⇒ لا نلمس العمود أصلًا.
+ */
+function normalizeLeadRoute(
+  role: string | undefined,
+  leadRoute: string | null | undefined
+): string | null | undefined {
+  if (role === undefined) return leadRoute;
+  return role === "TEC_LEAD" ? (leadRoute ?? null) : null;
+}
+
+/**
+ * TO-25 — نفس القاعدة لارتباط التيم ليدر: يُحفظ **فقط** مع TECHNICAL_OFFICE.
+ * ⚠️ خلافًا لـ`leadRoute`، هذا الحقل **اختياري** حتى للمهندس: مهندس بلا تيم ليدر
+ * حالة صالحة (يظل مرئيًا للمدير الذي يرى كل المهندسين) ⇒ لا تحقق إلزامي عليه.
+ */
+function normalizeTeamLeadId(
+  role: string | undefined,
+  teamLeadId: string | null | undefined
+): string | null | undefined {
+  if (role === undefined) return teamLeadId;
+  return role === "TECHNICAL_OFFICE" ? (teamLeadId ?? null) : null;
+}
 
 const departmentEnum = z.enum([
   "EXECUTIVE", "SALES", "INSPECTIONS",
@@ -39,24 +93,36 @@ const emailWithDomain = z
     "errors.emailDomainNotAllowed"
   );
 
-const createSchema = z.object({
-  name: z.string().min(1, "errors.required"),
-  email: emailWithDomain,
-  password: passwordPolicy,
-  role: roleEnum,
-  department: departmentEnum,
-});
+const createSchema = z
+  .object({
+    name: z.string().min(1, "errors.required"),
+    email: emailWithDomain,
+    password: passwordPolicy,
+    role: roleEnum,
+    department: departmentEnum,
+    leadRoute: leadRouteEnum.nullish(),
+    // TO-25: معرّف التيم ليدر — وجوده الفعلي ودوره يُفحصان في `assertTeamLeadValid`
+    // (فحص قاعدة، لا يُنجزه zod).
+    teamLeadId: z.string().min(1).nullish(),
+  })
+  .superRefine(refineLeadRoute);
 
-const updateSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1, "errors.required").optional(),
-  // النطاق يُفحص فقط إن أُرسل email جديد — تعديل بلا تغيير إيميل يمر (لا يحبس القدامى)
-  email: emailWithDomain.optional(),
-  password: passwordPolicy.optional(),
-  role: roleEnum.optional(),
-  department: departmentEnum.optional(),
-  isActive: z.boolean().optional(),
-});
+const updateSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().min(1, "errors.required").optional(),
+    // النطاق يُفحص فقط إن أُرسل email جديد — تعديل بلا تغيير إيميل يمر (لا يحبس القدامى)
+    email: emailWithDomain.optional(),
+    password: passwordPolicy.optional(),
+    role: roleEnum.optional(),
+    department: departmentEnum.optional(),
+    isActive: z.boolean().optional(),
+    leadRoute: leadRouteEnum.nullish(),
+    // TO-25: معرّف التيم ليدر — وجوده الفعلي ودوره يُفحصان في `assertTeamLeadValid`
+    // (فحص قاعدة، لا يُنجزه zod).
+    teamLeadId: z.string().min(1).nullish(),
+  })
+  .superRefine(refineLeadRoute);
 
 export async function listUsersAction() {
   const auth = await requireRole(["ADMIN"]);
@@ -77,8 +143,22 @@ export async function createUserAction(data: unknown) {
     };
   }
 
+  // TO-25: فحص واقع التيم ليدر (لا شكله) — بعد التطبيع كي لا نفحص قيمة ستُمسح.
+  const teamLeadId = normalizeTeamLeadId(parsed.data.role, parsed.data.teamLeadId);
+  if (!(await isValidTeamLead(teamLeadId))) {
+    return { success: false as const, error: { teamLeadId: ["errors.invalidTeamLead"] } };
+  }
+
   try {
-    const user = await createUser(parsed.data, auth.userId);
+    const user = await createUser(
+      // TO-23-B: التطبيع server-side — لا نثق بما ترسله الواجهة عن ارتباط الدور بالمسار.
+      {
+        ...parsed.data,
+        leadRoute: normalizeLeadRoute(parsed.data.role, parsed.data.leadRoute),
+        teamLeadId,
+      },
+      auth.userId
+    );
     return { success: true as const, data: user };
   } catch (e: any) {
     if (e?.code === "P2002") {
@@ -105,8 +185,23 @@ export async function updateUserAction(data: unknown) {
 
   const { id, ...input } = parsed.data;
 
+  // TO-25: نفس فحص الإنشاء. + منع الارتباط الذاتي (مستخدم تيم ليدر نفسه) الذي
+  // ينتج حلقة بلا معنى في شجرة الفريق.
+  const teamLeadId = normalizeTeamLeadId(input.role, input.teamLeadId);
+  if (teamLeadId === id) {
+    return { success: false as const, error: { teamLeadId: ["errors.invalidTeamLead"] } };
+  }
+  if (!(await isValidTeamLead(teamLeadId))) {
+    return { success: false as const, error: { teamLeadId: ["errors.invalidTeamLead"] } };
+  }
+
   try {
-    const user = await updateUser(id, input, auth.userId);
+    const user = await updateUser(
+      id,
+      // TO-23-B: مغادرة دور TEC_LEAD تمسح المسار (null صريحة) — لا قيمة يتيمة تبقى.
+      { ...input, leadRoute: normalizeLeadRoute(input.role, input.leadRoute), teamLeadId },
+      auth.userId
+    );
     return { success: true as const, data: user };
   } catch (e: any) {
     if (e instanceof LastAdminGuardError) {

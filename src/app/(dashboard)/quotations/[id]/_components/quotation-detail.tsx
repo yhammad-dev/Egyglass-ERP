@@ -71,6 +71,9 @@ type QuotationDetailData = {
   total: number;
   customer: { id: string; name: string; phone: string };
   createdBy: { id: string; name: string };
+  // TO-23: آخر مُعدِّل. null = لم يُعدَّل بعد إنشائه (أو عُدِّل قبل نزول العمود).
+  lastUpdatedBy: string | null;
+  lastUpdatedAt: string;
   items: { id: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[];
 };
 
@@ -186,6 +189,13 @@ export function QuotationDetail({
             {dateFormat.format(new Date(quotation.createdAt))}
           </p>
           <p className="text-sm">{quotation.customer.name}</p>
+          {/* TO-23: آخر مُعدِّل — اسم وتاريخ فقط. تفاصيل ما تغيّر تبقى في ActivityLog. */}
+          {quotation.lastUpdatedBy && (
+            <p className="text-sm text-muted-foreground">
+              {t("quotations.lastUpdated")}: {quotation.lastUpdatedBy} —{" "}
+              {dateFormat.format(new Date(quotation.lastUpdatedAt))}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={STATUS_VARIANT[status]}>

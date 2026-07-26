@@ -13,7 +13,11 @@ export default async function EditQuotationPage(props: {
   // BL-127 (W-01): الحارس = PRICING_ROLES بالضبط. SALES_REP أُزيل (يطلب لا يسعّر)،
   // و TECHNICAL_OFFICE/TEC_APPROVER أُضيفا — كانا محجوبين عن التعديل رغم أن
   // updateQuotation (المستدعى من QuotationBuilder) محروس بـPRICING_ROLES التي تشملهما.
-  const roleCheck = await requireRole(["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"]);
+  // TO-26: تعديل العرض جزء من التسعير. ⚠️ حارس L-08 (عرض له عقد) يبقى نافذًا
+  // داخل `updateQuotation` ولم يُمس — الفتح هنا لا يمسّ حصانة العقد الموقّع.
+  const roleCheck = await requireRole([
+    "ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
+  ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
   const [quotation, customers, productTypes, pricingFactors] = await Promise.all([
