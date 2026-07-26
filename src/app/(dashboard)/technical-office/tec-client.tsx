@@ -63,6 +63,10 @@ export function TecClient({
 
   const isApprover = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
   const isTecOffice = currentRole === "TECHNICAL_OFFICE";
+  // TO-25: التيم ليدر يوزّع أيضًا — لكن `engineers` تصله مقصورة على مهندسيه
+  // (getEngineers مُنطَّقة)، والحارس النافذ `canAssignEngineer` داخل الأكشن.
+  // `isApprover` تبقى كما هي: أداة الحالة ليست إسنادًا ولا تُفتح له هنا.
+  const canAssign = isApprover || currentRole === "TEC_LEAD";
 
   const filtered = useMemo(() => {
     return jobs.filter((j) => {
@@ -129,9 +133,18 @@ export function TecClient({
    * TO-19: أداة الإسناد الوحيدة في الشاشة — تُستدعى من مكانين (المربع الأصفر والجدول).
    * دالة عرض لا مكوّن: تعريف مكوّن داخل جسم TecClient يُنشئ نوعًا جديدًا في كل render
    * فيُعاد تركيب الـSelect ويفقد حالته. الاستدعاء المباشر يُدرج نفس الـJSX بلا هذا الأثر.
-   * الصلاحية تبقى كما هي (isApprover) — الحارس النافذ هو assignEngineerAction نفسه.
+   * الصلاحية `canAssign` (TO-25) — الحارس النافذ هو assignEngineerAction نفسه.
    */
   function renderAssignControl(job: TecJobRow) {
+    // TO-25: تيم ليدر بلا مهندسين مربوطين به يرى Select فارغًا وزرًا معطّلًا للأبد —
+    // أداة تعد بما لا تستطيع. نص صريح أصدق (نفس مبدأ TO-19 أعلاه).
+    if (engineers.length === 0) {
+      return (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {t("tec.noEngineersInTeam")}
+        </span>
+      );
+    }
     return (
       <div className="flex items-center gap-1">
         <Select
@@ -233,7 +246,7 @@ export function TecClient({
                 {/* TO-19: كان رابطًا باسم "إسناد" يقود لصفحة بلا أداة إسناد (طريق مسدود).
                     صار أداة الإسناد نفسها — نفس Select+زر الجدول عبر renderAssignControl.
                     غير المصرَّح له يرى رابط تفاصيل صادقًا، لا زرًا يوحي بفعل لا يملكه. */}
-                {isApprover ? (
+                {canAssign ? (
                   renderAssignControl(j)
                 ) : (
                   <Link
@@ -470,9 +483,9 @@ export function TecClient({
                         </div>
                       )}
 
-                      {/* Assign Engineer — ADMIN / TEC_APPROVER only.
+                      {/* Assign Engineer — ADMIN / TEC_APPROVER / TEC_LEAD (TO-25).
                           TO-19: نفس الأداة المستخدمة في مربع "طلبات تحتاج إسنادًا" — مصدر واحد. */}
-                      {isApprover && renderAssignControl(job)}
+                      {canAssign && renderAssignControl(job)}
 
                       <Link href={`/technical-office/${job.id}`}>
                         <Button type="button" size="sm" variant="outline" className="h-8 text-xs">

@@ -8,13 +8,17 @@ import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
-import { getTecJobs } from "@/lib/services/tec";
+import { getTecJobs, canAssignEngineer } from "@/lib/services/tec";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import type { TecFilters } from "@/lib/services/tec";
 import type { TecJobStatus, DrawingCategory, DrawingFileType } from "@prisma/client";
 
 const TEC_ROLES = ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"] as const;
 const APPROVER_ROLES = ["ADMIN", "TEC_APPROVER"] as const;
+// TO-25: مَن يوزّع الطلبات على المهندسين. التيم ليدر مضاف، **مقيَّدًا بفريقه**
+// عبر `canAssignEngineer` داخل الأكشن — القائمة في الواجهة عرض لا حارس.
+// ⚠️ منفصلة عن APPROVER_ROLES عمدًا: تلك للاعتماد الفني (G1) ولا يدخلها التيم ليدر.
+const ASSIGN_ROLES = ["ADMIN", "TEC_APPROVER", "TEC_LEAD"] as const;
 
 export async function getTecJobsAction(filters?: TecFilters) {
   try {
@@ -89,13 +93,21 @@ const assignEngineerSchema = z.object({
 
 export async function assignEngineerAction(input: unknown) {
   try {
-    const auth = await requireRole([...APPROVER_ROLES]);
+    // TO-25: التيم ليدر يوزّع أيضًا (كان APPROVER_ROLES وحدها).
+    const auth = await requireRole([...ASSIGN_ROLES]);
     if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = assignEngineerSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" as const };
 
     const { id, engineerId } = parsed.data;
+
+    // 🔴 TO-25 — الحارس النافذ: الدور وحده لا يكفي. التيم ليدر لا يسند إلا لمهندس
+    // **فريقه**، ولا أحد يسند لغير مهندس نشط. الواجهة تعرض قائمة مقصورة، لكن
+    // الطلب قابل للتزوير بلا مرور بها ⇒ الفحص هنا هو ما يمنع فعلًا.
+    if (!(await canAssignEngineer(auth.userId, auth.role, engineerId))) {
+      return { error: "errors.notAuthorized" as const };
+    }
 
     const job = await prisma.quotationRequest.findUnique({
       where: { id },

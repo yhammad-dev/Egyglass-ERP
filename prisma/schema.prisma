@@ -61,6 +61,13 @@ model User {
   /// الأدوار الأربعة عشر. null لـTEC_LEAD = بلا مسار مُسنَد ⇒ **لا يرى أي عرض**
   /// (فشل مغلق: أوضح وأأمن من رؤية الكل بالخطأ). ليس قيدًا في القاعدة — يُفرض تطبيقيًا.
   leadRoute TechnicalRoute?
+
+  /// TO-25: تيم ليدر المهندس. يُملأ لـTECHNICAL_OFFICE فقط، ويبقى null لبقية الأدوار.
+  /// null = مهندس بلا تيم ليدر — **حالة صالحة** لا خطأ: لا يظهر في قائمة إسناد أي ليدر،
+  /// ويبقى المدير (TEC_APPROVER/ADMIN) قادرًا على إسناده لأنه يرى كل المهندسين.
+  teamLeadId  String?
+  teamLead    User?   @relation("TecTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  teamMembers User[]  @relation("TecTeamLead")
 }
 
 model Customer {

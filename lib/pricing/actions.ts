@@ -20,7 +20,16 @@ import {
 
 // دفعة هـ (W-01): التسعير للمكتب الفني حصرًا. المندوب يطلب لا يسعّر.
 // SALES_MANAGER يبقى (إشراف/حالات مباشرة) — SALES_REP سُحب.
-const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
+// TO-26: التيم ليدر يسعّر بنفسه (قرار المالك) ⇒ TEC_LEAD داخل قائمة التسعير.
+const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"];
+
+// 🔴 TO-26 — قائمة منفصلة عمدًا، وهي PRICING_ROLES **قبل** إضافة TEC_LEAD حرفيًا.
+// السبب: `updateQuotationStatus` ليس تسعيرًا — إنه المسار الذي يكتب `approvedById`
+// عند الانتقال إلى APPROVED (السطر ~812)، أي **اعتماد فعلي** بلا مرور بـ
+// QUOTATION_APPROVAL_ROLES. لو ورث هذا الأكشن PRICING_ROLES بعد التوسعة لحصل
+// التيم ليدر على الاعتماد من الباب الخلفي — عكس القرار الصريح (الاعتماد للمدير وحده).
+// صفر تغيير على أي دور قائم: نفس الأربعة بنفس الترتيب.
+const QUOTATION_STATUS_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
 
 // BL-127 (يوسف، 2026-07-17): قرّاء التسعير كانوا بلا حارس — أرقام التكلفة التجارية
 // (PricingFactor.value) تصل أي مستدعٍ مُصادَق (AUTHZ-002). الحارس الآن = PRICING_ROLES نفسها.
@@ -791,7 +800,8 @@ export async function updateQuotationStatus(
   input: unknown
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const roleCheck = await requireRole(PRICING_ROLES);
+    // TO-26: ليس PRICING_ROLES — انظر تعليق QUOTATION_STATUS_ROLES أعلاه.
+    const roleCheck = await requireRole(QUOTATION_STATUS_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
     const parsed = updateQuotationStatusSchema.safeParse(input);

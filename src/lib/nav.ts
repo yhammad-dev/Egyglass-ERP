@@ -33,10 +33,11 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"],
   },
   {
+    // TO-25: مطابقة roles لحارس /technical-office — التيم ليدر يوزّع على مهندسيه.
     labelKey: "nav.technicalOffice",
     href: "/technical-office",
     icon: "drafting_compass",
-    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER"],
+    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"],
   },
   {
     // PHASE 2 (D-03): شاشة اعتماد عروض الأسعار = المدير التنفيذي (TEC_APPROVER)،

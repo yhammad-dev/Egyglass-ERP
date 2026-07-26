@@ -438,6 +438,33 @@ enum Role {
 - **⚠️ تسلسل إلزامي:** `migrate` ثم `generate` **قبل** أي build (سابقة SCR-020). وقبلها البناء يفشل على `leadRoute`/`updatedById`/`TEC_LEAD` — وهذا هو السلوك المتوقَّع لا عطل.
 - **بعد الـmigration — خطوة بيانات إلزامية بيد المالك:** لا يوجد اليوم أي مستخدم بدور `TEC_LEAD`. لاختبار الموجة يلزم مستخدمان: واحد `TEC_LEAD` بـ`leadRoute=PROJECTS` وآخر `leadRoute=SOCIAL_MEDIA`، **ومستخدم ثالث `TEC_LEAD` بـ`leadRoute=null`** للتأكد من أنه لا يرى شيئًا. تُنشأ من شاشة `/users` (ADMIN) لا بـSQL مباشر (L-04).
 
+### SCR-022 — ربط المهندس بتيم ليدره (TO-25) · 🟢 مواصفات مكتملة — بانتظار تطبيق يوسف
+
+> **L-02:** لم أعدّل `schema.prisma` ولا أنشأتُ migration. المقطع يُلصق كما هو. طبقة التطبيق منفّذة على `fix/to-23-tec-lead` وتنتظر العمود — **البناء أحمر حتى الـmigration** (مقصود وموثّق، سابقة SCR-020/021).
+
+**`model User` — أول علاقة ذاتية في هذا الموديل:**
+```prisma
+  /// TO-25: تيم ليدر المهندس. يُملأ لـTECHNICAL_OFFICE فقط، ويبقى null لبقية الأدوار.
+  /// null = مهندس بلا تيم ليدر — **حالة صالحة** لا خطأ: لا يظهر في قائمة إسناد أي ليدر،
+  /// ويبقى المدير (TEC_APPROVER/ADMIN) قادرًا على إسناده لأنه يرى كل المهندسين.
+  teamLeadId  String?
+  teamLead    User?   @relation("TecTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  teamMembers User[]  @relation("TecTeamLead")
+```
+
+- **⚠️ لماذا التسمية إلزامية هنا (وعكس حالة TO-23):** العلاقة **ذاتية** (User↔User)، وPrisma يوجب اسمًا صريحًا لطرفيها. **الفرق الحاسم عن `updatedById` في SCR-021:** هناك كانت `User.quotations` علاقة قائمة **بلا اسم** فكانت إضافة علاقة ثانية تُجبر على تعديلها. هنا **لا توجد أي علاقة ذاتية على `User` إطلاقًا** — مُتحقَّق بمسح جسم الموديل كاملًا (`awk '/^model User \{/,/^\}/'` ⇒ صفر مطابقة لـ`User`/`User[]`/`User?` داخله). ⇒ التسمية `"TecTeamLead"` **جديدة تمامًا ولا تلمس أي علاقة عاملة**.
+- **`onDelete: SetNull`** — متسق مع سياسة deactivate-not-delete (المستخدمون يُعطَّلون لا يُحذفون، وFK تمنع الحذف أصلًا). لا يغيّر سلوكًا قائمًا؛ صريح بدل الاعتماد على الافتراضي.
+- **Blast radius — صفر كسر:** عمود مضاف nullable + علاقة بتسمية جديدة. لا قارئ قائم يتأثر، ولا `@unique` جديد، ولا تعديل على أي حقل قائم. مهندس بلا `teamLeadId` يسلك تمامًا كما اليوم.
+- **Migration safety:** إضافة بحتة، بلا backfill وبلا تعديل بيانات، قابلة للتراجع بالكامل (`DROP COLUMN`). اسم مقترح: `to25_user_team_lead`.
+- **الأمر الذي ينفّذه المالك (من جذر المشروع):**
+  ```
+  docker compose exec app npx prisma migrate dev --name to25_user_team_lead
+  docker compose exec app npx prisma generate
+  docker compose exec app npm run build
+  ```
+- **⚠️ تسلسل إلزامي:** `migrate` ثم `generate` **قبل** أي build. قبلها يفشل البناء على `teamLeadId`/`teamMembers` — سلوك متوقَّع لا عطل.
+- **بعد الـmigration — خطوة بيانات بيد المالك:** ربط المهندسين القائمين بتيم ليدرهم من شاشة `/users` (تعديل كل مهندس `TECHNICAL_OFFICE` واختيار تيم ليدره). **قبل الربط، قائمة إسناد أي تيم ليدر تكون فارغة** — وهذا صحيح لا عطل: لا مهندس مُسنَد إليه بعد.
+
 ---
 # 🟠 مسارات عمل ناقصة
 

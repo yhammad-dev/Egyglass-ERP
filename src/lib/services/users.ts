@@ -37,6 +37,8 @@ export interface UserRow {
   lockedUntil: Date | null;
   // TO-23-B: مسار تيم ليدر المكتب الفني. غير null لـTEC_LEAD فقط (SCR-021).
   leadRoute: string | null;
+  // TO-25: تيم ليدر المهندس. غير null لـTECHNICAL_OFFICE فقط (SCR-022).
+  teamLeadId: string | null;
 }
 
 export interface CreateUserInput {
@@ -47,6 +49,8 @@ export interface CreateUserInput {
   department: string;
   // TO-23-B: `null` صريحة لكل دور غير TEC_LEAD — الأكشن يفرضها، لا الواجهة.
   leadRoute?: string | null;
+  // TO-25: `null` صريحة لكل دور غير TECHNICAL_OFFICE — نفس القاعدة.
+  teamLeadId?: string | null;
 }
 
 export interface UpdateUserInput {
@@ -59,6 +63,25 @@ export interface UpdateUserInput {
   // TO-23-B: `null` تُكتب فعلًا (الشرط أدناه `!== undefined`) ⇒ تغيير الدور
   // بعيدًا عن TEC_LEAD **يمسح** المسار ولا يتركه قيمة يتيمة.
   leadRoute?: string | null;
+  // TO-25: نفس القاعدة — مغادرة TECHNICAL_OFFICE تمسح ارتباط التيم ليدر.
+  teamLeadId?: string | null;
+}
+
+/**
+ * TO-25 — هل المُشار إليه تيم ليدر فعلي ونشط؟
+ * zod يتحقق من **شكل** المعرّف لا من واقعه: معرّف سليم شكليًا قد يشير لمندوب مبيعات
+ * أو لمستخدم معطّل، فيُربط المهندس بتيم ليدر لا وجود له عمليًا ⇒ لا يظهر لأحد.
+ * `null`/`undefined` مقبولة (مهندس بلا تيم ليدر حالة صالحة — SCR-022).
+ */
+export async function isValidTeamLead(teamLeadId: string | null | undefined): Promise<boolean> {
+  if (!teamLeadId) return true;
+
+  const lead = await prisma.user.findUnique({
+    where: { id: teamLeadId },
+    select: { role: true, isActive: true, deletedAt: true },
+  });
+
+  return Boolean(lead && lead.role === "TEC_LEAD" && lead.isActive && !lead.deletedAt);
 }
 
 export async function getUsers(): Promise<UserRow[]> {
@@ -75,6 +98,7 @@ export async function getUsers(): Promise<UserRow[]> {
       deletedAt: true,
       lockedUntil: true,
       leadRoute: true,
+      teamLeadId: true,
     },
   });
   return users;
@@ -92,6 +116,8 @@ export async function createUser(input: CreateUserInput, actorId: string) {
       department: input.department as any,
       // TO-23-B: الأكشن يمرّرها null صراحةً لغير TEC_LEAD (فُرضت server-side).
       leadRoute: (input.leadRoute ?? null) as any,
+      // TO-25: نفس القاعدة لغير TECHNICAL_OFFICE.
+      teamLeadId: input.teamLeadId ?? null,
     },
   });
 
@@ -158,6 +184,8 @@ export async function updateUser(
     // TO-23-B: `!== undefined` عمدًا لا `!= null` — الأكشن يرسل `null` صريحة عند
     // مغادرة دور TEC_LEAD، وهي القيمة التي **يجب** أن تُكتب لمسح المسار القديم.
     if (input.leadRoute !== undefined) data.leadRoute = input.leadRoute;
+    // TO-25: نفس منطق `!== undefined` — null صريحة تمسح الارتباط عند تغيير الدور.
+    if (input.teamLeadId !== undefined) data.teamLeadId = input.teamLeadId;
     if (input.password) {
       data.passwordHash = await bcrypt.hash(input.password, 12);
     }
