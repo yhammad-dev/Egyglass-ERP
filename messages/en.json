@@ -184,7 +184,10 @@
     "quotationReadyTitle": "Quotation Ready",
     "quotationResubmittedTitle": "Quotation resubmitted for review",
     "replacementRequestedTitle": "Replacement requested — awaiting REVIEW investigation",
-    "investigationJudgedTitle": "Management verdict issued on an investigation"
+    "investigationJudgedTitle": "Management verdict issued on an investigation",
+    "leadApprovalRequestedTitle": "A quotation awaits your preliminary approval",
+    "leadApprovedTitle": "Quotation preliminarily approved — ready for the customer",
+    "leadReturnedTitle": "A quotation was returned to you for correction"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",
@@ -474,6 +477,28 @@
       "projectNote19": "VAT is calculated at the rate applicable at the invoice date.",
       "projectNote20": "Disputes are settled amicably; otherwise Cairo courts have jurisdiction.",
       "projectNote21": "This offer complements the contract terms and is inseparable from them upon contracting."
+    },
+    "leadGate": {
+      "column": "Lead approval",
+      "badge_NOT_SUBMITTED": "Not submitted",
+      "badge_PENDING_LEAD": "Awaiting team lead",
+      "badge_LEAD_APPROVED": "Lead approved",
+      "badge_LEAD_RETURNED": "Returned to engineer",
+      "banner_NOT_SUBMITTED": "Not yet submitted for lead approval — cannot be printed or shown to the customer",
+      "banner_PENDING_LEAD": "Awaiting lead approval — cannot be printed or shown to the customer",
+      "banner_LEAD_RETURNED": "Returned by the team lead for correction — fix it and resubmit",
+      "returnReason": "Return reason",
+      "submit": "Submit for lead approval",
+      "approve": "Approve (preliminary)",
+      "return": "Return to engineer",
+      "confirmReturn": "Confirm return",
+      "returnPlaceholder": "Write the return reason — the engineer will receive it",
+      "selfApproved": "⚠️ Self-approved",
+      "blockedTitle": "This quotation cannot be printed yet",
+      "blockedNotSubmitted": "The quotation has not been submitted for lead approval. Required: the engineer submits it, then the team lead approves.",
+      "blockedPending": "The quotation is awaiting lead approval from the team lead.",
+      "blockedReturned": "The team lead returned it to the engineer. Required: correct and resubmit.",
+      "blockedHint": "Unavailable until the team lead grants preliminary approval"
     }
   },
   "invoices": {
@@ -878,7 +903,12 @@
     "returnReasonRequired": "Return reason is required",
     "incorrectPassword": "Current password is incorrect",
     "passwordMismatch": "Passwords do not match",
-    "passwordSameAsOld": "New password must be different from the current one"
+    "passwordSameAsOld": "New password must be different from the current one",
+    "leadNoteRequired": "A return reason is required — without it the engineer cannot know what to fix",
+    "leadTransitionNotAllowed": "This action is not allowed in the quotation's current state",
+    "quotationNotGated": "This quotation is not linked to a pricing request — the lead approval gate does not apply",
+    "noLeadRecipient": "Submitted, but no team lead exists for this route — nobody was notified",
+    "noCustomerOwner": "Approved, but the customer has no sales owner — nobody was notified"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

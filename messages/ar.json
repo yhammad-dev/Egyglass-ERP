@@ -183,7 +183,10 @@
     "quotationReadyTitle": "عرض السعر جاهز",
     "quotationResubmittedTitle": "عرض سعر أُعيد تقديمه للمراجعة",
     "replacementRequestedTitle": "طلب بديل — بانتظار تحقيق REVIEW",
-    "investigationJudgedTitle": "صدر حكم الإدارة في تحقيق"
+    "investigationJudgedTitle": "صدر حكم الإدارة في تحقيق",
+    "leadApprovalRequestedTitle": "عرض سعر بانتظار اعتمادك المبدئي",
+    "leadApprovedTitle": "عرض سعر اعتُمد مبدئيًا — جاهز للعميل",
+    "leadReturnedTitle": "أُرجع عرض السعر إليك للتصحيح"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -473,6 +476,28 @@
       "projectNote19": "الضريبة المضافة تُحتسب وفق النسبة السارية وقت إصدار الفاتورة.",
       "projectNote20": "أي نزاع يُحل وديًا وإلا فالاختصاص لمحاكم القاهرة.",
       "projectNote21": "هذا العرض مكمّل لشروط العقد ولا يُجزّأ عنها عند التعاقد."
+    },
+    "leadGate": {
+      "column": "الاعتماد المبدئي",
+      "badge_NOT_SUBMITTED": "لم يُقدَّم",
+      "badge_PENDING_LEAD": "بانتظار التيم ليدر",
+      "badge_LEAD_APPROVED": "معتمد مبدئيًا",
+      "badge_LEAD_RETURNED": "مُرجَع للمهندس",
+      "banner_NOT_SUBMITTED": "لم يُقدَّم للاعتماد المبدئي بعد — لا يمكن طباعته أو عرضه على العميل",
+      "banner_PENDING_LEAD": "بانتظار الاعتماد المبدئي من التيم ليدر — لا يمكن طباعته أو عرضه على العميل",
+      "banner_LEAD_RETURNED": "أرجعه التيم ليدر للتصحيح — صحّح ثم أعد التقديم",
+      "returnReason": "سبب الإرجاع",
+      "submit": "تقديم للاعتماد المبدئي",
+      "approve": "اعتماد مبدئي",
+      "return": "إرجاع للمهندس",
+      "confirmReturn": "تأكيد الإرجاع",
+      "returnPlaceholder": "اكتب سبب الإرجاع — سيصل المهندس",
+      "selfApproved": "⚠️ اعتماد ذاتي",
+      "blockedTitle": "لا يمكن طباعة هذا العرض بعد",
+      "blockedNotSubmitted": "العرض لم يُقدَّم للاعتماد المبدئي. المطلوب: يقدّمه المهندس ثم يعتمده التيم ليدر.",
+      "blockedPending": "العرض بانتظار الاعتماد المبدئي من التيم ليدر.",
+      "blockedReturned": "أرجع التيم ليدر العرض للمهندس. المطلوب: تصحيحه وإعادة تقديمه.",
+      "blockedHint": "غير متاح قبل الاعتماد المبدئي من التيم ليدر"
     }
   },
   "invoices": {
@@ -877,7 +902,12 @@
     "returnReasonRequired": "سبب الإرجاع مطلوب",
     "incorrectPassword": "كلمة المرور الحالية غير صحيحة",
     "passwordMismatch": "كلمتا المرور غير متطابقتين",
-    "passwordSameAsOld": "كلمة المرور الجديدة يجب أن تختلف عن الحالية"
+    "passwordSameAsOld": "كلمة المرور الجديدة يجب أن تختلف عن الحالية",
+    "leadNoteRequired": "سبب الإرجاع إلزامي — بدونه لا يعرف المهندس ما يصحّحه",
+    "leadTransitionNotAllowed": "لا يمكن تنفيذ هذا الإجراء على الحالة الحالية للعرض",
+    "quotationNotGated": "هذا العرض غير مرتبط بطلب تسعير — لا تنطبق عليه بوابة الاعتماد المبدئي",
+    "noLeadRecipient": "تم التقديم، لكن لا يوجد تيم ليدر لهذا المسار — لم يصل الإشعار لأحد",
+    "noCustomerOwner": "تم الاعتماد، لكن العميل بلا مسؤول مبيعات — لم يصل الإشعار لأحد"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",

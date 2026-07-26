@@ -47,6 +47,10 @@ export interface QuotationRow {
   // null = لم يُعدَّل بعد إنشائه (أو عُدِّل قبل نزول العمود) — ليس «غير معروف» ولا يُلفَّق.
   lastUpdatedBy: string | null;
   lastUpdatedAt: Date;
+  // TO-24: حالة الاعتماد المبدئي — المبيعات كانت لا تملك أي تمييز للجاهز عن غيره
+  // (مُثبَت في TO-24-DIAG). `isGatedByLead=false` ⇒ عرض بلا طلب، خارج البوابة.
+  isGatedByLead: boolean;
+  leadApprovalStatus: string;
 }
 
 // ── Fetch ────────────────────────────────────────────
@@ -105,6 +109,9 @@ export async function getQuotations(
       createdAt: true,
       updatedAt: true,
       updatedById: true,
+      leadApprovalStatus: true,
+      // TO-24: وجود الطلب فقط — بلا حقول إضافية، استعلام واحد كما هو.
+      quotationRequest: { select: { id: true } },
       createdBy: { select: { name: true } },
       customer: {
         select: {
@@ -144,5 +151,7 @@ export async function getQuotations(
     inspectionsResponsible: null,
     lastUpdatedBy: q.updatedById ? (updaterNameById.get(q.updatedById) ?? null) : null,
     lastUpdatedAt: q.updatedAt,
+    isGatedByLead: Boolean(q.quotationRequest),
+    leadApprovalStatus: q.leadApprovalStatus,
   }));
 }

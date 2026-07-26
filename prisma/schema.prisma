@@ -167,6 +167,20 @@ model Quotation {
   quotationType       QuotationType       @default(INITIAL)
   reviewNote          String?
   reviewStatus        ReviewStatus        @default(PENDING_REVIEW)
+  /// TO-24: بوابة الاعتماد المبدئي. تنطبق **فقط** على العروض المرتبطة بطلب تسعير
+  /// (عروض المكتب الفني)؛ العرض بلا طلب يمر بلا بوابة — مسار المبيعات المباشر
+  /// لا يمر بالمكتب الفني. الفصل يتم في الكود لا في القاعدة.
+  leadApprovalStatus LeadApprovalStatus   @default(NOT_SUBMITTED)
+  /// TO-24 (KPI): لحظة تقديم المهندس. أساس قياس «زمن انتظار قرار الليدر».
+  submittedAt        DateTime?
+  /// TO-24 (KPI): لحظة قرار الليدر — اعتمادًا كان أو إرجاعًا.
+  leadDecidedAt      DateTime?
+  /// TO-24: مُقرِّر الاعتماد المبدئي. **بلا علاقة** — نفس نمط `approvedById` (:149)
+  /// و`reviewedById` (:159) على هذا الموديل نفسه. الاسم يُقرأ باستعلام منفصل.
+  /// اعتماد الذات **لا عمود له**: يُشتق من `leadDecidedById === createdById` (قرار المالك).
+  leadDecidedById    String?
+  /// TO-24: سبب الإرجاع — إلزامي تطبيقيًا عند LEAD_RETURNED (`z.string().min(1)`).
+  leadNote           String?
   reviewedAt          DateTime?
   reviewedById        String?
   createdBy           User                @relation(fields: [createdById], references: [id])
@@ -750,6 +764,13 @@ enum ReviewStatus {
   PENDING_REVIEW
   APPROVED
   RETURNED
+}
+
+enum LeadApprovalStatus {
+  NOT_SUBMITTED   // لم يقدّمه المهندس بعد
+  PENDING_LEAD    // مُقدَّم، بانتظار قرار التيم ليدر
+  LEAD_APPROVED   // اعتماد مبدئي — **بوابة وصول العميل**
+  LEAD_RETURNED   // مُرجَع للمهندس بسبب مكتوب
 }
 
 enum QuotationType {
