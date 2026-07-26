@@ -16,21 +16,14 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ProductSection, type ProductTypeOption } from "./product-section";
-import type {
-  PricingFactorOption,
-  ApprovalInfo,
-  ItemPricingInput,
-} from "./product-recipe-form";
+import type { PricingFactorOption, RecipeResult } from "./product-recipe-form";
 
 type CustomerOption = { id: string; name: string; phone: string };
 
 // TO-05: `pricing` مرافق للبند حتى الحفظ فقط — لا يدخل في أي حساب هنا.
-type Section = {
-  key: number;
-  subtotal: number;
-  approvalInfo?: ApprovalInfo;
-  pricing?: ItemPricingInput;
-};
+// TO-21: القسم = مفتاح + حمولة الفورم كما هي. أي حقل يُضاف لـ`RecipeResult` مستقبلًا
+// يصل إلى هنا تلقائيًا، ولا يمكن إسقاطه صامتًا في الطريق.
+type Section = { key: number } & RecipeResult;
 
 type EditItem = { key: number; description: string; quantity: number; unitPrice: number };
 
@@ -80,7 +73,10 @@ export function QuotationBuilder({
     : sections.reduce((sum, s) => sum + s.subtotal, 0);
 
   function addSection() {
-    setSections((prev) => [...prev, { key: nextKey, subtotal: 0 }]);
+    setSections((prev) => [
+      ...prev,
+      { key: nextKey, subtotal: 0, approvalInfo: undefined, pricing: undefined },
+    ]);
     setNextKey((k) => k + 1);
   }
 
@@ -88,15 +84,9 @@ export function QuotationBuilder({
     setSections((prev) => prev.filter((s) => s.key !== key));
   }
 
-  function updateSubtotal(
-    key: number,
-    subtotal: number,
-    approvalInfo?: ApprovalInfo,
-    pricing?: ItemPricingInput
-  ) {
-    setSections((prev) =>
-      prev.map((s) => (s.key === key ? { ...s, subtotal, approvalInfo, pricing } : s))
-    );
+  // TO-21: الحمولة تُنسخ كاملة (`...result`) بلا تفكيك — لا مكان يسقط منه حقل.
+  function updateSubtotal(key: number, result: RecipeResult) {
+    setSections((prev) => prev.map((s) => (s.key === key ? { key: s.key, ...result } : s)));
   }
 
   function addEditItem() {
@@ -153,8 +143,24 @@ export function QuotationBuilder({
       return;
     }
 
-    if (!customerId || !title || sections.length === 0 || sections.some((s) => s.subtotal <= 0)) {
-      setError(t("errors.invalidInput"));
+    // TO-21-FIX: كان حارسًا واحدًا يعطي "بيانات غير صالحة" لأربعة أسباب مختلفة —
+    // ونفس النص يخرج من السيرفر أيضًا، فيستحيل ميدانيًا معرفة أيهما فشل ولا لماذا.
+    // كل سبب الآن يسمّي حقله.
+    if (!customerId) {
+      setError(t("errors.invalidInputIn", { field: t("quotations.customer") }));
+      return;
+    }
+    if (!title) {
+      setError(t("errors.invalidInputIn", { field: t("quotations.new.quotationTitle") }));
+      return;
+    }
+    if (sections.length === 0) {
+      setError(t("quotations.new.errorNoSections"));
+      return;
+    }
+    const emptySectionIndex = sections.findIndex((s) => s.subtotal <= 0);
+    if (emptySectionIndex !== -1) {
+      setError(t("quotations.new.errorSectionNoPrice", { index: emptySectionIndex + 1 }));
       return;
     }
 
@@ -165,7 +171,7 @@ export function QuotationBuilder({
 
     const discountValue = Number(discountPct);
     if (Number.isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
-      setError(t("errors.invalidInput"));
+      setError(t("errors.invalidInputIn", { field: t("quotations.new.discountPct") }));
       return;
     }
 
@@ -195,7 +201,18 @@ export function QuotationBuilder({
     setSubmitting(false);
 
     if ("error" in response) {
-      setError(t(response.error));
+      // TO-21-FIX: السيرفر صار يُرجع اسم الحقل الفاشل (مفتاح ترجمة) ورقم البند إن وُجدا.
+      // نعرضهما للمستخدم بلغته؛ ما زال النص العام هو البديل إن لم يُحدَّد حقل.
+      const fieldLabel = response.fieldKey ? t(response.fieldKey) : null;
+      if (fieldLabel && response.itemIndex !== undefined) {
+        setError(
+          t("errors.invalidInputInItem", { item: response.itemIndex + 1, field: fieldLabel })
+        );
+      } else if (fieldLabel) {
+        setError(t("errors.invalidInputIn", { field: fieldLabel }));
+      } else {
+        setError(t(response.error));
+      }
       return;
     }
 
@@ -344,7 +361,7 @@ export function QuotationBuilder({
               pricingFactors={pricingFactors}
               defaultPricingFactorId={globalFactorId || undefined}
               onRemove={() => removeSection(s.key)}
-              onSubtotalChange={(subtotal, approvalInfo) => updateSubtotal(s.key, subtotal, approvalInfo)}
+              onSubtotalChange={(result) => updateSubtotal(s.key, result)}
             />
           ))}
 

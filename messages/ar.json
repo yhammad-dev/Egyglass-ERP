@@ -385,7 +385,10 @@
       "save": "حفظ عرض السعر",
       "saved": "تم حفظ عرض السعر بنجاح",
       "discountPct": "نسبة الخصم %",
-      "netBeforeVat": "الصافي (قبل الضريبة)"
+      "netBeforeVat": "الصافي (قبل الضريبة)",
+      "quantity": "الكمية",
+      "errorNoSections": "أضف منتجًا واحدًا على الأقل قبل الحفظ",
+      "errorSectionNoPrice": "المنتج {index} بلا سعر محسوب — اضغط «احسب» ثم اختر الخامات"
     },
     "detail": {
       "product": "المنتج",
@@ -836,6 +839,8 @@
     "refreshFailed": "فشل تحديث قائمة المستخدمين",
     "notFound": "غير موجود",
     "invalidInput": "بيانات غير صالحة",
+    "invalidInputIn": "بيانات غير صالحة في: {field}",
+    "invalidInputInItem": "بيانات غير صالحة في المنتج {item}: {field}",
     "rejectReasonRequired": "سبب الرفض مطلوب عند تغيير الحالة إلى رفض",
     "serverError": "حدث خطأ في الخادم، يرجى المحاولة مرة أخرى",
     "rateLimited": "طلبات كثيرة جدًا، يرجى المحاولة لاحقًا",

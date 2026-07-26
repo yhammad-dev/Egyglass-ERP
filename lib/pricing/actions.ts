@@ -288,8 +288,67 @@ const createQuotationItemSchema = z.object({
   quantity: z.coerce.number().positive("errors.invalidInput"),
   unitPrice: z.coerce.number().nonnegative("errors.invalidInput"),
   // TO-05: تُقرأ للتسجيل فقط — لا تدخل في unitPrice ولا في أي إجمالي.
-  pricing: quotationItemPricingSchema.optional(),
+  //
+  // 🔴 TO-21-FIX — **متعمّد أن يكون `unknown` هنا، ولا يُعاد إلى المخطط الصارم.**
+  // كان `quotationItemPricingSchema.optional()`، فصار فشل شكل `pricing` يُفشل
+  // safeParse للطلب **كله** ⇒ رفض حفظ العرض بـerrors.invalidInput. قبل TO-21 لم
+  // يظهر العطل لأن `pricing` كان يُسقَط في الواجهة فلا يُفحص أصلًا.
+  // القاعدة: `pricing` بيانات مساعدة لحساب التكلفة — **حفظ العرض أهم من صورة
+  // التكلفة**، فلا يجوز لفشلها إسقاط مستند تجاري سليم. الفحص الصارم يتم على حدة
+  // لكل بند في `parseItemPricing` أدناه: فشله ⇒ تجاهل + تحذيرة + costSnapshot=null.
+  // باقي حقول البند تبقى صارمة كما هي.
+  pricing: z.unknown().optional(),
 });
+
+/**
+ * TO-21-FIX — الفحص الصارم لـ`pricing` **معزولًا** عن قبول الطلب.
+ * يُرجع المدخلات الصالحة أو `null`، ولا يرمي ولا يُفشل شيئًا أبدًا.
+ * ⚠️ التحذيرة تحمل مسار الحقل ونوع الخطأ فقط — بلا قيم (قد تحمل بيانات عمل).
+ */
+function parseItemPricing(raw: unknown, itemIndex: number): ItemPricingInput | null {
+  if (raw === undefined || raw === null) return null;
+
+  const parsed = quotationItemPricingSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+
+  const issues = parsed.error.issues
+    .map((issue) => `${issue.path.join(".") || "(root)"}:${issue.code}`)
+    .join(" | ");
+  console.warn(
+    `[pricing] COST_SNAPSHOT_NULL item#${itemIndex} PRICING_INPUT_INVALID — ${issues} (العرض يُحفظ رغم ذلك)`
+  );
+  return null;
+}
+
+// TO-21-FIX — مسار حقل zod ⇒ مفتاح ترجمة اسم الحقل، ليرى المستخدم **أي حقل** فشل
+// بدل "بيانات غير صالحة" المجرّدة. المفاتيح قائمة بالفعل عدا `quantity`.
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  customerId: "quotations.customer",
+  title: "quotations.new.quotationTitle",
+  items: "quotations.detail.product",
+  description: "quotations.detail.product",
+  quantity: "quotations.new.quantity",
+  unitPrice: "quotations.detail.itemSubtotal",
+  discountPct: "quotations.new.discountPct",
+};
+
+/**
+ * يحوّل أول خطأ zod إلى `{fieldKey, itemIndex}` للعرض في الواجهة.
+ * مسار البند يأخذ الشكل ["items", i, "field"] ⇒ نلتقط الرقم واسم الحقل.
+ */
+function describeFirstIssue(error: z.ZodError): { fieldKey?: string; itemIndex?: number } {
+  const issue = error.issues[0];
+  if (!issue) return {};
+
+  const path = issue.path;
+  if (path[0] === "items" && typeof path[1] === "number") {
+    const field = typeof path[2] === "string" ? path[2] : "items";
+    return { fieldKey: FIELD_LABEL_KEYS[field], itemIndex: path[1] };
+  }
+
+  const root = typeof path[0] === "string" ? path[0] : undefined;
+  return { fieldKey: root ? FIELD_LABEL_KEYS[root] : undefined };
+}
 
 // TO-05 — تكلفة الكتالوج للوحدة الواحدة وقت التسعير، محسوبة **server-side** من نفس
 // مسار `calculateRecipe` الذي أنتج السعر: نفس الوصفات، نفس الأبعاد، نفس قاعدة الاختيار.
@@ -301,13 +360,24 @@ const createQuotationItemSchema = z.object({
 //
 // null تعني «غير معروفة» ولا تُلفَّق أبدًا: نوع منتج/عامل مفقود، أو صفر سطر مختار،
 // أو خامة اختفت بين لحظة الحساب ولحظة الحفظ ⇒ null، لا صفر.
+//
+// TO-21: كل فرع null كان **صامتًا** — الأثر الوحيد رقم مجمّع في ActivityLog لا يميّز
+// السبب. الآن كل فرع يطبع سببه ومعرّفه الفني. `itemIndex` **إلزامي** لا اختياري:
+// وسيط ناقص عند الاستدعاء = خطأ بناء، لا سجل بلا هوية.
+// ⚠️ السجل يحمل معرّفات فنية فقط — بلا اسم عميل وبلا أي مبلغ.
 async function computeCatalogCostSnapshot(
-  pricing: ItemPricingInput
+  pricing: ItemPricingInput,
+  itemIndex: number
 ): Promise<Prisma.Decimal | null> {
+  const tag = `[pricing] COST_SNAPSHOT_NULL item#${itemIndex}`;
+
   const productType = await prisma.productType.findUnique({
     where: { code: pricing.productTypeCode },
   });
-  if (!productType) return null;
+  if (!productType) {
+    console.warn(`${tag} PRODUCT_TYPE_NOT_FOUND — code=${pricing.productTypeCode}`);
+    return null;
+  }
 
   const [configType, pricingFactor, recipes] = await Promise.all([
     pricing.configTypeId
@@ -317,8 +387,14 @@ async function computeCatalogCostSnapshot(
     getProductRecipes(productType.id),
   ]);
 
-  if (pricing.configTypeId && !configType) return null;
-  if (!pricingFactor) return null;
+  if (pricing.configTypeId && !configType) {
+    console.warn(`${tag} CONFIG_TYPE_NOT_FOUND — configTypeId=${pricing.configTypeId}`);
+    return null;
+  }
+  if (!pricingFactor) {
+    console.warn(`${tag} PRICING_FACTOR_NOT_FOUND — pricingFactorId=${pricing.pricingFactorId}`);
+    return null;
+  }
 
   const dimensions = {
     area: pricing.height * pricing.width,
@@ -328,8 +404,33 @@ async function computeCatalogCostSnapshot(
 
   // المعامل لا يؤثر على التكلفة (نتجاهل lineTotal)؛ يُمرَّر كما هو للحفاظ على نفس المسار.
   const { lines } = calculateRecipe(recipes, dimensions, pricingFactor.value.toNumber());
-  const selected = selectRecipeLines(groupRecipeLines(lines), pricing.selections);
-  if (selected.length === 0) return null;
+  const grouped = groupRecipeLines(lines);
+  const selected = selectRecipeLines(grouped, pricing.selections);
+  if (selected.length === 0) {
+    // عدد الأسطر/الاختيارات فقط — لا محتواها (أسماء خامات ليست بيانات عميل لكنها لا تلزم هنا).
+    console.warn(
+      `${tag} NO_SELECTED_LINES — productTypeCode=${pricing.productTypeCode} lines=${lines.length} selections=${Object.keys(pricing.selections).length}`
+    );
+    return null;
+  }
+
+  // TO-21 — فرع صامت **سابع** اكتُشف أثناء تحقق runtime، وهو أخطر من null:
+  // اختيار يشير لخامة لم تعد ضمن أسطر الوصفة (تغيّرت بين لحظة الحساب ولحظة الحفظ)
+  // يسقط بصمت داخل `selectRecipeLines` — فلا null ولا استثناء، بل **تكلفة أقل**
+  // من التكلفة المقابلة للسعر المحفوظ ⇒ هامش مبالغ فيه يبدو سليمًا.
+  // لا نغيّر السلوك هنا عمدًا (قاعدة الاختيار مشتركة مع الواجهة — تغييرها قرار منفصل):
+  // نُبلِّغ فقط. مسجَّل للمراجعة في BACKLOG.
+  const unmatchedSelections = Object.keys(pricing.selections).filter((category) => {
+    const options = grouped[category];
+    if (!options) return true; // الفئة اختفت من الوصفة كليًا
+    if (options.length <= 1) return false; // تُضم تلقائيًا — الاختيار لا أثر له أصلاً
+    return !selected.some((line) => line.materialId === pricing.selections[category]);
+  });
+  if (unmatchedSelections.length > 0) {
+    console.warn(
+      `[pricing] COST_SNAPSHOT_PARTIAL item#${itemIndex} SELECTION_NOT_MATCHED — categories=${unmatchedSelections.join(",")} productTypeCode=${pricing.productTypeCode}`
+    );
+  }
 
   const costByMaterialId = new Map(
     recipes.filter((r) => r.Material).map((r) => [r.Material!.id, r.Material!.cost])
@@ -339,7 +440,12 @@ async function computeCatalogCostSnapshot(
   for (const line of selected) {
     const unitCost = costByMaterialId.get(line.materialId);
     // `undefined` صراحةً لا `!unitCost` — تكلفة صفر قيمة مشروعة (خامة مجانية/مضمَّنة).
-    if (unitCost === undefined) return null;
+    if (unitCost === undefined) {
+      console.warn(
+        `${tag} MATERIAL_COST_MISSING — materialId=${line.materialId} productTypeCode=${pricing.productTypeCode}`
+      );
+      return null;
+    }
     cost = cost.add(toDec(line.qty).mul(unitCost));
   }
 
@@ -359,13 +465,27 @@ const createQuotationSchema = z.object({
 
 export async function createQuotation(
   input: unknown
-): Promise<{ success: true; data: { id: string } } | { error: string }> {
+): Promise<
+  | { success: true; data: { id: string } }
+  // TO-21-FIX: `fieldKey` مفتاح ترجمة اسم الحقل و`itemIndex` رقم البند (0-based) —
+  // كلاهما اختياري، فالمستدعي القديم الذي يقرأ `error` فقط يظل يعمل.
+  | { error: string; fieldKey?: string; itemIndex?: number }
+> {
   try {
     const roleCheck = await requireRole(PRICING_ROLES);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
     const parsed = createQuotationSchema.safeParse(input);
-    if (!parsed.success) return { error: "errors.invalidInput" };
+    if (!parsed.success) {
+      // TO-21-FIX: كان الرفض صامتًا تمامًا — لا الواجهة تعرف الحقل ولا السجل يذكره،
+      // فيصير التشخيص الميداني مستحيلًا. المسارات والأكواد فقط، بلا قيم.
+      console.warn(
+        `[pricing] CREATE_QUOTATION_INVALID_INPUT — ${parsed.error.issues
+          .map((issue) => `${issue.path.join(".") || "(root)"}:${issue.code}`)
+          .join(" | ")}`
+      );
+      return { error: "errors.invalidInput", ...describeFirstIssue(parsed.error) };
+    }
 
     const { customerId, title, items, needsApproval, pricingFactor, quotationRequestId } =
       parsed.data;
@@ -431,16 +551,24 @@ export async function createQuotation(
     // (subtotal/discount/tax/total كلها مُشتقّة قبل هذا السطر ولا تُقرأ منه).
     // فشل بند لا يُسقط العرض: يُسجَّل ويُكمَل بـnull (D-39: بالع + سجّل) — العرض
     // مستند تجاري، وضياع رقم إحصائي لا يبرر منع حفظه.
+    // TO-21-FIX: الفحص الصارم لـ`pricing` يقع **هنا** لا في مخطط الطلب — بعد أن صار
+    // العرض مضمون الحفظ. أي فشل يُسجَّل ويتحوّل إلى null، ولا يُرجع خطأ للمستخدم.
     const costSnapshots: (Prisma.Decimal | null)[] = [];
-    for (const item of items) {
-      if (!item.pricing) {
+    for (const [i, item] of items.entries()) {
+      const itemPricing = parseItemPricing(item.pricing, i);
+      if (!itemPricing) {
+        if (item.pricing === undefined || item.pricing === null) {
+          // TO-21: بند يدوي مشروع، أو إسقاط في طريق الواجهة. التمييز يبدأ من هذا السطر.
+          // (الشكل غير الصالح سُجِّل بالفعل داخل parseItemPricing بسببه التفصيلي.)
+          console.warn(`[pricing] COST_SNAPSHOT_NULL item#${i} NO_PRICING_INPUT — البند وصل بلا مدخلات تسعير`);
+        }
         costSnapshots.push(null);
         continue;
       }
       try {
-        costSnapshots.push(await computeCatalogCostSnapshot(item.pricing));
+        costSnapshots.push(await computeCatalogCostSnapshot(itemPricing, i));
       } catch (error) {
-        console.error("[createQuotation] costSnapshot", error);
+        console.error(`[pricing] COST_SNAPSHOT_ERROR item#${i}`, error);
         costSnapshots.push(null);
       }
     }

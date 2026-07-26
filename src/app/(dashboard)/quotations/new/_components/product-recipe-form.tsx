@@ -35,6 +35,17 @@ export type ConfigTypeOption = { id: string; nameAr: string };
 export type PricingFactorOption = { id: string; label: string; value: number };
 export type ApprovalInfo = { requiresApproval: true; factor: number };
 
+// TO-21 — حمولة واحدة تمر كما هي من الفورم إلى الأكشن، بدل ثلاث وسائط موضعية.
+// السبب: دالة بوسائط أقل **قابلة للإسناد** لدالة بوسائط أكثر، فإسقاط وسيط عند
+// التمرير لا يراه TypeScript إطلاقًا — وهو بالضبط ما أسقط `pricing` صامتًا وأنتج
+// costSnapshot = null مع بناء أخضر. الحقول هنا **إلزامية** (وقيمتها قد تكون
+// undefined) لا اختيارية: نسيان حقل عند بناء الحمولة = خطأ نوع وقت البناء.
+export type RecipeResult = {
+  subtotal: number;
+  approvalInfo: ApprovalInfo | undefined;
+  pricing: ItemPricingInput | undefined;
+};
+
 type RecipeLine = {
   materialId: string;
   notes: string | null;
@@ -86,11 +97,8 @@ export function ProductRecipeForm({
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
   // TO-05: `pricing` = مدخلات إعادة حساب تكلفة الكتالوج على السيرفر وقت الحفظ.
-  onResult?: (
-    grandTotal: number,
-    approvalInfo?: ApprovalInfo,
-    pricing?: ItemPricingInput
-  ) => void;
+  // TO-21: حمولة واحدة (`RecipeResult`) لا وسائط موضعية — انظر تعليق النوع أعلاه.
+  onResult?: (result: RecipeResult) => void;
 }) {
   const t = useTranslations();
   const [result, setResult] = useState<CalculationResult | null>(null);
@@ -184,12 +192,22 @@ export function ProductRecipeForm({
       width: lastInput.width,
       ...(lastInput.configTypeId ? { configTypeId: lastInput.configTypeId } : {}),
       pricingFactorId: lastInput.pricingFactorId,
-      selections,
+      // TO-21-FIX: الاختيار المُلغى يُخزَّن `""` (السطر الذي يقرأ `value ?? ""`).
+      // إرساله كما هو يعني «اخترتُ لا شيء» فيُحسب اختيارًا لا يطابق أي خامة ⇒ تحذيرة
+      // SELECTION_NOT_MATCHED كاذبة. حذف المفتاح **لا يغيّر أي سلوك** (قاعدة الاختيار
+      // تتخطّى الفارغ والمفقود سواءً — recipe-selection.ts:60) لكنه يجعل الحمولة صادقة.
+      selections: Object.fromEntries(
+        Object.entries(selections).filter(([, materialId]) => materialId !== "")
+      ),
     };
   }, [result, lastInput, productTypeCode, selections]);
 
   useEffect(() => {
-    onResult?.(result ? grandTotal : 0, approvalInfo ?? undefined, pricing);
+    onResult?.({
+      subtotal: result ? grandTotal : 0,
+      approvalInfo: approvalInfo ?? undefined,
+      pricing,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, grandTotal, approvalInfo, pricing]);
 
