@@ -52,7 +52,18 @@ export function TecClient({
 }) {
   const t = useTranslations();
   const [jobs, setJobs] = useState<TecJobRow[]>(initialJobs);
-  const [activeTab, setActiveTab] = useState<TechnicalRoute>("PROJECTS");
+  // 🔴 TO-28 — كان `"PROJECTS"` ثابتًا. بعد TO-25 صار TEC_LEAD يستلم طلبات **مساره
+  // وحده**، فتيم ليدر السوشيال يفتح الشاشة على تبويب «مشروعات» ⇒ الجدول فارغ دائمًا،
+  // بينما المربع الأصفر يعمل لأنه **لا يفلتر بالمسار إطلاقًا** (:181-189). هذا هو مصدر
+  // «الأصفر يعمل والجدول لا» — الأداة مشتركة وسليمة، والاختلاف في ما يصل كلًّا منهما.
+  // العلاج: نبدأ من مسار البيانات الفعلية بدل ثابت مكتوب.
+  // ⚠️ حراسة ADMIN/TEC_APPROVER: يبقى «مشروعات» افتراضيًا **متى وُجد أي طلب مشروعات**
+  // (وكذلك عند غياب الطلبات كليًا) ⇒ صفر تغيير في سلوكهما عمليًا.
+  const [activeTab, setActiveTab] = useState<TechnicalRoute>(() =>
+    initialJobs.length === 0 || initialJobs.some((j) => j.technicalRoute === "PROJECTS")
+      ? "PROJECTS"
+      : "SOCIAL_MEDIA"
+  );
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [pendingStatus, setPendingStatus] = useState<Record<string, TecJobStatus>>({});
@@ -105,7 +116,19 @@ export function TecClient({
     const engineerId = pendingEngineer[job.id];
     if (!engineerId) return;
     setLoading((p) => ({ ...p, [`eng-${job.id}`]: true }));
-    const result = await assignEngineerAction({ id: job.id, engineerId });
+
+    // TO-28 (لا فشل صامت): الأكشن يُرجع خطأً منظّمًا دائمًا، لكن **رميًا** غير متوقَّع
+    // (شبكة · فشل serialization · إعادة نشر أثناء الطلب) كان يترك الزر معطّلًا بلا
+    // أي رسالة — نفس أثر «الضغط بلا أثر». الآن كل مسار ينتهي برسالة وبإطفاء التحميل.
+    let result: Awaited<ReturnType<typeof assignEngineerAction>>;
+    try {
+      result = await assignEngineerAction({ id: job.id, engineerId });
+    } catch {
+      setLoading((p) => ({ ...p, [`eng-${job.id}`]: false }));
+      toast.error(t("errors.serverError"));
+      return;
+    }
+
     setLoading((p) => ({ ...p, [`eng-${job.id}`]: false }));
     if ("error" in result) {
       toast.error(t(result.error));
