@@ -15,7 +15,7 @@ import {
   ProductRecipeForm,
   type ConfigTypeOption,
   type PricingFactorOption,
-  type ApprovalInfo,
+  type RecipeResult,
 } from "./product-recipe-form";
 
 export type ProductTypeOption = { id: string; code: string; nameAr: string };
@@ -33,7 +33,9 @@ export function ProductSection({
   pricingFactors: PricingFactorOption[];
   defaultPricingFactorId?: string;
   onRemove: () => void;
-  onSubtotalChange: (subtotal: number, approvalInfo?: ApprovalInfo) => void;
+  // TO-05: `pricing` يمر كما هو حتى `createQuotation` — تسجيل تكلفة فقط، بلا أثر على السعر.
+  // TO-21: نفس حمولة `RecipeResult` تُمرَّر كما هي — لا إعادة بناء ولا وسائط موضعية.
+  onSubtotalChange: (result: RecipeResult) => void;
 }) {
   const t = useTranslations();
   const [productTypeId, setProductTypeId] = useState<string>("");
@@ -70,7 +72,8 @@ export function ProductSection({
             value={productTypeId}
             onValueChange={(value) => {
               setProductTypeId(value ?? "");
-              onSubtotalChange(0);
+              // تبديل نوع المنتج يُصفّر القسم بالكامل: لا سعر ولا اعتماد ولا مدخلات تكلفة.
+              onSubtotalChange({ subtotal: 0, approvalInfo: undefined, pricing: undefined });
             }}
           >
             <SelectTrigger id={`product-type-${index}`} className="w-full max-w-sm">
@@ -99,7 +102,7 @@ export function ProductSection({
           configTypes={configTypes}
           pricingFactors={pricingFactors}
           defaultPricingFactorId={defaultPricingFactorId}
-          onResult={(subtotal, approvalInfo) => onSubtotalChange(subtotal, approvalInfo)}
+          onResult={onSubtotalChange}
         />
       )}
     </div>

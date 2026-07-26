@@ -180,6 +180,9 @@ model QuotationItem {
   quantity    Decimal   @default(1) @db.Decimal(10, 2)
   unitPrice   Decimal   @default(0) @db.Decimal(12, 2)
   lineTotal   Decimal   @default(0) @db.Decimal(12, 2)
+  /// TO-05 — تكلفة الكتالوج للوحدة وقت إنشاء العرض (بلا معامل ربح).
+  /// nullable عمدًا: null = التكلفة غير معروفة، لا تساوي صفر.
+  costSnapshot Decimal? @db.Decimal(12, 2)
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   @@index([quotationId])

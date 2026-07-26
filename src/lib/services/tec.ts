@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { TecJobStatus, TechnicalRoute } from "@prisma/client";
+import type { TecJobStatus, TechnicalRoute, ReviewStatus } from "@prisma/client";
 
 export interface DrawingRow {
   id: string;
@@ -29,6 +29,11 @@ export interface TecJobRow {
   customerId: string;
   quotationId: string | null;
   quotationNumber: string | null;
+  // TO-09: حالة مراجعة العرض (Quotation.reviewStatus) — بلا هذين الحقلين لا يرى
+  // المكتب الفني أن عرضه مُرجَع: /review/[id] محروسة ["ADMIN","TEC_APPROVER"]
+  // و /quotations/[id] لا تقرأ reviewStatus أصلًا. null = لا عرض بعد.
+  reviewStatus: ReviewStatus | null;
+  reviewNote: string | null;
   engineerName: string | null;
   engineerId: string | null;
   salesOwnerName: string | null;
@@ -40,6 +45,10 @@ export interface TecJobRow {
 
 export interface TecJobDetail extends TecJobRow {
   notes: string | null;
+  // TO-09: منشئ العرض — تُستعمل حصرًا لمرآة حارس resubmitQuotationAction في الواجهة
+  // (المنشئ أو TECHNICAL_OFFICE أو ADMIN). بدونها لا يُميَّز TEC_APPROVER المنشئ عن
+  // غيره فيظهر له زر يرفضه الأكشن، أو يُخفى عمّن يملكه. الحارس النافذ server-side.
+  quotationCreatedById: string | null;
   inspectionRequestId: string | null;
   hasContract: boolean;
   hasPayment: boolean;
@@ -96,7 +105,10 @@ export async function getTecJobs(
     orderBy: { updatedAt: "desc" },
     include: {
       customer: { select: { id: true, name: true } },
-      quotation: { select: { id: true, number: true } },
+      // TO-09: توسيع الـselect القائم — بلا استعلام إضافي
+      quotation: {
+        select: { id: true, number: true, reviewStatus: true, reviewNote: true },
+      },
       engineer: { select: { id: true, name: true } },
       salesOwner: { select: { name: true } },
       inspectionOwner: { select: { name: true } },
@@ -114,6 +126,8 @@ export async function getTecJobs(
     customerId: j.customer.id,
     quotationId: j.quotation?.id ?? null,
     quotationNumber: j.quotation?.number ?? null,
+    reviewStatus: j.quotation?.reviewStatus ?? null,
+    reviewNote: j.quotation?.reviewNote ?? null,
     engineerName: j.engineer?.name ?? null,
     engineerId: j.engineer?.id ?? null,
     salesOwnerName: j.salesOwner?.name ?? null,
@@ -140,6 +154,10 @@ export async function getTecJobDetail(
         select: {
           id: true,
           number: true,
+          // TO-09: حالة المراجعة + سببها + المنشئ — توسيع الـselect القائم بلا استعلام إضافي
+          reviewStatus: true,
+          reviewNote: true,
+          createdById: true,
           // PHASE 2 (BL-32/44): بيانات حارس إصدار أمر التصنيع (عقد + دفعة + أمر سابق)
           contract: { select: { id: true } },
           _count: { select: { payments: true } },
@@ -176,6 +194,9 @@ export async function getTecJobDetail(
     customerId: job.customer.id,
     quotationId: job.quotation?.id ?? null,
     quotationNumber: job.quotation?.number ?? null,
+    reviewStatus: job.quotation?.reviewStatus ?? null,
+    reviewNote: job.quotation?.reviewNote ?? null,
+    quotationCreatedById: job.quotation?.createdById ?? null,
     hasContract: !!job.quotation?.contract,
     hasPayment: (job.quotation?._count.payments ?? 0) > 0,
     hasManufacturingOrder: (job.quotation?.manufacturingOrders.length ?? 0) > 0,

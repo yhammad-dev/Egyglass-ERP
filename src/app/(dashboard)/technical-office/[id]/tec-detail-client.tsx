@@ -63,6 +63,23 @@ export function TecDetailClient({
 
   const canUpload = currentRole === "ADMIN" || currentRole === "TECHNICAL_OFFICE";
   const canApprove = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
+
+  // TO-09: حالة مراجعة العرض محليًا كي يختفي التنبيه فور إعادة التقديم دون انتظار
+  // إعادة التحميل — نفس نمط review-detail.tsx.
+  const [reviewStatus, setReviewStatus] = useState(initialJob.reviewStatus);
+  const [reviewNote, setReviewNote] = useState(initialJob.reviewNote);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitError, setResubmitError] = useState<string | null>(null);
+
+  // TO-09: مرآة حارس resubmitQuotationAction (lib/review/actions.ts:271-282) —
+  // RETURNED حصرًا، ثم المنشئ أو TECHNICAL_OFFICE أو ADMIN. INSPECTION_MANAGER يصل
+  // لهذه الشاشة لكنه خارج بوابة الأكشن ⇒ يرى التنبيه ولا يرى الزر.
+  // الإخفاء تجربة استخدام؛ الرفض الحقيقي server-side ولم يُمس.
+  const canResubmit =
+    reviewStatus === "RETURNED" &&
+    (currentRole === "ADMIN" ||
+      currentRole === "TECHNICAL_OFFICE" ||
+      initialJob.quotationCreatedById === currentUserId);
   // PHASE 1 (دفعة هـ): بوابتا G2/G3 أُلغيتا (D-02/D-05) — سلسلة الرسمة = DRAFT → TEC_APPROVED.
   // لا بوابة تحقق لحسن بهاء، ولا اعتماد CEO. الإفراج صار خاصية أمر التصنيع (PHASE 3).
 
@@ -182,6 +199,31 @@ export function TecDetailClient({
     toast.success(t("tec.drawingApproved"));
   }
 
+  /**
+   * TO-09: إعادة تقديم العرض المرتجع من شاشة المكتب الفني نفسها.
+   * يستدعي resubmitQuotationAction القائم (TO-04) بلا أي تعديل عليه ولا على حارسه —
+   * الشاشة كانت الحلقة المفقودة لا الأكشن.
+   */
+  async function handleResubmit() {
+    const quotationId = initialJob.quotationId;
+    if (!quotationId) return;
+    setResubmitError(null);
+    setResubmitting(true);
+    const { resubmitQuotationAction } = await import(
+      "../../../../../lib/review/actions"
+    );
+    const result = await resubmitQuotationAction({ id: quotationId });
+    setResubmitting(false);
+    if ("error" in result) {
+      setResubmitError(t(result.error ?? "errors.serverError"));
+      return;
+    }
+    setReviewStatus("PENDING_REVIEW");
+    setReviewNote(null);
+    toast.success(t("review.resubmitted"));
+    router.refresh();
+  }
+
   // PHASE 2 (BL-32): إصدار أمر التصنيع — بيت المدير التنفيذي (TEC_APPROVER/ADMIN).
   // الحارس النهائي server-side؛ هنا زر بسبب صريح لا صامت.
   const [issuingMfg, setIssuingMfg] = useState(false);
@@ -271,6 +313,61 @@ export function TecDetailClient({
           </div>
         )}
       </div>
+
+      {/* TO-09: تنبيه العرض المرتجع — أعلى الشاشة لأنه فعل مطلوب لا بيان.
+          هذه هي نقطة الوصول الوحيدة للمكتب الفني: /review/[id] محروسة
+          ["ADMIN","TEC_APPROVER"] و /quotations/[id] لا تعرض reviewStatus. */}
+      {reviewStatus === "RETURNED" && (
+        <div className="rounded-lg border-2 border-destructive/40 bg-destructive/5 p-5 space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-destructive">
+              {t("tec.quotationReturnedTitle")}
+            </h2>
+            <Badge variant="destructive" className="text-xs">
+              {t("review.status_RETURNED")}
+            </Badge>
+            {initialJob.quotationNumber && (
+              <span className="text-xs text-muted-foreground" dir="ltr">
+                {initialJob.quotationNumber}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              {t("tec.quotationReturnedReason")}
+            </p>
+            {reviewNote?.trim() ? (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {reviewNote}
+              </p>
+            ) : (
+              <p className="text-sm italic text-muted-foreground">
+                {t("tec.quotationReturnedNoReason")}
+              </p>
+            )}
+          </div>
+
+          {canResubmit && (
+            <div className="space-y-1">
+              <Button
+                type="button"
+                onClick={handleResubmit}
+                disabled={resubmitting}
+              >
+                {resubmitting ? t("app.loading") : t("review.resubmit")}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {t("review.resubmitHint")}
+              </p>
+            </div>
+          )}
+
+          {resubmitError && (
+            <p className="text-sm text-destructive">{resubmitError}</p>
+          )}
+        </div>
+      )}
 
       {/* TO-12: وصف طلب العميل كما سجّلته المبيعات — الأساس الذي يُسعَّر عليه،
           فيسبق كل بيان ثانوي. نص حر (لا بنود مهيكلة) → نحفظ فواصل الأسطر. */}

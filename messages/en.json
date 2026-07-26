@@ -386,7 +386,10 @@
       "save": "Save quotation",
       "saved": "Quotation saved successfully",
       "discountPct": "Discount %",
-      "netBeforeVat": "Net (before VAT)"
+      "netBeforeVat": "Net (before VAT)",
+      "quantity": "Quantity",
+      "errorNoSections": "Add at least one product before saving",
+      "errorSectionNoPrice": "Product {index} has no calculated price — press Calculate, then choose materials"
     },
     "detail": {
       "product": "Product",
@@ -837,6 +840,8 @@
     "refreshFailed": "Failed to refresh the user list",
     "notFound": "Not found",
     "invalidInput": "Invalid input",
+    "invalidInputIn": "Invalid data in: {field}",
+    "invalidInputInItem": "Invalid data in product {item}: {field}",
     "rejectReasonRequired": "Rejection reason is required when setting stage to Rejected",
     "serverError": "A server error occurred, please try again",
     "rateLimited": "Too many requests, please try again later",
@@ -1303,7 +1308,11 @@
     "mfgNoContract": "No contract",
     "mfgNoPayment": "No payment recorded",
     "unassignedShowMore": "and {count} more",
-    "unassignedShowLess": "Show less"
+    "unassignedShowLess": "Show less",
+    "returnedTitle": "Quotations returned from review",
+    "quotationReturnedTitle": "Quotation returned from review",
+    "quotationReturnedReason": "Reason for return",
+    "quotationReturnedNoReason": "No reason recorded"
   },
   "import": {
     "title": "Import Data",
