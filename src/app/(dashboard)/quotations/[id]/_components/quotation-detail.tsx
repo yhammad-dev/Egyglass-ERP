@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+// TO-24: مستعملان في شريط بوابة الاعتماد المبدئي
+import { FieldError } from "@/components/ui/field-error";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +38,12 @@ import {
 } from "@/components/ui/dialog";
 
 type QuotationStatus = "DRAFT" | "SENT" | "PENDING_APPROVAL" | "APPROVED" | "EXPIRED";
+// TO-24: مطابق لـenum LeadApprovalStatus في السكيما (SCR-023).
+type LeadApprovalStatus =
+  | "NOT_SUBMITTED"
+  | "PENDING_LEAD"
+  | "LEAD_APPROVED"
+  | "LEAD_RETURNED";
 
 const STATUS_VARIANT: Record<QuotationStatus, "default" | "secondary" | "outline" | "destructive"> = {
   DRAFT: "secondary",
@@ -74,6 +83,13 @@ type QuotationDetailData = {
   // TO-23: آخر مُعدِّل. null = لم يُعدَّل بعد إنشائه (أو عُدِّل قبل نزول العمود).
   lastUpdatedBy: string | null;
   lastUpdatedAt: string;
+  // TO-24: بوابة الاعتماد المبدئي. `isGatedByLead=false` ⇒ عرض بلا طلب تسعير،
+  // خارج البوابة كليًا فلا شريط ولا أزرار.
+  isGatedByLead: boolean;
+  leadApprovalStatus: LeadApprovalStatus;
+  leadNote: string | null;
+  isSelfLeadApproved: boolean;
+  isCreator: boolean;
   items: { id: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[];
 };
 
@@ -97,6 +113,88 @@ export function QuotationDetail({
   const [error, setError] = useState<string | null>(null);
 
   const canEdit = ["ADMIN", "SALES_MANAGER", "SALES_REP"].includes(currentRole);
+
+  // ── TO-24: بوابة الاعتماد المبدئي ─────────────────────────────────────────
+  // كل ما هنا **إخفاء إضافي** لا بديل عن الحارس: الأفعال الثلاثة تُعيد فحص الدور
+  // والحالة والمسار server-side (`src/lib/actions/lead-approval.ts`).
+  const [leadStatus, setLeadStatus] = useState<LeadApprovalStatus>(
+    quotation.leadApprovalStatus
+  );
+  const [leadNote, setLeadNote] = useState<string | null>(quotation.leadNote);
+  const [leadBusy, setLeadBusy] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnNote, setReturnNote] = useState("");
+  const [returnError, setReturnError] = useState<string | null>(null);
+
+  const gated = quotation.isGatedByLead;
+  // TO-24: الشرط الواحد الذي يحكم **كل** مسار يصل العميل. مصدر واحد كي لا يُغلق
+  // مسار ويُنسى آخر — وهو بالضبط ما حدث حين حُجبت الطباعة وبقي واتساب مفتوحًا.
+  const leadGateBlocksCustomer = gated && leadStatus !== "LEAD_APPROVED";
+  // المهندس يقدّم عرضه؛ ADMIN/TEC_LEAD يقدّران نيابةً (نفس حارس الأكشن).
+  const canSubmitToLead =
+    gated &&
+    ["NOT_SUBMITTED", "LEAD_RETURNED"].includes(leadStatus) &&
+    (quotation.isCreator || ["ADMIN", "TEC_LEAD"].includes(currentRole));
+  const canDecideLead =
+    gated && leadStatus === "PENDING_LEAD" && ["ADMIN", "TEC_LEAD"].includes(currentRole);
+
+  async function runLeadAction(fn: () => Promise<{ success: true; warning?: string } | { error: string }>) {
+    setLeadBusy(true);
+    try {
+      const result = await fn();
+      if ("error" in result) {
+        toast.error(t(result.error));
+        return false;
+      }
+      if (result.warning) toast.warning(t(result.warning));
+      else toast.success(t("app.saved"));
+      return true;
+    } catch {
+      // لا فشل صامت: رمي غير متوقَّع يظهر رسالة بدل زر ميت.
+      toast.error(t("errors.serverError"));
+      return false;
+    } finally {
+      setLeadBusy(false);
+    }
+  }
+
+  async function handleSubmitToLead() {
+    const { submitForLeadApproval } = await import("@/lib/actions/lead-approval");
+    if (await runLeadAction(() => submitForLeadApproval({ id: quotation.id }))) {
+      setLeadStatus("PENDING_LEAD");
+      setLeadNote(null);
+      router.refresh();
+    }
+  }
+
+  async function handleLeadApprove() {
+    const { leadApproveQuotation } = await import("@/lib/actions/lead-approval");
+    if (await runLeadAction(() => leadApproveQuotation({ id: quotation.id }))) {
+      setLeadStatus("LEAD_APPROVED");
+      setLeadNote(null);
+      router.refresh();
+    }
+  }
+
+  async function handleLeadReturn() {
+    setReturnError(null);
+    if (!returnNote.trim()) {
+      setReturnError(t("errors.leadNoteRequired"));
+      return;
+    }
+    const { leadReturnQuotation } = await import("@/lib/actions/lead-approval");
+    if (
+      await runLeadAction(() =>
+        leadReturnQuotation({ id: quotation.id, note: returnNote.trim() })
+      )
+    ) {
+      setLeadStatus("LEAD_RETURNED");
+      setLeadNote(returnNote.trim());
+      setReturnOpen(false);
+      setReturnNote("");
+      router.refresh();
+    }
+  }
 
   // PHASE C (D-23/BL-71): طلب خصم على عرض قائم — نفس السلسلة، requestDiscountAction القائم.
   // يظهر لأدوار الخصم على عرض DRAFT/SENT بلا طلب معلّق (الحارس النهائي server-side).
@@ -180,6 +278,77 @@ export function QuotationDetail({
 
   return (
     <div className="space-y-6 p-6">
+      {/* 🔴 TO-24: شريط حالة البوابة — **لا يحجب الشاشة** (الحجب على الطباعة وحدها).
+          الغرض أن يعرف كل من يفتح العرض لماذا لا يمكن تسليمه للعميل بعد. */}
+      {gated && leadStatus !== "LEAD_APPROVED" && (
+        <div
+          className={cn(
+            "rounded-md border-2 p-4",
+            leadStatus === "LEAD_RETURNED"
+              ? "border-destructive/40 bg-destructive/5"
+              : "border-amber-300 bg-amber-50"
+          )}
+        >
+          <p
+            className={cn(
+              "font-semibold",
+              leadStatus === "LEAD_RETURNED" ? "text-destructive" : "text-amber-900"
+            )}
+          >
+            {t(`quotations.leadGate.banner_${leadStatus}`)}
+          </p>
+          {leadStatus === "LEAD_RETURNED" && leadNote && (
+            <p className="mt-1 text-sm">
+              {t("quotations.leadGate.returnReason")}: {leadNote}
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {canSubmitToLead && (
+              <Button type="button" size="sm" disabled={leadBusy} onClick={handleSubmitToLead}>
+                {leadBusy ? t("app.loading") : t("quotations.leadGate.submit")}
+              </Button>
+            )}
+            {canDecideLead && (
+              <>
+                <Button type="button" size="sm" disabled={leadBusy} onClick={handleLeadApprove}>
+                  {leadBusy ? t("app.loading") : t("quotations.leadGate.approve")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={leadBusy}
+                  onClick={() => setReturnOpen((v) => !v)}
+                >
+                  {t("quotations.leadGate.return")}
+                </Button>
+              </>
+            )}
+          </div>
+
+          {canDecideLead && returnOpen && (
+            <div className="mt-3 space-y-2">
+              <Input
+                value={returnNote}
+                onChange={(e) => setReturnNote(e.target.value)}
+                placeholder={t("quotations.leadGate.returnPlaceholder")}
+              />
+              <FieldError message={returnError ?? undefined} />
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={leadBusy}
+                onClick={handleLeadReturn}
+              >
+                {leadBusy ? t("app.loading") : t("quotations.leadGate.confirmReturn")}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold" dir="ltr">
@@ -201,10 +370,29 @@ export function QuotationDetail({
           <Badge variant={STATUS_VARIANT[status]}>
             {t(`quotations.detail.status_${status}`)}
           </Badge>
+          {/* TO-24: وسم الاعتماد المبدئي — المبيعات تميّز الجاهز، وTEC_APPROVER يرى
+              أن المعتمِد المبدئي هو المنشئ نفسه قبل الاعتماد النهائي. */}
+          {gated && leadStatus === "LEAD_APPROVED" && (
+            <Badge variant="secondary">{t("quotations.leadGate.badge_LEAD_APPROVED")}</Badge>
+          )}
+          {gated && quotation.isSelfLeadApproved && (
+            <Badge variant="destructive">{t("quotations.leadGate.selfApproved")}</Badge>
+          )}
+          {/* 🔴 TO-24 — مسارا وصول العميل الوحيدان في النظام (مُتحقَّق بمسح شامل:
+              لا تصدير ولا مشاركة رابط ولا window.open ثالث على مستند العرض).
+              كلاهما يُعطَّل قبل الاعتماد المبدئي — بوابة على مسار واحد ليست بوابة.
+              ⚠️ فارق جوهري بينهما:
+              · الطباعة محروسة **server-side** أيضًا (print/page.tsx) — هذا التعطيل
+                راحة للمستخدم لا خط الدفاع.
+              · واتساب رابط يُبنى في المتصفح بالكامل، فلا وجود لخط دفاع خادمي له —
+                هذا التعطيل هو الضابط الوحيد، ومن يعرف رقم العميل يستطيع تجاوزه
+                يدويًا. مسجَّل صراحةً في التقرير. */}
           <Button
             type="button"
             variant="outline"
             size="sm"
+            disabled={leadGateBlocksCustomer}
+            title={leadGateBlocksCustomer ? t("quotations.leadGate.blockedHint") : undefined}
             onClick={() => window.open(`/quotations/${quotation.id}/print`, "_blank")}
           >
             🖨️ طباعة / PDF
@@ -213,6 +401,8 @@ export function QuotationDetail({
             type="button"
             variant="outline"
             size="sm"
+            disabled={leadGateBlocksCustomer}
+            title={leadGateBlocksCustomer ? t("quotations.leadGate.blockedHint") : undefined}
             onClick={() => window.open(buildWhatsAppLink(), "_blank")}
           >
             💬 {t("quotations.sendWhatsApp")}

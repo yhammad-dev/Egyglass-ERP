@@ -53,6 +53,40 @@ export default async function QuotationPrintPage(props: {
 
   if (!q) notFound();
 
+  // 🔴 TO-24 — بوابة وصول العميل. المستند المطبوع هو الشيء الوحيد الذي يصل العميل
+  // فعلًا (TO-24-DIAG: الطباعة والواتساب بلا أي أثر أو بوابة)، فهنا نقطة الاختناق.
+  // النطاق: العروض المرتبطة بطلب تسعير **فقط** — العرض بلا طلب لا يمر بالمكتب
+  // الفني فلا معنى لبوابة ليدر عليه.
+  // ⚠️ لا صفحة بيضاء ولا notFound: المستخدم يرى السبب والخطوة المطلوبة صراحةً.
+  const leadGateBlocked =
+    Boolean(q.quotationRequest) && q.leadApprovalStatus !== "LEAD_APPROVED";
+
+  if (leadGateBlocked) {
+    const reasonKey =
+      q.leadApprovalStatus === "PENDING_LEAD"
+        ? "quotations.leadGate.blockedPending"
+        : q.leadApprovalStatus === "LEAD_RETURNED"
+          ? "quotations.leadGate.blockedReturned"
+          : "quotations.leadGate.blockedNotSubmitted";
+
+    return (
+      <div className="mx-auto max-w-xl p-10 text-center" dir="rtl">
+        <h1 className="mb-3 text-xl font-semibold">
+          {t("quotations.leadGate.blockedTitle")}
+        </h1>
+        <p className="mb-2 text-sm text-muted-foreground">{t(reasonKey)}</p>
+        {q.leadApprovalStatus === "LEAD_RETURNED" && q.leadNote && (
+          <p className="mb-2 text-sm">
+            {t("quotations.leadGate.returnReason")}: {q.leadNote}
+          </p>
+        )}
+        <p className="text-sm" dir="ltr">
+          {q.number}
+        </p>
+      </div>
+    );
+  }
+
   // approvedById عمود scalar بلا relation في الـ schema — قراءة الاسم باستعلام منفصل
   const approver = q.approvedById
     ? await prisma.user.findUnique({

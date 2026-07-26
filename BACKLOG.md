@@ -466,6 +466,76 @@ enum Role {
 - **⚠️ تسلسل إلزامي:** `migrate` ثم `generate` **قبل** أي build. قبلها يفشل البناء على `teamLeadId`/`teamMembers` — سلوك متوقَّع لا عطل.
 - **بعد الـmigration — خطوة بيانات بيد المالك:** ربط المهندسين القائمين بتيم ليدرهم من شاشة `/users` (تعديل كل مهندس `TECHNICAL_OFFICE` واختيار تيم ليدره). **قبل الربط، قائمة إسناد أي تيم ليدر تكون فارغة** — وهذا صحيح لا عطل: لا مهندس مُسنَد إليه بعد.
 
+### SCR-023 — بوابة الاعتماد المبدئي من التيم ليدر + أزمنة KPI (TO-24) · 🟢 مواصفات مكتملة — 🔴 **قرار ترحيل مطلوب من يوسف قبل التنفيذ**
+
+> **L-02:** لم أعدّل `schema.prisma` ولا أنشأتُ migration. طبقة التطبيق منفّذة على `fix/to-24-lead-approval` وتنتظر الأعمدة.
+
+**١) enum جديد:**
+```prisma
+enum LeadApprovalStatus {
+  NOT_SUBMITTED   // لم يقدّمه المهندس بعد
+  PENDING_LEAD    // مُقدَّم، بانتظار قرار التيم ليدر
+  LEAD_APPROVED   // اعتماد مبدئي — **بوابة وصول العميل**
+  LEAD_RETURNED   // مُرجَع للمهندس بسبب مكتوب
+}
+```
+
+**٢) `model Quotation` — خمسة أعمدة مضافة:**
+```prisma
+  /// TO-24: بوابة الاعتماد المبدئي. تنطبق **فقط** على العروض المرتبطة بطلب تسعير
+  /// (عروض المكتب الفني)؛ العرض بلا طلب يمر بلا بوابة — مسار المبيعات المباشر
+  /// لا يمر بالمكتب الفني. الفصل يتم في الكود لا في القاعدة.
+  leadApprovalStatus LeadApprovalStatus @default(NOT_SUBMITTED)
+  /// TO-24 (KPI): لحظة تقديم المهندس. أساس قياس «زمن انتظار قرار الليدر».
+  submittedAt        DateTime?
+  /// TO-24 (KPI): لحظة قرار الليدر — اعتمادًا كان أو إرجاعًا.
+  leadDecidedAt      DateTime?
+  /// TO-24: مُقرِّر الاعتماد المبدئي. **بلا علاقة** — نفس نمط `approvedById` (:149)
+  /// و`reviewedById` (:159) على هذا الموديل نفسه. الاسم يُقرأ باستعلام منفصل.
+  /// اعتماد الذات **لا عمود له**: يُشتق من `leadDecidedById === createdById` (قرار المالك).
+  leadDecidedById    String?
+  /// TO-24: سبب الإرجاع — إلزامي تطبيقيًا عند LEAD_RETURNED (`z.string().min(1)`).
+  leadNote           String?
+```
+
+**٣) 🔴 قرار الترحيل التاريخي — الأرقام من قاعدتك الآن (32 عرضًا غير محذوف):**
+
+| | العدد | أثر الافتراضي `NOT_SUBMITTED` |
+|---|---|---|
+| عروض **بلا** طلب تسعير | **20** | لا شيء — خارج البوابة أصلًا |
+| عروض **مرتبطة بطلب** (داخل البوابة) | **12** | 🔴 **تفقد قابلية الطباعة فورًا** |
+| منها: اجتازت الاعتماد **النهائي** بالفعل (`reviewStatus=APPROVED`) | **6** | 🔴 عروض مكتملة فنيًا تُمنع إعادة طباعتها |
+
+- **الخيار (أ) — grandfathering (ترحيل):** سطر backfill بعد الـmigration يضع `LEAD_APPROVED` للصفوف القائمة.
+  ```sql
+  UPDATE "Quotation" SET "leadApprovalStatus" = 'LEAD_APPROVED'
+  WHERE "createdAt" < '<تاريخ تنفيذ الـmigration>';
+  ```
+  **الأثر:** صفر عرض يفقد الطباعة · البوابة تسري على الجديد فقط. **الثمن:** الـ12 تُعلَّم «معتمدة مبدئيًا» دون أن يعتمدها أحد فعلًا — `leadDecidedById` يبقى `null` فيبقى الأثر صادقًا (لا مُقرِّر مُلفَّق)، لكن `submittedAt`/`leadDecidedAt` تبقى `null` ⇒ **تُستبعَد من حساب KPI** ولا تلوّثه.
+- **الخيار (ب) — بلا backfill:** الـ12 تُحجَب حتى يقدّمها مهندس ويعتمدها ليدر. **الأثر:** توقف طباعة 12 عرضًا فورًا، منها 6 مكتملة فنيًا — عمل يدوي على كل واحد.
+
+✅ **القرار: الخيار (أ) — grandfathering (يوسف، 2026-07-26).** السبب المعلَن: 6 عروض اجتازت الاعتماد النهائي فعلًا، وحجبها يكسر شغلًا قائمًا بلا مكسب. الأثر مقبول لأن `leadDecidedById` يبقى `null` (لا معتمِد مُلفَّق) و`submittedAt`/`leadDecidedAt` تبقيان `null` (الصفوف المرحَّلة تُستبعَد من KPI ولا تلوّثه).
+
+- **Blast radius:** 5 أعمدة مضافة (أربعة nullable + واحد بـ`@default`) + enum جديد. لا قارئ قائم يتأثر · لا `@unique` · لا تعديل عمود قائم · لا علاقة جديدة (تجنّبًا لمشكلة تسمية العلاقات التي وثّقتها SCR-021).
+- **Migration safety:** إضافة بحتة، قابلة للتراجع (`DROP COLUMN` + حذف النوع). اسم مقترح: `to24_lead_approval_gate`.
+- **الأمر:**
+  ```
+  docker compose exec app npx prisma migrate dev --name to24_lead_approval_gate
+  docker compose exec app npx prisma generate
+  docker compose exec app npm run build
+  docker compose restart app
+  ```
+  **ثم فورًا — سطر الترحيل المعتمَد (الخيار أ):**
+  ```
+  docker compose exec -T db psql -U egyglass -d egyglass -c "UPDATE \"Quotation\" SET \"leadApprovalStatus\"='LEAD_APPROVED' WHERE \"createdAt\" < now();"
+  ```
+  **التحقق بعده** (المتوقَّع: صفر صف مرتبط بطلب خارج `LEAD_APPROVED`):
+  ```
+  docker compose exec -T db psql -U egyglass -d egyglass -c "SELECT q.\"leadApprovalStatus\", count(*) FROM \"Quotation\" q JOIN quotation_requests qr ON qr.\"quotationId\"=q.id WHERE q.\"deletedAt\" IS NULL GROUP BY 1;"
+  ```
+  ⚠️ **الترتيب مقصود:** الترحيل **بعد** `migrate` (العمود يجب أن يوجد) و**قبل** أول استعمال فعلي — أي عرض يُنشأ بين الاثنين سيُرحَّل خطأً إلى `LEAD_APPROVED` لأن شرط `createdAt < now()` يلتقطه. لا تنشئ عروضًا بينهما.
+- **⚠️ `next build` يمرّ أخضر كاذبًا قبل الـmigration** (يتخطّى فحص الأنواع — مُثبَت في TO-25). البوابة الحقيقية `tsc --noEmit` والـruntime.
+
 ---
 # 🟠 مسارات عمل ناقصة
 

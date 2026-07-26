@@ -44,6 +44,8 @@ export default async function QuotationDetailPage(props: {
         customer: { select: { id: true, name: true, phone: true } },
         createdBy: { select: { id: true, name: true } },
         items: true,
+        // TO-24: وجود الطلب هو ما يحدّد أن العرض داخل بوابة الاعتماد المبدئي.
+        quotationRequest: { select: { id: true, technicalRoute: true } },
       },
     }),
     prisma.discountRequest.findFirst({
@@ -80,6 +82,16 @@ export default async function QuotationDetailPage(props: {
         createdBy: quotation.createdBy,
         lastUpdatedBy: lastUpdater?.name ?? null,
         lastUpdatedAt: quotation.updatedAt.toISOString(),
+        // TO-24: حالة البوابة + ما تحتاجه الواجهة لاشتقاق الأزرار والوسوم.
+        // `isSelfLeadApproved` مُشتق هنا لا عمود (قرار المالك) — المقارنة server-side
+        // كي لا تُسرَّب معرّفات المستخدمين للواجهة بلا داعٍ.
+        isGatedByLead: Boolean(quotation.quotationRequest),
+        leadApprovalStatus: quotation.leadApprovalStatus,
+        leadNote: quotation.leadNote,
+        isSelfLeadApproved:
+          quotation.leadDecidedById !== null &&
+          quotation.leadDecidedById === quotation.createdById,
+        isCreator: quotation.createdById === roleCheck.userId,
         items: quotation.items.map((item) => ({
           id: item.id,
           description: item.description,

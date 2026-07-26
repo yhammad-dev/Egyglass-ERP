@@ -131,6 +131,21 @@ export function QuotationsClient({
             day: "2-digit",
           }).format(new Date(info.getValue())),
       }),
+      // TO-24: حالة الاعتماد المبدئي — المبيعات تميّز «جاهز للعميل» عن غيره.
+      // «—» للعروض بلا طلب تسعير: خارج البوابة أصلًا، لا حالة لها.
+      columnHelper.accessor("leadApprovalStatus", {
+        header: t("quotations.leadGate.column"),
+        cell: (info) =>
+          info.row.original.isGatedByLead ? (
+            <Badge
+              variant={info.getValue() === "LEAD_APPROVED" ? "secondary" : "outline"}
+            >
+              {t(`quotations.leadGate.badge_${info.getValue()}`)}
+            </Badge>
+          ) : (
+            t("quotations.dash")
+          ),
+      }),
       // TO-23: آخر مُعدِّل — الاسم والتاريخ فقط. **لا تفاصيل هنا**: ما تغيّر ومتى
       // بالضبط يبقى في ActivityLog، وتكراره في الجدول يخلق مصدرًا ثانيًا للحقيقة.
       columnHelper.accessor("lastUpdatedBy", {
