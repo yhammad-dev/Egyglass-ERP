@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
-import { QUOTATION_STATUS_ROLES } from "@/lib/quotation-roles";
+import { QUOTATION_PRICING_ROLES, QUOTATION_STATUS_ROLES } from "@/lib/quotation-roles";
 // TO-31: حارس المسار في وحدة مشتركة — يستعمله هذا الملف و`lib/review/actions.ts`.
 import { checkEngineerRoute } from "@/lib/services/engineer-route";
 import { auth } from "@/lib/auth";
@@ -29,7 +29,10 @@ import {
 // والتناقض كان ظاهرًا: المندوب خارج القائمة ومديره داخلها.
 // مساره المشروع سليم ومفتوح: `createQuotationRequestAction` محروس بـ
 // `ALLOWED_ROLES` (`customers/actions.ts:39`) وهو يضمّه.
-const PRICING_ROLES = ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"];
+// TO-32: القائمة انتقلت إلى `@/lib/quotation-roles` (نفس نمط TO-31) لتستهلكها
+// الواجهة من المصدر نفسه — زر «تعديل» كان على قائمة ثانية منحرفة في الاتجاهين.
+// النشر هنا مرة واحدة ⇒ مواضع `requireRole(PRICING_ROLES)` التسعة بلا أي تغيير.
+const PRICING_ROLES = [...QUOTATION_PRICING_ROLES];
 
 // 🔴 TO-26 — قائمة منفصلة عمدًا عن PRICING_ROLES: `updateQuotationStatus` ليس
 // تسعيرًا، إنه المسار الذي يكتب `approvedById` عند الانتقال إلى APPROVED — أي

@@ -32,3 +32,29 @@ export const QUOTATION_STATUS_ROLES = ["ADMIN", "SALES_MANAGER"] as const;
 export function canChangeQuotationStatus(role: string): boolean {
   return (QUOTATION_STATUS_ROLES as readonly string[]).includes(role);
 }
+
+/**
+ * TO-32 — مصدر واحد لأدوار **التسعير** (إنشاء/تعديل عرض السعر).
+ *
+ * كانت القائمة محلية في `lib/pricing/actions.ts` (ملف `"use server"` لا يُصدِّر
+ * ثوابت)، فاضطرت الواجهة لقائمة ثانية `canEdit = [ADMIN, SALES_MANAGER, SALES_REP]`
+ * — وانحرفتا في الاتجاهين بعد TO-26/TO-29:
+ *  · المهندس/التيم ليدر/المعتمد الفني: **مسموح لهم** التعديل والزر مخفي عنهم
+ *    (البلاغ الميداني: المهندس ينشئ العرض ولا يستطيع تعديله من الشاشة).
+ *  · المندوب/مدير المبيعات: الزر **ظاهر لهم** وصفحة التعديل تصدّهم بـ307
+ *    (خرجا من التسعير في W-01/TO-29) — زر يعد بما لا يقع.
+ *
+ * ⚠️ هذه صلاحية **الوصول بالدور** فقط. حارس المسار (TO-30: `checkEngineerRoute`)
+ * وحارس العقد (L-08) يبقيان داخل الأكشن — الزر قد يظهر لمهندس على عرض خارج
+ * مساره ويُرفض حفظه هناك، وهذا مقصود: الرسالة المسمّاة أصدق من زر مختفٍ بلا سبب.
+ */
+export const QUOTATION_PRICING_ROLES = [
+  "ADMIN",
+  "TECHNICAL_OFFICE",
+  "TEC_APPROVER",
+  "TEC_LEAD",
+] as const;
+
+export function canEditQuotation(role: string): boolean {
+  return (QUOTATION_PRICING_ROLES as readonly string[]).includes(role);
+}

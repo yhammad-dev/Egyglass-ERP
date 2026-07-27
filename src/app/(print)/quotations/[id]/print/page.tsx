@@ -155,7 +155,7 @@ export default async function QuotationPrintPage(props: {
         }
       `}</style>
 
-      <div className="no-print fixed top-4 left-4 z-50 flex gap-2">
+      <div className="no-print fixed top-4 end-4 z-50 flex gap-2">
         <PrintButton />
         <a
           href={`/quotations/${id}`}
@@ -245,7 +245,7 @@ export default async function QuotationPrintPage(props: {
             <tr className="bg-gray-800 text-white">
               <th className="py-2 px-2 border border-gray-500 w-8">#</th>
               {/* عمود البيان بلا عرض ثابت — مع table-layout:fixed يأخذ كل المساحة المتبقية */}
-              <th className="py-2 px-2 border border-gray-500 text-right">
+              <th className="py-2 px-2 border border-gray-500 text-start">
                 {t("quotations.print.item")}
               </th>
               <th className="py-2 px-2 border border-gray-500 w-14">
@@ -286,13 +286,13 @@ export default async function QuotationPrintPage(props: {
                   </td>
                 )}
                 <td
-                  className="py-1.5 px-2 border border-gray-400 text-left"
+                  className="py-1.5 px-2 border border-gray-400 text-end"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
                   {fmt(item.unitPrice.toNumber())}
                 </td>
                 <td
-                  className="py-1.5 px-2 border border-gray-400 text-left font-medium"
+                  className="py-1.5 px-2 border border-gray-400 text-end font-medium"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
                   {fmt(item.lineTotal.toNumber())}

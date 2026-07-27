@@ -359,13 +359,13 @@ export function ProductRecipeForm({
             <TableHeader>
               <TableRow>
                 <TableHead>{t("quotations.shower.material")}</TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-start">
                   <span dir="ltr">{t("quotations.shower.qty")}</span>
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-start">
                   <span dir="ltr">{t("quotations.shower.unitCost")}</span>
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-start">
                   <span dir="ltr">{t("quotations.shower.lineTotal")}</span>
                 </TableHead>
                 <TableHead>{t("quotations.shower.factorMode")}</TableHead>
@@ -375,13 +375,13 @@ export function ProductRecipeForm({
               {selectedLines.map((line) => (
                 <TableRow key={line.materialId}>
                   <TableCell>{line.nameAr}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-start">
                     <span dir="ltr">{line.qty.toFixed(2)}</span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-start">
                     <span dir="ltr">{line.unitCost.toFixed(2)}</span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-start">
                     <span dir="ltr">{line.lineTotal.toFixed(2)}</span>
                   </TableCell>
                   <TableCell>{line.factorMode}</TableCell>

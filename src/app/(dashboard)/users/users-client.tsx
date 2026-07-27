@@ -462,7 +462,7 @@ export function UsersClient({
               <Label htmlFor="password">
                 {t("auth.password")}
                 {isEditing && (
-                  <span className="text-xs text-gray-400 mr-2">
+                  <span className="text-xs text-gray-400 ms-2">
                     {t("users.passwordHintEmpty")}
                   </span>
                 )}
