@@ -19,7 +19,14 @@ import {
   type ItemPricingInput,
 } from "./product-recipe-form";
 
-export type ProductTypeOption = { id: string; code: string; nameAr: string };
+// TO-40: `usesPanelCount` مُشتق server-side من وصفة المنتج (`getProductTypes`) —
+// وجود سطر بقاعدة ألواح هو ما يُظهر الحقل، لا كود المنتج.
+export type ProductTypeOption = {
+  id: string;
+  code: string;
+  nameAr: string;
+  usesPanelCount?: boolean;
+};
 
 export function ProductSection({
   index,
@@ -120,6 +127,7 @@ export function ProductSection({
           defaultPricingFactorId={defaultPricingFactorId}
           onResult={onSubtotalChange}
           initialPricing={initialPricing}
+          usesPanelCount={selectedProductType.usesPanelCount ?? false}
         />
       )}
     </div>

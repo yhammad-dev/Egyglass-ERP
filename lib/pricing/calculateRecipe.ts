@@ -4,6 +4,12 @@ interface Dimensions {
   area: number
   length: number
   configCount: number
+  /**
+   * TO-40: عدد ألواح الواجهة. مدخل بشري لا مُشتق — التقسيم الفعلي قرار تصميم
+   * لا يُستنتج من العرض وحده (القيمة المقترحة في الواجهة اقتراح قابل للتعديل).
+   * 0 = المنتج لا يستعمل قواعد الألواح، أو لم يُدخَل بعد ⇒ القاعدتان تُرجعان 0.
+   */
+  panelCount: number
 }
 
 interface RecipeLineResult {
@@ -14,6 +20,13 @@ interface RecipeLineResult {
   unitCost: number
   lineTotal: number
   factorMode: FactorMode
+  /**
+   * TO-40: قاعدة الكمية ومُعاملها — تُعرضان في جدول النتيجة لأسطر الألواح كي
+   * يفهم المهندس مصدر الرقم بدل أن يثق به عميًا. **بيانات عرض فقط**: لا تدخل
+   * أي حساب ولا تُحفظ، والحقلان مضافان في آخر النوع بلا مساس بالقائم.
+   */
+  qtyRule: QtyRule
+  qtyMultiplier: number
 }
 
 interface CalculationResult {
@@ -35,6 +48,16 @@ function resolveQty(qtyRule: QtyRule, defaultQty: number | null, dimensions: Dim
       return (defaultQty ?? 0) * dimensions.configCount
     case "MANUAL":
       return defaultQty ?? 0
+    // TO-40 — القاعدتان الجديدتان. الحالات الخمس أعلاه لم تُمس بحرف.
+    // `panelCount = 0` ⇒ صفر لا تخمين: كمية مُلفّقة أخطر من صفر ظاهر.
+    case "BY_PANEL":
+      return (defaultQty ?? 0) * dimensions.panelCount
+    case "BY_PANEL_JOINT":
+      // الخطوط الرأسية = الألواح + 1 (بين كل لوحين وعلى الطرفين). عند صفر ألواح
+      // لا واجهة أصلًا، فلا يصح أن تُنتج القاعدة خطًّا واحدًا من العدم.
+      return dimensions.panelCount > 0
+        ? (defaultQty ?? 0) * (dimensions.panelCount + 1)
+        : 0
   }
 }
 
@@ -80,6 +103,8 @@ export function calculateRecipe(
       unitCost,
       lineTotal,
       factorMode: recipe.factorMode,
+      qtyRule: recipe.qtyRule,
+      qtyMultiplier: defaultQty ?? 0,
     })
   }
 

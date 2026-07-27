@@ -378,7 +378,11 @@
       "selectHandle": "Select handle",
       "selectElbow": "Select elbow",
       "silicon": "Silicon",
-      "selectGroup": "Select {category}"
+      "selectGroup": "Select {category}",
+      "panelCount": "Panel count",
+      "panelCountHint": "The panel count drives the quantities of corners, plates and spiders. The suggested value is width ÷ {panelWidth} m — adjust it to the facade's actual division.",
+      "qtyFromPanels": "{panels} panels × {multiplier}",
+      "qtyFromJoints": "{joints} joints × {multiplier}"
     },
     "new": {
       "quotationTitle": "Quotation title",

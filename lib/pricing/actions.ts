@@ -181,11 +181,30 @@ export async function getProductTypes() {
       return [];
     }
 
-    return await prisma.productType.findMany({
+    // 🔴 TO-40 — `usesPanelCount` **مُشتق من الوصفة لا من كود المنتج**: أي منتج
+    // تحتوي وصفته سطرًا واحدًا بقاعدة ألواح يُظهر الحقل تلقائيًا، بلا قائمة أكواد
+    // تُصان يدويًا وتُنسى عند إضافة منتج جديد.
+    const types = await prisma.productType.findMany({
       where: { code: { in: QUOTATION_PRODUCT_TYPE_CODES }, isActive: true },
-      select: { id: true, code: true, nameAr: true },
+      select: {
+        id: true,
+        code: true,
+        nameAr: true,
+        ProductRecipe: {
+          where: { qtyRule: { in: ["BY_PANEL", "BY_PANEL_JOINT"] } },
+          select: { id: true },
+          take: 1,
+        },
+      },
       orderBy: { nameAr: "asc" },
     });
+
+    return types.map((t) => ({
+      id: t.id,
+      code: t.code,
+      nameAr: t.nameAr,
+      usesPanelCount: t.ProductRecipe.length > 0,
+    }));
   } catch (error) {
     console.error("[getProductTypes]", error);
     return [];
@@ -197,6 +216,8 @@ const calculateProductPricingSchema = z.object({
   width: z.coerce.number().positive("errors.invalidInput"),
   configTypeId: z.string().optional(),
   pricingFactorId: z.string().min(1, "errors.invalidInput"),
+  // TO-40: عدد الألواح — اختياري وصحيح غير سالب. المنتج بلا قواعد ألواح لا يرسله.
+  panelCount: z.coerce.number().int().nonnegative().optional(),
 });
 
 export async function calculateProductPricing(
@@ -214,6 +235,9 @@ export async function calculateProductPricing(
           unitCost: number;
           lineTotal: number;
           factorMode: string;
+          // TO-40: مصدر الكمية — عرض فقط، لا يدخل أي حساب.
+          qtyRule: string;
+          qtyMultiplier: number;
         }[];
         subtotalBeforeFixed: number;
         fixedTotal: number;
@@ -234,7 +258,7 @@ export async function calculateProductPricing(
     const parsed = calculateProductPricingSchema.safeParse(input);
     if (!parsed.success) return { error: "errors.invalidInput" };
 
-    const { height, width, configTypeId, pricingFactorId } = parsed.data;
+    const { height, width, configTypeId, pricingFactorId, panelCount } = parsed.data;
 
     const productType = await prisma.productType.findUnique({
       where: { code: productTypeCode },
@@ -283,6 +307,9 @@ export async function calculateProductPricing(
       area: height * width,
       length: height + width + width,
       configCount: configType?.anglesCount ?? 0,
+      // TO-40: غير مُرسَل ⇒ 0 ⇒ قاعدتا الألواح تُرجعان 0. لا تخمين من العرض هنا:
+      // الاقتراح (العرض ÷ 1.6) شأن الواجهة، والسيرفر يحسب بما وصله فقط.
+      panelCount: panelCount ?? 0,
     };
 
     const result = calculateRecipe(recipes, dimensions, factorValue);
@@ -302,6 +329,8 @@ const quotationItemPricingSchema = z.object({
   width: z.coerce.number().positive("errors.invalidInput"),
   configTypeId: z.string().optional(),
   pricingFactorId: z.string().min(1, "errors.invalidInput"),
+  // TO-40: يُحفظ ضمن `pricingInput` (TO-33) فيُسترجع عند التعديل.
+  panelCount: z.coerce.number().int().nonnegative().optional(),
   selections: z.record(z.string(), z.string()),
 });
 
@@ -422,6 +451,9 @@ async function computeCatalogCostSnapshot(
     area: pricing.height * pricing.width,
     length: pricing.height + pricing.width + pricing.width,
     configCount: configType?.anglesCount ?? 0,
+    // TO-40: من المدخلات المحفوظة (TO-33). بند سابق لـTO-40 بلا الحقل ⇒ 0 ⇒
+    // قاعدتا الألواح تُرجعان 0، فتكلفته تبقى كما حُسبت وقتها بلا انحراف.
+    panelCount: pricing.panelCount ?? 0,
   };
 
   // المعامل لا يؤثر على التكلفة (نتجاهل lineTotal)؛ يُمرَّر كما هو للحفاظ على نفس المسار.
