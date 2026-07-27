@@ -392,7 +392,9 @@
       "netBeforeVat": "الصافي (قبل الضريبة)",
       "quantity": "الكمية",
       "errorNoSections": "أضف منتجًا واحدًا على الأقل قبل الحفظ",
-      "errorSectionNoPrice": "المنتج {index} بلا سعر محسوب — اضغط «احسب» ثم اختر الخامات"
+      "errorSectionNoPrice": "المنتج {index} بلا سعر محسوب — اضغط «احسب» ثم اختر الخامات",
+      "collapseProduct": "طيّ التفاصيل",
+      "expandProduct": "تعديل"
     },
     "detail": {
       "product": "المنتج",

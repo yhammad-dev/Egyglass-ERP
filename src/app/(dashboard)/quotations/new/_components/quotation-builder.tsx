@@ -23,7 +23,16 @@ type CustomerOption = { id: string; name: string; phone: string };
 // TO-05: `pricing` مرافق للبند حتى الحفظ فقط — لا يدخل في أي حساب هنا.
 // TO-21: القسم = مفتاح + حمولة الفورم كما هي. أي حقل يُضاف لـ`RecipeResult` مستقبلًا
 // يصل إلى هنا تلقائيًا، ولا يمكن إسقاطه صامتًا في الطريق.
-type Section = { key: number } & RecipeResult;
+// TO-27: `hasProductType` حقل **محلي للواجهة** خارج `RecipeResult` عمدًا — سلسلة
+// `pricing` لم تُمس. يميّز «قسم فارغ لم يُختر نوعه» (يُتجاهَل صامتًا عند الحفظ)
+// من «قسم اختير نوعه ولم يُحسب سعره» (خطأ مسمّى — رسالة TO-21-FIX كما هي).
+// إلزامي لا اختياري: نسيانه عند تحديث القسم = خطأ بناء لا إسقاط صامت.
+type Section = { key: number; hasProductType: boolean } & RecipeResult;
+
+/** TO-27: القسم المكتمل = له سعر محسوب. هو وحده يُحفظ ويظهر في الملخص. */
+function isCompleted(s: Section): boolean {
+  return s.subtotal > 0;
+}
 
 type EditItem = { key: number; description: string; quantity: number; unitPrice: number };
 
@@ -59,8 +68,17 @@ export function QuotationBuilder({
   const [globalFactorId, setGlobalFactorId] = useState("");
   const [discountPct, setDiscountPct] = useState("0");
   const [discountReason, setDiscountReason] = useState("");
-  const [sections, setSections] = useState<Section[]>([]);
-  const [nextKey, setNextKey] = useState(0);
+  // TO-27: قسم **واحد** جاهز عند الفتح. كانت الشاشة تفتح بصفر أقسام فيبدأ
+  // المستخدم أمام فراغ لا يدلّه على البداية، ثم كل ضغطة «أضف منتج» تُنشئ قسمًا
+  // فارغًا يظهر فورًا صفًا بصفر في الملخص ويُفشِل الحفظ.
+  const [sections, setSections] = useState<Section[]>([
+    { key: 0, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined },
+  ]);
+  const [nextKey, setNextKey] = useState(1);
+  // TO-27: الطيّ حالة عرض محلية بحتة — مفتاح القسم ⇒ مطويّ. **يدوي لا تلقائي:**
+  // الطيّ التلقائي عند اكتمال السعر كان سيُخفي مُنتقيات الخامات في اللحظة التي
+  // يحتاجها المستخدم (السعر يكتمل بعد «احسب» وقبل اختيار الخامات).
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [editItems, setEditItems] = useState<EditItem[]>(
     (initialItems ?? []).map((item, i) => ({ key: i, ...item }))
   );
@@ -75,7 +93,7 @@ export function QuotationBuilder({
   function addSection() {
     setSections((prev) => [
       ...prev,
-      { key: nextKey, subtotal: 0, approvalInfo: undefined, pricing: undefined },
+      { key: nextKey, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined },
     ]);
     setNextKey((k) => k + 1);
   }
@@ -85,8 +103,19 @@ export function QuotationBuilder({
   }
 
   // TO-21: الحمولة تُنسخ كاملة (`...result`) بلا تفكيك — لا مكان يسقط منه حقل.
+  // TO-27: `hasProductType` يُنقل صراحةً لأنه **ليس** من `RecipeResult` — ولو نُسي
+  // لكسر البناء (الحقل إلزامي في `Section`)، فحارس TO-21 ما زال يعضّ.
   function updateSubtotal(key: number, result: RecipeResult) {
-    setSections((prev) => prev.map((s) => (s.key === key ? { key: s.key, ...result } : s)));
+    setSections((prev) =>
+      prev.map((s) =>
+        s.key === key ? { key: s.key, hasProductType: s.hasProductType, ...result } : s
+      )
+    );
+  }
+
+  // TO-27: إشارة اختيار النوع — مستقلة عن حمولة التسعير.
+  function updateHasProductType(key: number, hasProductType: boolean) {
+    setSections((prev) => prev.map((s) => (s.key === key ? { ...s, hasProductType } : s)));
   }
 
   function addEditItem() {
@@ -154,19 +183,29 @@ export function QuotationBuilder({
       setError(t("errors.invalidInputIn", { field: t("quotations.new.quotationTitle") }));
       return;
     }
-    if (sections.length === 0) {
-      setError(t("quotations.new.errorNoSections"));
-      return;
-    }
-    const emptySectionIndex = sections.findIndex((s) => s.subtotal <= 0);
-    if (emptySectionIndex !== -1) {
-      setError(t("quotations.new.errorSectionNoPrice", { index: emptySectionIndex + 1 }));
+    // 🔴 TO-27 — القسم الفارغ لم يعد يُفشِل الحفظ. كان `findIndex(s => s.subtotal <= 0)`
+    // يرفض الطلب كله لأي قسم بلا سعر، بما فيه قسم أُضيف ولم يُلمس ⇒ المستخدم يختار
+    // منتجًا واحدًا ويُرفض حفظه. التمييز الآن:
+    //  · لم يُختر نوعه  ⇒ **تجاهل صامت** (نيّة واضحة: قسم لم يُستعمل).
+    //  · اختير نوعه ولم يُحسب سعره ⇒ **خطأ مسمّى** — عمل ناقص لا يصح ابتلاعه.
+    //    الرسالة نفسها من TO-21-FIX بلا تغيير، والرقم رقم القسم كما يراه المستخدم.
+    const incompleteIndex = sections.findIndex((s) => s.hasProductType && !isCompleted(s));
+    if (incompleteIndex !== -1) {
+      setError(t("quotations.new.errorSectionNoPrice", { index: incompleteIndex + 1 }));
       return;
     }
 
-    const anyNeedsApproval = sections.some((s) => s.approvalInfo?.requiresApproval);
+    const completedSections = sections.filter(isCompleted);
+    if (completedSections.length === 0) {
+      setError(t("quotations.new.errorNoSections"));
+      return;
+    }
+
+    const anyNeedsApproval = completedSections.some((s) => s.approvalInfo?.requiresApproval);
     const lowestFactor = anyNeedsApproval
-      ? Math.min(...sections.filter((s) => s.approvalInfo).map((s) => s.approvalInfo!.factor))
+      ? Math.min(
+          ...completedSections.filter((s) => s.approvalInfo).map((s) => s.approvalInfo!.factor)
+        )
       : undefined;
 
     const discountValue = Number(discountPct);
@@ -185,11 +224,14 @@ export function QuotationBuilder({
     const response = await createQuotation({
       customerId,
       title,
-      items: sections.map((s, i) => ({
+      // TO-27: المكتملة وحدها تُرسَل — الأقسام الفارغة تُسقَط قبل البناء لا بعده،
+      // فلا يصل الأكشن بند بسعر صفر. ترقيم البنود يتبع المكتملة (1، 2، …).
+      items: completedSections.map((s, i) => ({
         description: `${title} - ${i + 1}`,
         quantity: 1,
         unitPrice: s.subtotal,
         // TO-05: مدخلات إعادة حساب التكلفة — السيرفر يعيد الحساب بنفسه ولا يثق برقم من هنا.
+        // ⚠️ TO-27 لم يمسّ هذا السطر ولا مصدره — سلسلة `pricing` كما هي.
         ...(s.pricing ? { pricing: s.pricing } : {}),
       })),
       needsApproval: anyNeedsApproval,
@@ -353,17 +395,78 @@ export function QuotationBuilder({
         </div>
       ) : (
         <div className="space-y-4">
-          {sections.map((s, i) => (
-            <ProductSection
-              key={s.key}
-              index={i}
-              productTypes={productTypes}
-              pricingFactors={pricingFactors}
-              defaultPricingFactorId={globalFactorId || undefined}
-              onRemove={() => removeSection(s.key)}
-              onSubtotalChange={(result) => updateSubtotal(s.key, result)}
-            />
-          ))}
+          {sections.map((s, i) => {
+            // TO-27: الطيّ متاح للمكتمل فقط — طيّ قسم بلا سعر يُخفي عملًا ناقصًا.
+            const isFolded = Boolean(collapsed[s.key]) && isCompleted(s);
+            return (
+              <div key={s.key} className="space-y-2">
+                {isFolded && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+                    <span className="min-w-0 truncate">
+                      {productTypes.find((p) => p.code === s.pricing?.productTypeCode)?.nameAr ??
+                        t("quotations.detail.product")}
+                      {s.pricing && (
+                        <>
+                          {" · "}
+                          <span dir="ltr">
+                            {s.pricing.width} × {s.pricing.height}
+                          </span>
+                        </>
+                      )}
+                      {" · "}
+                      <span dir="ltr">{s.subtotal.toFixed(2)}</span>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCollapsed((p) => ({ ...p, [s.key]: false }))}
+                    >
+                      {t("quotations.new.expandProduct")}
+                    </Button>
+                  </div>
+                )}
+
+                {/* 🔴 TO-27: الطيّ إخفاء بصري لا إزالة من الشجرة. لو أُزيل المكوّن
+                    لفقد كل حالته الداخلية (النوع · المقاسات · نتيجة الحساب ·
+                    اختيارات الخامات) وعاد فارغًا عند الفتح، بينما الباني ما زال
+                    يحمل سعره ⇒ انحراف صامت وفقدان مدخلات. */}
+                <div className={isFolded ? "hidden" : undefined}>
+                  {/* TO-27-FIX: كان زرًا `ghost` صغيرًا خارج البطاقة وبمحاذاة اليسار
+                      في RTL ⇒ يُصيَّر فعلًا ولا يُرى (بلغة الحقل: «الزر لا يظهر»).
+                      صار شريط رأس مُحدَّد بحدّ فوق البطاقة مباشرة، يحمل الملخص وزرًا
+                      بحدّ ظاهر — بنفس بروز «إزالة». **شرط الظهور لم يتغيّر إطلاقًا.** */}
+                  {isCompleted(s) && !isFolded && (
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate text-muted-foreground">
+                        {productTypes.find((p) => p.code === s.pricing?.productTypeCode)?.nameAr ??
+                          t("quotations.detail.product")}
+                        {" · "}
+                        <span dir="ltr">{s.subtotal.toFixed(2)}</span>
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setCollapsed((p) => ({ ...p, [s.key]: true }))}
+                      >
+                        {t("quotations.new.collapseProduct")}
+                      </Button>
+                    </div>
+                  )}
+                  <ProductSection
+                    index={i}
+                    productTypes={productTypes}
+                    pricingFactors={pricingFactors}
+                    defaultPricingFactorId={globalFactorId || undefined}
+                    onRemove={() => removeSection(s.key)}
+                    onSubtotalChange={(result) => updateSubtotal(s.key, result)}
+                    onProductTypeChange={(has) => updateHasProductType(s.key, has)}
+                  />
+                </div>
+              </div>
+            );
+          })}
 
           <Button type="button" variant="outline" onClick={addSection}>
             {t("quotations.new.addProduct")}
@@ -376,8 +479,11 @@ export function QuotationBuilder({
       <div className="fixed bottom-0 inset-x-0 border-t bg-background p-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="space-y-1 text-sm">
+            {/* TO-27: المكتملة وحدها. كان الملخص يعرض صفًا بصفر لكل قسم مضاف ولو
+                لم يُلمس، فيبدو العرض وكأن فيه بنودًا بلا قيمة. الترقيم يتبع
+                المكتملة كي يطابق ترقيم البنود المُرسَلة فعلًا. */}
             {!isEdit &&
-              sections.map((s, i) => (
+              sections.filter(isCompleted).map((s, i) => (
                 <div key={s.key} className="flex justify-between gap-6">
                   <span>
                     {title || t("quotations.new.quotationTitle")} {i + 1}
