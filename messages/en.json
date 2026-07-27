@@ -393,7 +393,9 @@
       "netBeforeVat": "Net (before VAT)",
       "quantity": "Quantity",
       "errorNoSections": "Add at least one product before saving",
-      "errorSectionNoPrice": "Product {index} has no calculated price — press Calculate, then choose materials"
+      "errorSectionNoPrice": "Product {index} has no calculated price — press Calculate, then choose materials",
+      "collapseProduct": "Collapse",
+      "expandProduct": "Edit"
     },
     "detail": {
       "product": "Product",

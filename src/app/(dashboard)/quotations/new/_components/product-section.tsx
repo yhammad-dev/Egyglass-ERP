@@ -27,6 +27,7 @@ export function ProductSection({
   defaultPricingFactorId,
   onRemove,
   onSubtotalChange,
+  onProductTypeChange,
 }: {
   index: number;
   productTypes: ProductTypeOption[];
@@ -36,6 +37,11 @@ export function ProductSection({
   // TO-05: `pricing` يمر كما هو حتى `createQuotation` — تسجيل تكلفة فقط، بلا أثر على السعر.
   // TO-21: نفس حمولة `RecipeResult` تُمرَّر كما هي — لا إعادة بناء ولا وسائط موضعية.
   onSubtotalChange: (result: RecipeResult) => void;
+  // TO-27: إشارة **منفصلة تمامًا** عن حمولة `RecipeResult` — عمدًا لا حقلًا فيها،
+  // كي تبقى سلسلة `pricing` (TO-21) كما هي حرفًا بحرف. الباني يحتاجها ليميّز
+  // «قسم فارغ لم يُختر نوعه» (يُتجاهَل صامتًا) من «قسم اختير نوعه ولم يُحسب سعره»
+  // (خطأ مسمّى يبقى كما هو).
+  onProductTypeChange?: (hasProductType: boolean) => void;
 }) {
   const t = useTranslations();
   const [productTypeId, setProductTypeId] = useState<string>("");
@@ -74,6 +80,8 @@ export function ProductSection({
               setProductTypeId(value ?? "");
               // تبديل نوع المنتج يُصفّر القسم بالكامل: لا سعر ولا اعتماد ولا مدخلات تكلفة.
               onSubtotalChange({ subtotal: 0, approvalInfo: undefined, pricing: undefined });
+              // TO-27: إشارة مستقلة — لا تمسّ الحمولة أعلاه ولا ترتيبها.
+              onProductTypeChange?.(Boolean(value));
             }}
           >
             <SelectTrigger id={`product-type-${index}`} className="w-full max-w-sm">
