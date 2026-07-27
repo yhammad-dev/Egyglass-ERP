@@ -16,6 +16,7 @@ import {
   type ConfigTypeOption,
   type PricingFactorOption,
   type RecipeResult,
+  type ItemPricingInput,
 } from "./product-recipe-form";
 
 export type ProductTypeOption = { id: string; code: string; nameAr: string };
@@ -28,6 +29,8 @@ export function ProductSection({
   onRemove,
   onSubtotalChange,
   onProductTypeChange,
+  initialProductTypeId,
+  initialPricing,
 }: {
   index: number;
   productTypes: ProductTypeOption[];
@@ -42,9 +45,14 @@ export function ProductSection({
   // «قسم فارغ لم يُختر نوعه» (يُتجاهَل صامتًا) من «قسم اختير نوعه ولم يُحسب سعره»
   // (خطأ مسمّى يبقى كما هو).
   onProductTypeChange?: (hasProductType: boolean) => void;
+  // TO-33: بند قائم يُفتح في المحرك — النوع يُنتقى ابتداءً والمدخلات تمرّ للفورم.
+  // تمرير خالص: هذا المكوّن لا يقرأ `initialPricing` ولا يعدّله.
+  initialProductTypeId?: string;
+  initialPricing?: ItemPricingInput;
 }) {
   const t = useTranslations();
-  const [productTypeId, setProductTypeId] = useState<string>("");
+  // TO-33: بند قائم يبدأ بنوعه مُنتقى، فتُحمَّل أنواع التهيئة ويظهر المحرك مباشرة.
+  const [productTypeId, setProductTypeId] = useState<string>(initialProductTypeId ?? "");
   const [configTypes, setConfigTypes] = useState<ConfigTypeOption[]>([]);
   const [loadingConfigTypes, setLoadingConfigTypes] = useState(false);
 
@@ -111,6 +119,7 @@ export function ProductSection({
           pricingFactors={pricingFactors}
           defaultPricingFactorId={defaultPricingFactorId}
           onResult={onSubtotalChange}
+          initialPricing={initialPricing}
         />
       )}
     </div>

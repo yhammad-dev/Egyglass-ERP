@@ -16,7 +16,11 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ProductSection, type ProductTypeOption } from "./product-section";
-import type { PricingFactorOption, RecipeResult } from "./product-recipe-form";
+import type {
+  PricingFactorOption,
+  RecipeResult,
+  ItemPricingInput,
+} from "./product-recipe-form";
 
 type CustomerOption = { id: string; name: string; phone: string };
 
@@ -56,7 +60,13 @@ export function QuotationBuilder({
   initialCustomerId?: string;
   quotationRequestId?: string;
   initialTitle?: string;
-  initialItems?: { description: string; quantity: number; unitPrice: number }[];
+  // TO-33: `pricingInput` من `QuotationItem` — null/غائب = بند يدوي أو سابق لـTO-33.
+  initialItems?: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    pricingInput?: ItemPricingInput | null;
+  }[];
   discountBasePct?: number;
 }) {
   const t = useTranslations();
@@ -71,24 +81,53 @@ export function QuotationBuilder({
   // TO-27: قسم **واحد** جاهز عند الفتح. كانت الشاشة تفتح بصفر أقسام فيبدأ
   // المستخدم أمام فراغ لا يدلّه على البداية، ثم كل ضغطة «أضف منتج» تُنشئ قسمًا
   // فارغًا يظهر فورًا صفًا بصفر في الملخص ويُفشِل الحفظ.
-  const [sections, setSections] = useState<Section[]>([
-    { key: 0, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined },
-  ]);
-  const [nextKey, setNextKey] = useState(1);
+  // 🔴 TO-33 — في وضع التعديل تُبذَر الأقسام من البنود التي لها `pricingInput`،
+  // فتُفتح في المحرك بكل قيمها. البنود بلا مدخلات (يدوية أو سابقة لـTO-33) تبقى
+  // في `editItems` كصفوف نصية موسومة — لا نلفّق لها مدخلات ولا تكلفة.
+  const engineItems = isEdit ? (initialItems ?? []).filter((it) => it.pricingInput) : [];
+  const manualItems = isEdit ? (initialItems ?? []).filter((it) => !it.pricingInput) : [];
+
+  const [sections, setSections] = useState<Section[]>(() =>
+    isEdit
+      ? engineItems.map((it, i) => ({
+          key: i,
+          hasProductType: true,
+          // مبدئي حتى يُنهي المحرك ترطيبه ويبثّ القيمة المُعاد حسابها.
+          subtotal: it.unitPrice,
+          approvalInfo: undefined,
+          pricing: it.pricingInput!,
+        }))
+      : [{ key: 0, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined }]
+  );
+  const [nextKey, setNextKey] = useState(isEdit ? engineItems.length : 1);
+
+  // TO-33: لقطة ثابتة للمدخلات الابتدائية — تُقرأ عند التركيب فقط. لو مُرِّر
+  // `s.pricing` الحيّ لتغيّر مع كل بثّ من المحرك، وقد يُعيد الترطيب فيدهس عمل المستخدم.
+  const [initialPricingByKey] = useState<Record<number, ItemPricingInput>>(() =>
+    Object.fromEntries(engineItems.map((it, i) => [i, it.pricingInput!]))
+  );
   // TO-27: الطيّ حالة عرض محلية بحتة — مفتاح القسم ⇒ مطويّ. **يدوي لا تلقائي:**
   // الطيّ التلقائي عند اكتمال السعر كان سيُخفي مُنتقيات الخامات في اللحظة التي
   // يحتاجها المستخدم (السعر يكتمل بعد «احسب» وقبل اختيار الخامات).
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  // TO-33: البنود اليدوية وحدها هنا الآن — بنود المحرك انتقلت إلى `sections`.
   const [editItems, setEditItems] = useState<EditItem[]>(
-    (initialItems ?? []).map((item, i) => ({ key: i, ...item }))
+    manualItems.map((item, i) => ({
+      key: i,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    }))
   );
-  const [nextEditKey, setNextEditKey] = useState((initialItems ?? []).length);
+  const [nextEditKey, setNextEditKey] = useState(manualItems.length);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const grandTotal = isEdit
-    ? editItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
-    : sections.reduce((sum, s) => sum + s.subtotal, 0);
+  // TO-33: في التعديل صار للعرض مصدران — أقسام المحرك + البنود اليدوية. الإجمالي
+  // يجمعهما معًا وإلا عرض رقمًا ناقصًا. (الخصم والضريبة تبقى server-side كما هي.)
+  const sectionsTotal = sections.reduce((sum, s) => sum + s.subtotal, 0);
+  const manualTotal = editItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+  const grandTotal = isEdit ? sectionsTotal + manualTotal : sectionsTotal;
 
   function addSection() {
     setSections((prev) => [
@@ -135,16 +174,32 @@ export function QuotationBuilder({
     setError(null);
 
     if (isEdit) {
-      // SF-13: توحيد حارس الإجمالي مع مسار create (sections.some(s=>s.subtotal<=0)).
-      // كان `unitPrice < 0` يسمح ببند بسعر صفر (منها البند اليدوي المُضاف حديثًا الذي
-      // يبدأ unitPrice:0) فيُحفظ عرض بإجمالي مُلوَّث — الآن `<= 0` يمنعه بنفس رسالة create.
-      if (
-        !customerId ||
-        !title ||
-        editItems.length === 0 ||
-        editItems.some((i) => !i.description || i.quantity <= 0 || i.unitPrice <= 0)
-      ) {
+      if (!customerId) {
+        setError(t("errors.invalidInputIn", { field: t("quotations.customer") }));
+        return;
+      }
+      if (!title) {
+        setError(t("errors.invalidInputIn", { field: t("quotations.new.quotationTitle") }));
+        return;
+      }
+
+      // TO-33: نفس تمييز TO-27 على أقسام المحرك — قسم اختير نوعه ولم يُحسب سعره
+      // خطأ مسمّى، والفارغ تمامًا يُتجاهَل صامتًا.
+      const incompleteIndex = sections.findIndex((s) => s.hasProductType && !isCompleted(s));
+      if (incompleteIndex !== -1) {
+        setError(t("quotations.new.errorSectionNoPrice", { index: incompleteIndex + 1 }));
+        return;
+      }
+
+      // SF-13: البند اليدوي يبقى بحارسه الصارم — `<= 0` يمنع بندًا بسعر صفر.
+      if (editItems.some((i) => !i.description || i.quantity <= 0 || i.unitPrice <= 0)) {
         setError(t("errors.invalidInput"));
+        return;
+      }
+
+      const completedForEdit = sections.filter(isCompleted);
+      if (completedForEdit.length === 0 && editItems.length === 0) {
+        setError(t("quotations.new.errorNoSections"));
         return;
       }
 
@@ -154,11 +209,22 @@ export function QuotationBuilder({
         id: quotationId,
         customerId,
         title,
-        items: editItems.map((i) => ({
-          description: i.description,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-        })),
+        // TO-33: بنود المحرك أولًا بمدخلاتها (⇒ تكلفة مُعاد حسابها server-side)،
+        // ثم البنود اليدوية بلا `pricing` (⇒ تكلفتها تبقى null بصدق).
+        items: [
+          ...completedForEdit.map((s, i) => ({
+            description: `${title} - ${i + 1}`,
+            quantity: 1,
+            unitPrice: s.subtotal,
+            // ⚠️ نفس سطر مسار الإنشاء حرفيًا — سلسلة `pricing` بلا أي تفرّع.
+            ...(s.pricing ? { pricing: s.pricing } : {}),
+          })),
+          ...editItems.map((i) => ({
+            description: i.description,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+          })),
+        ],
       });
       setSubmitting(false);
 
@@ -349,51 +415,9 @@ export function QuotationBuilder({
         )}
       </div>
 
-      {isEdit ? (
-        <div className="space-y-4 max-w-2xl">
-          {editItems.map((item) => (
-            <div key={item.key} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
-              <div className="space-y-1">
-                <Label>{t("quotations.detail.product")}</Label>
-                <Input
-                  value={item.description}
-                  onChange={(e) => updateEditItem(item.key, { description: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1 w-20">
-                <Label>{t("quotations.new.addProduct")}</Label>
-                <Input
-                  type="number"
-                  dir="ltr"
-                  value={item.quantity}
-                  onChange={(e) => updateEditItem(item.key, { quantity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-1 w-28">
-                <Label>{t("quotations.detail.itemSubtotal")}</Label>
-                <Input
-                  type="number"
-                  dir="ltr"
-                  step="0.01"
-                  value={item.unitPrice}
-                  onChange={(e) => updateEditItem(item.key, { unitPrice: Number(e.target.value) })}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => removeEditItem(item.key)}
-              >
-                {t("quotations.new.removeProduct")}
-              </Button>
-            </div>
-          ))}
-
-          <Button type="button" variant="outline" onClick={addEditItem}>
-            {t("quotations.new.addProduct")}
-          </Button>
-        </div>
-      ) : (
+      {/* 🔴 TO-33 — أقسام المحرك: في الإنشاء كلها جديدة، وفي التعديل تُبذَر من
+          البنود التي لها `pricingInput` فتُفتح بكل قيمها. **نفس الكتلة للوضعين**
+          — لا نسخة ثانية من منطق المحرك (وهو ما أنتج نصف عيوب هذه السلسلة). */}
         <div className="space-y-4">
           {sections.map((s, i) => {
             // TO-27: الطيّ متاح للمكتمل فقط — طيّ قسم بلا سعر يُخفي عملًا ناقصًا.
@@ -462,6 +486,16 @@ export function QuotationBuilder({
                     onRemove={() => removeSection(s.key)}
                     onSubtotalChange={(result) => updateSubtotal(s.key, result)}
                     onProductTypeChange={(has) => updateHasProductType(s.key, has)}
+                    // TO-33: بند قائم ⇒ نوعه مُنتقى ومدخلاته تُرطّب المحرك.
+                    // اللقطة الثابتة لا `s.pricing` الحيّ — انظر تعليق `initialPricingByKey`.
+                    initialProductTypeId={
+                      initialPricingByKey[s.key]
+                        ? productTypes.find(
+                            (p) => p.code === initialPricingByKey[s.key].productTypeCode
+                          )?.id
+                        : undefined
+                    }
+                    initialPricing={initialPricingByKey[s.key]}
                   />
                 </div>
               </div>
@@ -469,6 +503,57 @@ export function QuotationBuilder({
           })}
 
           <Button type="button" variant="outline" onClick={addSection}>
+            {t("quotations.new.addProduct")}
+          </Button>
+        </div>
+
+      {/* TO-33: بنود بلا `pricingInput` — يدوية أو سابقة لـTO-33. تُعرض كما كانت
+          حقولًا نصية، موسومة صراحةً كي لا يظنّها المستخدم قابلة للفتح في المحرك.
+          تعديلها **لا يلفّق تكلفة**: تُرسَل بلا `pricing` فتبقى تكلفتها null. */}
+      {isEdit && editItems.length > 0 && (
+        <div className="space-y-2 max-w-2xl">
+          <p className="text-sm font-medium text-muted-foreground">
+            {t("quotations.new.legacyItemsTitle")}
+          </p>
+          {editItems.map((item) => (
+            <div key={item.key} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+              <div className="space-y-1">
+                <Label>{t("quotations.detail.product")}</Label>
+                <Input
+                  value={item.description}
+                  onChange={(e) => updateEditItem(item.key, { description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1 w-20">
+                <Label>{t("quotations.new.addProduct")}</Label>
+                <Input
+                  type="number"
+                  dir="ltr"
+                  value={item.quantity}
+                  onChange={(e) => updateEditItem(item.key, { quantity: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-1 w-28">
+                <Label>{t("quotations.detail.itemSubtotal")}</Label>
+                <Input
+                  type="number"
+                  dir="ltr"
+                  step="0.01"
+                  value={item.unitPrice}
+                  onChange={(e) => updateEditItem(item.key, { unitPrice: Number(e.target.value) })}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => removeEditItem(item.key)}
+              >
+                {t("quotations.new.removeProduct")}
+              </Button>
+            </div>
+          ))}
+
+          <Button type="button" variant="outline" onClick={addEditItem}>
             {t("quotations.new.addProduct")}
           </Button>
         </div>
@@ -482,8 +567,8 @@ export function QuotationBuilder({
             {/* TO-27: المكتملة وحدها. كان الملخص يعرض صفًا بصفر لكل قسم مضاف ولو
                 لم يُلمس، فيبدو العرض وكأن فيه بنودًا بلا قيمة. الترقيم يتبع
                 المكتملة كي يطابق ترقيم البنود المُرسَلة فعلًا. */}
-            {!isEdit &&
-              sections.filter(isCompleted).map((s, i) => (
+            {/* TO-33: الملخص يعرض أقسام المحرك في الوضعين — كان محصورًا بالإنشاء. */}
+            {sections.filter(isCompleted).map((s, i) => (
                 <div key={s.key} className="flex justify-between gap-6">
                   <span>
                     {title || t("quotations.new.quotationTitle")} {i + 1}

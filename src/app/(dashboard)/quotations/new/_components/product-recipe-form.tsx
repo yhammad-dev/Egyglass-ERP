@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -90,6 +90,7 @@ export function ProductRecipeForm({
   pricingFactors,
   defaultPricingFactorId,
   onResult,
+  initialPricing,
 }: {
   productTypeCode: string;
   title: string;
@@ -99,6 +100,10 @@ export function ProductRecipeForm({
   // TO-05: `pricing` = مدخلات إعادة حساب تكلفة الكتالوج على السيرفر وقت الحفظ.
   // TO-21: حمولة واحدة (`RecipeResult`) لا وسائط موضعية — انظر تعليق النوع أعلاه.
   onResult?: (result: RecipeResult) => void;
+  // TO-33: مدخلات بند قائم (`QuotationItem.pricingInput`) — تُملأ في الفورم ويُعاد
+  // الحساب مرة واحدة عند التركيب، فيُفتح البند في المحرك بكل قيمه بدل حقول نصية.
+  // ⚠️ إضافة بحتة: مسار البثّ (`onResult`) لم يُمس، والحساب يمرّ بنفس الدالة.
+  initialPricing?: ItemPricingInput;
 }) {
   const t = useTranslations();
   const [result, setResult] = useState<CalculationResult | null>(null);
@@ -121,10 +126,26 @@ export function ProductRecipeForm({
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: { pricingFactorId: defaultPricingFactorId ?? "" },
+    // TO-33: قيم البند القائم تُملأ ابتداءً — المستخدم يرى مقاساته ومعامله لا فورمًا فارغًا.
+    defaultValues: {
+      pricingFactorId: initialPricing?.pricingFactorId ?? defaultPricingFactorId ?? "",
+      ...(initialPricing
+        ? {
+            height: initialPricing.height,
+            width: initialPricing.width,
+            ...(initialPricing.configTypeId ? { configTypeId: initialPricing.configTypeId } : {}),
+          }
+        : {}),
+    },
   });
 
-  async function onSubmit(data: FormData) {
+  /**
+   * TO-33 — مسار الحساب **الوحيد**. `restoreSelections` هو الفارق الوحيد عن
+   * السلوك القديم: الضغط على «احسب» يُصفّر الاختيارات (دورة جديدة)، بينما ترطيب
+   * بند قائم يستعيد اختياراته المحفوظة. نسخة ثانية من هذا المسار كانت ستفتح باب
+   * انحراف بين «حساب جديد» و«إعادة فتح» — وهو صنف العيب الذي عالجناه في TO-21.
+   */
+  async function runCalculation(data: FormData, restoreSelections?: Record<string, string>) {
     setSubmitting(true);
     setServerError(null);
     setResult(null);
@@ -146,6 +167,7 @@ export function ProductRecipeForm({
 
     setResult(response.data);
     setLastInput(data);
+    if (restoreSelections) setSelections(restoreSelections);
 
     if (response.requiresApproval && response.factor !== undefined) {
       setApprovalInfo({ requiresApproval: true, factor: response.factor });
@@ -153,6 +175,29 @@ export function ProductRecipeForm({
       setApprovalInfo(null);
     }
   }
+
+  async function onSubmit(data: FormData) {
+    await runCalculation(data);
+  }
+
+  // TO-33: ترطيب لمرة واحدة عند التركيب. الحارس `hydratedRef` لا الاعتماديات —
+  // لأن `initialPricing` يبقى ثابتًا بينما `selections` تتغيّر بفعل المستخدم،
+  // وإعادة الترطيب كانت ستدهس اختياراته الجديدة بالقديمة.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!initialPricing || hydratedRef.current) return;
+    hydratedRef.current = true;
+    void runCalculation(
+      {
+        height: initialPricing.height,
+        width: initialPricing.width,
+        configTypeId: initialPricing.configTypeId,
+        pricingFactorId: initialPricing.pricingFactorId,
+      } as FormData,
+      initialPricing.selections
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPricing]);
 
   // TO-05: التجميع والاختيار انتقلا إلى `lib/pricing/recipe-selection` ليستخدم السيرفر
   // **نفس** القاعدة عند حساب تكلفة الكتالوج — نسخة ثانية منها = انحراف صامت بين السعر
