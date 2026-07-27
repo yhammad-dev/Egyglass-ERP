@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getSystemSettings } from "@/lib/config";
 import { t } from "@/lib/server-translations";
+// TO-39-B: شرط عرض الخصم واشتقاق الصافي — مصدر واحد مع شاشة العرض.
+import { quotationDisplayTotals } from "@/lib/quotation-totals";
 import { PrintButton } from "./_components/print-button";
 
 const SOCIAL_NOTE_KEYS = Array.from(
@@ -122,7 +124,8 @@ export default async function QuotationPrintPage(props: {
   const subtotal = q.subtotal.toNumber();
   const discountPct = q.discountPct.toNumber();
   const discountAmount = q.discountAmount.toNumber();
-  const netAfterDiscount = subtotal - discountAmount;
+  // TO-39-B: الشرط والاشتقاق من المصدر المشترك — نفسه الذي تستعمله شاشة العرض.
+  const { hasDiscount, netAfterDiscount } = quotationDisplayTotals({ subtotal, discountAmount });
 
   return (
     <>
@@ -336,7 +339,13 @@ export default async function QuotationPrintPage(props: {
           {/* ── الإجماليات: خصم صريح قبل/بعد ثم الضريبة ثم النهائي ── */}
           <div className="no-split w-80 ms-auto text-sm border border-gray-500">
             <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
-              <span>{t("quotations.print.subtotalBeforeDiscount")}</span>
+              {/* TO-39-B: «الإجمالي قبل الخصم» بلا خصم مطبَّق يوحي للعميل بخصم
+                  مخفي حُجب عنه. التسمية تتبع الواقع: «المجموع» حين لا خصم. */}
+              <span>
+                {hasDiscount
+                  ? t("quotations.print.subtotalBeforeDiscount")
+                  : t("quotations.subtotal")}
+              </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>
                 {fmt(subtotal)}
               </span>
@@ -347,7 +356,7 @@ export default async function QuotationPrintPage(props: {
                 الخصم» مساويًا للإجمالي — تشويش على العميل بلا معنى.
                 الآن: خصم مُعتمَد ⇒ يُطبع كاملًا · خصم ما زال طلبًا ⇒ لا سطر
                 إطلاقًا والمستند يعرض الإجمالي الكامل الصحيح. */}
-            {discountAmount > 0 && (
+            {hasDiscount && (
               <>
                 <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
                   <span>

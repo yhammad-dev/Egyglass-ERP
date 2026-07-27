@@ -32,6 +32,8 @@ import { FieldError } from "@/components/ui/field-error";
 import { cn } from "@/lib/utils";
 // TO-31/TO-32: نفس مصدر حارس السيرفر — لا نسخة ثانية من قائمة الأدوار في الواجهة.
 import { canChangeQuotationStatus, canEditQuotation } from "@/lib/quotation-roles";
+// TO-39-B: شرط عرض الخصم واشتقاق الصافي — نفس مصدر المستند المطبوع.
+import { quotationDisplayTotals } from "@/lib/quotation-totals";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +79,9 @@ type QuotationDetailData = {
   createdAt: string;
   validUntil: string;
   subtotal: number;
+  // TO-39-B: مصدر سطري الخصم في كتلة الإجماليات — نفس حقلي المستند المطبوع.
+  discountPct: number;
+  discountAmount: number;
   taxPct: number;
   taxAmount: number;
   total: number;
@@ -122,6 +127,12 @@ export function QuotationDetail({
   // تصدّهما صفحته بـ307 (خرجا من التسعير في W-01/TO-29).
   // `canEdit` تبقى كما هي لزرّي العقد وطلب الخصم — شغل مبيعات لا تسعير.
   const canEditPricing = canEditQuotation(currentRole);
+
+  // TO-39-B: يُشتق مرة واحدة ويُستعمل في التسمية وفي شرط السطرين — لا تكرار.
+  const displayTotals = quotationDisplayTotals({
+    subtotal: quotation.subtotal,
+    discountAmount: quotation.discountAmount,
+  });
 
   // 🔴 TO-31 — أداة «تغيير الحالة» تتبع **نفس قائمة الحارس** لا `canEdit`.
   // كانتا قائمتين مختلفتين، فانحرفتا في الاتجاهين معًا:
@@ -552,9 +563,32 @@ export function QuotationDetail({
 
       <div className="max-w-sm space-y-1 text-sm">
         <div className="flex justify-between">
-          <span>{t("quotations.subtotal")}</span>
+          {/* TO-39-B: نفس تسمية المستند المطبوع — «قبل الخصم» فقط حين يوجد خصم. */}
+          <span>
+            {displayTotals.hasDiscount
+              ? t("quotations.print.subtotalBeforeDiscount")
+              : t("quotations.subtotal")}
+          </span>
           <span dir="ltr">{numberFormat.format(quotation.subtotal)}</span>
         </div>
+        {/* 🔴 TO-39-B — سطرا الخصم كانا غائبين تمامًا، فبدت الكتلة غير جامعة:
+            المجموع + الضريبة ≠ الإجمالي، والفرق هو الخصم غير المعروض.
+            الشرط والاشتقاق من `quotationDisplayTotals` — **نفس مصدر الطباعة**،
+            بلا شرط ثانٍ ولا صيغة ثانية. */}
+        {displayTotals.hasDiscount && (
+          <>
+            <div className="flex justify-between">
+              <span>
+                {t("quotations.discount")} ({quotation.discountPct}%)
+              </span>
+              <span dir="ltr">-{numberFormat.format(quotation.discountAmount)}</span>
+            </div>
+            <div className="flex justify-between font-medium">
+              <span>{t("quotations.print.netAfterDiscount")}</span>
+              <span dir="ltr">{numberFormat.format(displayTotals.netAfterDiscount)}</span>
+            </div>
+          </>
+        )}
         <div className="flex justify-between">
           <span>{t("quotations.vat")}</span>
           <span dir="ltr">{numberFormat.format(quotation.taxAmount)}</span>
