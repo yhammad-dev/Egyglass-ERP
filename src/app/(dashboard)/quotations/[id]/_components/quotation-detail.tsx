@@ -30,8 +30,8 @@ import { Label } from "@/components/ui/label";
 // TO-24: مستعملان في شريط بوابة الاعتماد المبدئي
 import { FieldError } from "@/components/ui/field-error";
 import { cn } from "@/lib/utils";
-// TO-31: نفس مصدر حارس السيرفر — لا نسخة ثانية من قائمة الأدوار في الواجهة.
-import { canChangeQuotationStatus } from "@/lib/quotation-roles";
+// TO-31/TO-32: نفس مصدر حارس السيرفر — لا نسخة ثانية من قائمة الأدوار في الواجهة.
+import { canChangeQuotationStatus, canEditQuotation } from "@/lib/quotation-roles";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +115,13 @@ export function QuotationDetail({
   const [error, setError] = useState<string | null>(null);
 
   const canEdit = ["ADMIN", "SALES_MANAGER", "SALES_REP"].includes(currentRole);
+
+  // 🔴 TO-32 — صلاحية **التعديل** اشتقاق منفصل عن `canEdit`، من مصدر حارس
+  // السيرفر نفسه (`QUOTATION_PRICING_ROLES`). كان الزر على `canEdit` فانحرف
+  // في الاتجاهين: المهندس مسموح له والزر مخفي، والمندوب/المدير يريان زرًا
+  // تصدّهما صفحته بـ307 (خرجا من التسعير في W-01/TO-29).
+  // `canEdit` تبقى كما هي لزرّي العقد وطلب الخصم — شغل مبيعات لا تسعير.
+  const canEditPricing = canEditQuotation(currentRole);
 
   // 🔴 TO-31 — أداة «تغيير الحالة» تتبع **نفس قائمة الحارس** لا `canEdit`.
   // كانتا قائمتين مختلفتين، فانحرفتا في الاتجاهين معًا:
@@ -243,6 +250,9 @@ export function QuotationDetail({
     router.refresh();
   }
 
+  // TO-32: تنسيق جدول البنود = تنسيق قالب الطباعة حرفيًا (print/page.tsx:117).
+  // `numberFormat` (en-US) يبقى لبقية الشاشة كما هو — توحيده الكامل خارج النطاق.
+  const itemFmt = new Intl.NumberFormat("ar-EG-u-nu-latn", { minimumFractionDigits: 2 });
   const numberFormat = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -436,7 +446,8 @@ export function QuotationDetail({
               {t("discount.request.button")}
             </Button>
           )}
-          {canEdit && (
+          {/* TO-32: زر التعديل على صلاحية التسعير لا `canEdit` — انظر الاشتقاق أعلاه. */}
+          {canEditPricing && (
             <Button
               type="button"
               variant="outline"
@@ -494,29 +505,43 @@ export function QuotationDetail({
         />
       )}
 
+      {/* TO-32: نفس أعمدة قالب الطباعة وترتيبها (print/page.tsx:244-303):
+          # · البيان · الكمية · سعر الوحدة · الإجمالي — بمفاتيح القالب نفسها
+          (quotations.print.*) وتنسيق أرقامه نفسه (ar-EG-u-nu-latn).
+          · عمود «الوحدة» لم يُنقل: في القالب شرطي للمشروعات ويعرض «—» دائمًا
+            (QuotationItem بلا حقل unit بعد) — نقله هنا عمود فارغ بلا معلومة.
+          · 🔴 لا costSnapshot ولا أي اشتقاق منه — بيانات تكلفة، مكانها الداشبورد. */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("quotations.detail.product")}</TableHead>
-              <TableHead className="text-right">
-                <span dir="ltr">{t("quotations.detail.itemSubtotal")}</span>
-              </TableHead>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>{t("quotations.print.item")}</TableHead>
+              <TableHead className="text-end">{t("quotations.print.qty")}</TableHead>
+              <TableHead className="text-end">{t("quotations.print.unitPrice")}</TableHead>
+              <TableHead className="text-end">{t("quotations.print.lineTotal")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {quotation.items.length ? (
-              quotation.items.map((item) => (
+              quotation.items.map((item, i) => (
                 <TableRow key={item.id}>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell className="text-right">
-                    <span dir="ltr">{numberFormat.format(item.lineTotal)}</span>
+                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell className="break-words">{item.description}</TableCell>
+                  <TableCell className="text-end">
+                    <span dir="ltr">{item.quantity}</span>
+                  </TableCell>
+                  <TableCell className="text-end">
+                    <span dir="ltr">{itemFmt.format(item.unitPrice)}</span>
+                  </TableCell>
+                  <TableCell className="text-end font-medium">
+                    <span dir="ltr">{itemFmt.format(item.lineTotal)}</span>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={2} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   {t("app.noResults")}
                 </TableCell>
               </TableRow>
