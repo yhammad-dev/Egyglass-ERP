@@ -2,7 +2,14 @@ import type { ProductRecipe, Material, FactorMode, QtyRule } from "@prisma/clien
 
 interface Dimensions {
   area: number
+  /** الطول الضلعي: `h + 2w` — ثلاثة أضلاع، منطق المنتج **المسنود على حائط** (شاور). */
   length: number
+  /**
+   * TO-44: محيط المستطيل `2 × (h + w)` — أربعة أضلاع، منطق المنتج **القائم
+   * بذاته** (واجهة). حقل مستقل عن `length` لا بديل عنه: الوصفة الواحدة قد
+   * تحتاج الاثنين (إطار محيطي + تقسيمة ضلعية)، والقرار قرار سطر لا قرار منتج.
+   */
+  perimeter: number
   configCount: number
   /**
    * TO-40: عدد ألواح الواجهة. مدخل بشري لا مُشتق — التقسيم الفعلي قرار تصميم
@@ -58,6 +65,10 @@ function resolveQty(qtyRule: QtyRule, defaultQty: number | null, dimensions: Dim
       return dimensions.panelCount > 0
         ? (defaultQty ?? 0) * (dimensions.panelCount + 1)
         : 0
+    // TO-44 — المحيط الكامل للمنتج القائم بذاته. `BY_LENGTH` أعلاه لم تُمس،
+    // فكل سطر قائم يبقى على حسابه الضلعي حرفيًا.
+    case "BY_PERIMETER":
+      return (defaultQty ?? 0) * dimensions.perimeter
   }
 }
 

@@ -341,7 +341,13 @@ export default async function QuotationPrintPage(props: {
                 {fmt(subtotal)}
               </span>
             </div>
-            {discountPct > 0 && (
+            {/* 🔴 TO-39 — البوابة على **المبلغ المطبَّق** لا على النسبة المطلوبة.
+                كانت `discountPct > 0`، فبعد أن صار الخصم غير المعتمد يُحفظ
+                بمبلغ صفر كان المستند سيطبع سطر خصم بـ«0.00-» وسطر «الصافي بعد
+                الخصم» مساويًا للإجمالي — تشويش على العميل بلا معنى.
+                الآن: خصم مُعتمَد ⇒ يُطبع كاملًا · خصم ما زال طلبًا ⇒ لا سطر
+                إطلاقًا والمستند يعرض الإجمالي الكامل الصحيح. */}
+            {discountAmount > 0 && (
               <>
                 <div className="flex justify-between px-3 py-1.5 border-b border-gray-300">
                   <span>

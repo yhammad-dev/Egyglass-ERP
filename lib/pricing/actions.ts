@@ -7,6 +7,9 @@ import { requireRole } from "@/lib/rbac";
 import { QUOTATION_PRICING_ROLES, QUOTATION_STATUS_ROLES } from "@/lib/quotation-roles";
 // TO-31: حارس المسار في وحدة مشتركة — يستعمله هذا الملف و`lib/review/actions.ts`.
 import { checkEngineerRoute } from "@/lib/services/engineer-route";
+// TO-39: صيغة الإجماليات وقرار «هل الخصم نافذ» في مصدر واحد يتشاركه هذا الملف
+// و`src/lib/actions/discount.ts` — كانت الصيغة مكتوبة ثلاث مرات.
+import { recomputeQuotationTotals, effectiveDiscountPct } from "@/lib/quotation-totals";
 import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
@@ -303,6 +306,8 @@ export async function calculateProductPricing(
     const dimensions = {
       area: height * width,
       length: height + width + width,
+      // TO-44: المحيط الكامل — مُشتق من نفس المقاسين، بلا مدخل جديد.
+      perimeter: 2 * (height + width),
       configCount: configType?.anglesCount ?? 0,
       // TO-40: غير مُرسَل ⇒ 0 ⇒ قاعدتا الألواح تُرجعان 0. لا تخمين من العرض هنا:
       // الاقتراح (العرض ÷ 1.6) شأن الواجهة، والسيرفر يحسب بما وصله فقط.
@@ -447,6 +452,8 @@ async function computeCatalogCostSnapshot(
   const dimensions = {
     area: pricing.height * pricing.width,
     length: pricing.height + pricing.width + pricing.width,
+    // TO-44: نفس اشتقاق مسار الحساب الحيّ — لا صيغة ثانية.
+    perimeter: 2 * (pricing.height + pricing.width),
     configCount: configType?.anglesCount ?? 0,
     // TO-40: من المدخلات المحفوظة (TO-33). بند سابق لـTO-40 بلا الحقل ⇒ 0 ⇒
     // قاعدتا الألواح تُرجعان 0، فتكلفته تبقى كما حُسبت وقتها بلا انحراف.
@@ -632,14 +639,21 @@ export async function createQuotation(
       return { error: "errors.discountExceedsMax" };
     }
 
-    // RR-1 STEP-1.2/1.3: discount → net → VAT on net (NOT on subtotal).
-    const discountAmount = subtotal.mul(discountPct).div(100);
-    const netAfterDiscount = subtotal.sub(discountAmount);
-    const taxAmount = netAfterDiscount.mul(vatPct).div(100);
-    const total = netAfterDiscount.add(taxAmount);
-
     // D-19 (قرار يوسف): **أي خصم > 0 = طلب** — لا تطبيق مباشر أيًا كانت النسبة.
     const discountNeedsApproval = discountPct.gt(0);
+
+    // 🔴 TO-39 — التنفيذ صار مطابقًا للنيّة المكتوبة أعلاه. كان الخصم يُطبَّق
+    // على الإجماليات **فورًا** ثم تُوضع الحالة `PENDING_APPROVAL`، فيخرج مستند
+    // مطبوع عليه «بانتظار الموافقة» وخصم مُطبَّق فعلًا (رآه المالك بعينه).
+    // الآن: `discountPct` يُحفظ كسجلّ للطلب، والإجماليات تُحسب **بلا خصم**
+    // والضريبة على الإجمالي الكامل. التطبيق يقع عند الاعتماد وحده
+    // (`decideDiscountAction`) بنفس هذه الصيغة المشتركة.
+    // RR-1 STEP-1.2/1.3 محفوظة كما هي: خصم ⇒ صافي ⇒ ضريبة على الصافي.
+    const { discountAmount, taxAmount, total } = recomputeQuotationTotals(
+      subtotal,
+      effectiveDiscountPct(discountPct, /* isApproved */ false),
+      vatPct
+    );
     const requiresApproval = (needsApproval ?? false) || discountNeedsApproval;
 
     // RR-1 STEP-1.5 (cashback): referral cashback is a SEPARATE post-execution
@@ -845,10 +859,20 @@ export async function updateQuotation(
     const discountPct = existing.discountPct;
     const lineTotals = items.map((item) => toDec(item.quantity).mul(toDec(item.unitPrice)));
     const subtotal = lineTotals.reduce((sum, lt) => sum.add(lt), new D(0));
-    const discountAmount = subtotal.mul(discountPct).div(100);
-    const netAfterDiscount = subtotal.sub(discountAmount);
-    const taxAmount = netAfterDiscount.mul(vatPct).div(100);
-    const total = netAfterDiscount.add(taxAmount);
+
+    // 🔴 TO-39 — التعديل **يحافظ على حالة الخصم كما هي، لا يغيّرها**:
+    //  · خصم كان مُعتمَدًا (`discountAmount > 0` على الصف) ⇒ يُعاد تطبيقه على
+    //    الإجمالي الجديد — وإلا ضاع خصم وافق عليه صاحب صلاحية لمجرد تعديل بند.
+    //  · خصم ما زال **طلبًا** (`discountAmount = 0`) ⇒ يبقى طلبًا، والإجماليات
+    //    بلا خصم. التعديل ليس اعتمادًا، ولا يجوز أن يصير بابًا خلفيًا له.
+    // ⚠️ `discountAmount` هو الإشارة لا `status`: الحالة تُغيَّر يدويًا من مسارات
+    // أخرى (`updateQuotationStatus`)، أما المبلغ فلا يكتبه إلا الاعتماد نفسه.
+    const discountWasApproved = existing.discountAmount.gt(0);
+    const { discountAmount, taxAmount, total } = recomputeQuotationTotals(
+      subtotal,
+      effectiveDiscountPct(discountPct, discountWasApproved),
+      vatPct
+    );
 
     // 🔴 TO-33 — إصلاح BL-151. كان التعديل يعيد بناء البنود من `{وصف · كمية · سعر}`
     // وحدها، فتُمسح `costSnapshot` إلى null عند **كل** حفظ ⇒ العرض المعدَّل يخرج من

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { getSystemSettings } from "@/lib/config";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
+import { recomputeQuotationTotals } from "@/lib/quotation-totals";
 
 const DISCOUNT_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 
@@ -23,11 +24,16 @@ async function getSettings() {
   };
 }
 
+// TO-39: الصيغة انتقلت إلى `@/lib/quotation-totals` لتكون مصدرًا واحدًا يتشاركه
+// هذا المسار ومسارا الإنشاء والتعديل. **الحساب نفسه لم يتغيّر بحرف** — ونداء
+// `recomputeTotals` أدناه يبقى كما هو، فمسار الاعتماد بلا أي تعديل سلوكي.
+// 🔴 هذا المسار هو **المكان الوحيد الذي يُطبَّق فيه الخصم فعلًا** (بعد TO-39).
 function recomputeTotals(subtotal: Dec, discountPct: Dec, taxPct: Dec) {
-  const discountAmount = subtotal.mul(discountPct).div(100);
-  const netAfterDiscount = subtotal.sub(discountAmount);
-  const taxAmount = netAfterDiscount.mul(taxPct).div(100);
-  const total = netAfterDiscount.add(taxAmount);
+  const { discountAmount, taxAmount, total } = recomputeQuotationTotals(
+    subtotal,
+    discountPct,
+    taxPct
+  );
   return { discountAmount, taxAmount, total };
 }
 
