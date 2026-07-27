@@ -870,6 +870,7 @@ enum QtyRule {
   /// TO-40: الكمية = defaultQty × (عدد الألواح + 1) — الخطوط الرأسية بين الألواح
   /// وعلى طرفيها، وعددها دائمًا أكثر من الألواح بواحد. (اسبايدر ثنائي ×2 · زعانف ×1)
   BY_PANEL_JOINT
+  BY_PERIMETER
 }
 
 model QuotationApproval {

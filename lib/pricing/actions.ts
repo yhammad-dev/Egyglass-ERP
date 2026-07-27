@@ -306,6 +306,8 @@ export async function calculateProductPricing(
     const dimensions = {
       area: height * width,
       length: height + width + width,
+      // TO-44: المحيط الكامل — مُشتق من نفس المقاسين، بلا مدخل جديد.
+      perimeter: 2 * (height + width),
       configCount: configType?.anglesCount ?? 0,
       // TO-40: غير مُرسَل ⇒ 0 ⇒ قاعدتا الألواح تُرجعان 0. لا تخمين من العرض هنا:
       // الاقتراح (العرض ÷ 1.6) شأن الواجهة، والسيرفر يحسب بما وصله فقط.
@@ -450,6 +452,8 @@ async function computeCatalogCostSnapshot(
   const dimensions = {
     area: pricing.height * pricing.width,
     length: pricing.height + pricing.width + pricing.width,
+    // TO-44: نفس اشتقاق مسار الحساب الحيّ — لا صيغة ثانية.
+    perimeter: 2 * (pricing.height + pricing.width),
     configCount: configType?.anglesCount ?? 0,
     // TO-40: من المدخلات المحفوظة (TO-33). بند سابق لـTO-40 بلا الحقل ⇒ 0 ⇒
     // قاعدتا الألواح تُرجعان 0، فتكلفته تبقى كما حُسبت وقتها بلا انحراف.
