@@ -75,6 +75,11 @@ export default async function QuotationDetailPage(props: {
         createdAt: quotation.createdAt.toISOString(),
         validUntil: quotation.validUntil.toISOString(),
         subtotal: quotation.subtotal.toNumber(),
+        // TO-39-B: كتلة الإجماليات كانت تعرض المجموع والضريبة والإجمالي بلا سطر
+        // خصم، فبعد TO-39 صارت لا تجمع أمام المستخدم. الحقلان يصلان الآن لتُعرض
+        // نفس أسطر المستند المطبوع بنفس شرطه.
+        discountPct: quotation.discountPct.toNumber(),
+        discountAmount: quotation.discountAmount.toNumber(),
         taxPct: quotation.taxPct.toNumber(),
         taxAmount: quotation.taxAmount.toNumber(),
         total: quotation.total.toNumber(),

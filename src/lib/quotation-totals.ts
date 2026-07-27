@@ -39,3 +39,24 @@ export function recomputeQuotationTotals(subtotal: Dec, discountPct: Dec, taxPct
 export function effectiveDiscountPct(requestedPct: Dec, isApproved: boolean): Dec {
   return isApproved ? requestedPct : new Prisma.Decimal(0);
 }
+
+/**
+ * TO-39-B — قيم **العرض** المشتقّة من صف العرض. مصدر واحد للشاشة والمستند
+ * المطبوع معًا.
+ *
+ * 🔴 لماذا: بعد TO-39 صار الخصم يُطبَّق عند الاعتماد وحده، فظهرت في شاشة العرض
+ * فجوة حسابية مرئية — «المجموع + الضريبة ≠ الإجمالي» لأن سطر الخصم لم يكن
+ * معروضًا أصلًا. الطباعة كانت تعرضه والشاشة لا، بشرطين مكتوبين في موضعين.
+ * توحيدهما هنا يمنع أن يُصلَح أحدهما ويُنسى الآخر مرة أخرى.
+ *
+ * ⚠️ **لا تحسب مالًا جديدًا**: تقرأ ما كُتب على الصف (`subtotal`/`discountAmount`
+ * كتبهما مسار الحفظ أو الاعتماد) وتشتق الصافي بطرح واحد. الصيغة المالية تبقى
+ * حصرًا في `recomputeQuotationTotals`.
+ */
+export function quotationDisplayTotals(row: { subtotal: number; discountAmount: number }) {
+  return {
+    /** الشرط الوحيد لعرض سطري الخصم — **المبلغ المطبَّق** لا النسبة المطلوبة. */
+    hasDiscount: row.discountAmount > 0,
+    netAfterDiscount: row.subtotal - row.discountAmount,
+  };
+}
