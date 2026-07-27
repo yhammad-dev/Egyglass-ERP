@@ -4,6 +4,9 @@ import { z } from "zod";
 import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { QUOTATION_STATUS_ROLES } from "@/lib/quotation-roles";
+// TO-31: حارس المسار في وحدة مشتركة — يستعمله هذا الملف و`lib/review/actions.ts`.
+import { checkEngineerRoute } from "@/lib/services/engineer-route";
 import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/lib/config";
 import { calculateRecipe } from "./calculateRecipe";
@@ -28,13 +31,12 @@ import {
 // `ALLOWED_ROLES` (`customers/actions.ts:39`) وهو يضمّه.
 const PRICING_ROLES = ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"];
 
-// 🔴 TO-26 — قائمة منفصلة عمدًا، وهي PRICING_ROLES **قبل** إضافة TEC_LEAD حرفيًا.
-// السبب: `updateQuotationStatus` ليس تسعيرًا — إنه المسار الذي يكتب `approvedById`
-// عند الانتقال إلى APPROVED (السطر ~812)، أي **اعتماد فعلي** بلا مرور بـ
-// QUOTATION_APPROVAL_ROLES. لو ورث هذا الأكشن PRICING_ROLES بعد التوسعة لحصل
-// التيم ليدر على الاعتماد من الباب الخلفي — عكس القرار الصريح (الاعتماد للمدير وحده).
-// صفر تغيير على أي دور قائم: نفس الأربعة بنفس الترتيب.
-const QUOTATION_STATUS_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER"];
+// 🔴 TO-26 — قائمة منفصلة عمدًا عن PRICING_ROLES: `updateQuotationStatus` ليس
+// تسعيرًا، إنه المسار الذي يكتب `approvedById` عند الانتقال إلى APPROVED — أي
+// **اعتماد فعلي** بلا مرور بـQUOTATION_APPROVAL_ROLES.
+// TO-31 — انتقلت إلى `@/lib/quotation-roles` لتكون **مصدرًا واحدًا** يتشاركه
+// السيرفر والواجهة. ملف `"use server"` لا يُصدِّر إلا دوالّ async، فبقاؤها هنا
+// كان يفرض نسخة ثانية في الواجهة — وهو مصدر الانحراف الذي تصلحه TO-31.
 
 // BL-127 (يوسف، 2026-07-17): قرّاء التسعير كانوا بلا حارس — أرقام التكلفة التجارية
 // (PricingFactor.value) تصل أي مستدعٍ مُصادَق (AUTHZ-002). الحارس الآن = PRICING_ROLES نفسها.
@@ -477,52 +479,6 @@ const createQuotationSchema = z.object({
   quotationRequestId: z.string().optional(),
 });
 
-/**
- * TO-30 — القاعدة: **مسار المهندس = مسار تيم ليدره** (قرار المالك).
- *
- * 🔴 مصدر واحد يستعمله الإنشاء **والتعديل** معًا. نسختان من القاعدة = بوابة
- * نصفية — وهو ما وقع فعلًا: مُنع الإنشاء وبقي التعديل مفتوحًا.
- *
- * يُرجع مفتاح خطأ للرفض، أو `null` للسماح. لا يرمي أبدًا.
- * حالات السماح الصريح:
- *  · الدور ليس `TECHNICAL_OFFICE` — ADMIN/TEC_APPROVER بلا حدود مسار، وTEC_LEAD
- *    محدود سلفًا بمساره في نطاقه الخاص.
- *  · العرض بلا طلب تسعير ⇒ لا مسار يُقارَن به.
- *  · المهندس بلا تيم ليدر ⇒ لا مسار يمكن اشتقاقه (نفس قرار `buildWhere`: لا نشلّ
- *    من لم يُربط بعد — 3 من 4 مهندسين اليوم). يُسجَّل كي لا يكون التخطي صامتًا.
- */
-async function checkEngineerRoute(
-  role: string,
-  userId: string,
-  requestRoute: string | null | undefined,
-  context: string
-): Promise<string | null> {
-  if (role !== "TECHNICAL_OFFICE") return null;
-  if (!requestRoute) return null;
-
-  const engineer = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { teamLead: { select: { leadRoute: true } } },
-  });
-  const engineerRoute = engineer?.teamLead?.leadRoute ?? null;
-
-  if (!engineerRoute) {
-    console.warn(
-      `[pricing] ROUTE_GUARD_SKIPPED ${context} engineer=${userId} — المهندس بلا تيم ليدر`
-    );
-    return null;
-  }
-
-  if (engineerRoute !== requestRoute) {
-    console.warn(
-      `[pricing] ROUTE_MISMATCH_BLOCKED ${context} engineer=${userId} engineerRoute=${engineerRoute} requestRoute=${requestRoute}`
-    );
-    return "errors.requestOutsideEngineerRoute";
-  }
-
-  return null;
-}
-
 export async function createQuotation(
   input: unknown
 ): Promise<
@@ -879,7 +835,9 @@ export async function updateQuotationStatus(
 ): Promise<{ success: true } | { error: string }> {
   try {
     // TO-26: ليس PRICING_ROLES — انظر تعليق QUOTATION_STATUS_ROLES أعلاه.
-    const roleCheck = await requireRole(QUOTATION_STATUS_ROLES);
+    // TO-31: نشر المصفوفة — نفس نمط `requireRole([...TEC_ROLES])` القائم
+    // (`technical-office/actions.ts:21`)، فالقائمة `as const` للقراءة فقط.
+    const roleCheck = await requireRole([...QUOTATION_STATUS_ROLES]);
     if (!roleCheck.authorized) return { error: "errors.notAuthorized" };
 
     const parsed = updateQuotationStatusSchema.safeParse(input);
@@ -935,8 +893,32 @@ export async function requestFactorApproval(
 
     const { quotationId, factor } = parsed.data;
 
-    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: quotationId },
+      // TO-31: المنشئ + مسار الطلب — مدخلا حارسَي الملكية والمسار أدناه.
+      include: { quotationRequest: { select: { technicalRoute: true } } },
+    });
     if (!quotation) return { error: "errors.notFound" };
+
+    // 🔴 TO-31 — كان الدور وحده يكفي: أي مهندس يضع `needsApproval` على **أي**
+    // عرض في الشركة بمعرفة معرّفه. المهندس يطلب اعتماد فاكتور **لعرضه هو
+    // داخل مساره** فقط. الأدوار الأخرى (ADMIN/TEC_APPROVER/TEC_LEAD) بلا تغيير.
+    if (roleCheck.role === "TECHNICAL_OFFICE") {
+      if (quotation.createdById !== roleCheck.userId) {
+        console.warn(
+          `[pricing] FACTOR_APPROVAL_NOT_OWNER engineer=${roleCheck.userId} quotation=${quotationId}`
+        );
+        return { error: "errors.notAuthorized" };
+      }
+      // نفس دالة TO-30 — لا نسخة ثانية من قاعدة المسار.
+      const routeError = await checkEngineerRoute(
+        roleCheck.role,
+        roleCheck.userId,
+        quotation.quotationRequest?.technicalRoute,
+        "requestFactorApproval"
+      );
+      if (routeError) return { error: routeError };
+    }
 
     await prisma.quotation.update({
       where: { id: quotationId },

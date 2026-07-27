@@ -3,6 +3,8 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+// TO-31: نفس حارس المسار المستعمل في التسعير — تعريف واحد في المشروع كله.
+import { checkEngineerRoute } from "@/lib/services/engineer-route";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 
 // PHASE 2 (D-03): اعتماد عرض السعر ملك المدير التنفيذي (مدير المكتب الهندسي = TEC_APPROVER).
@@ -267,6 +269,8 @@ export async function resubmitQuotationAction(input: unknown) {
 
     const quotation = await prisma.quotation.findUnique({
       where: { id: parsed.data.id },
+      // TO-31: مسار الطلب — مدخل حارس المسار أدناه.
+      include: { quotationRequest: { select: { technicalRoute: true } } },
     });
     if (!quotation) return { error: "errors.notFound" as const };
 
@@ -279,9 +283,25 @@ export async function resubmitQuotationAction(input: unknown) {
     // تضييق على المورد: بوابة الدور وحدها لا تكفي — SALES_MANAGER داخل البوابة
     // لكنه لا يملك إعادة تقديم عرض أنشأه غيره.
     const isOwner = quotation.createdById === roleCheck.userId;
-    const isTechnicalOffice = roleCheck.role === "TECHNICAL_OFFICE";
     const isAdmin = roleCheck.role === "ADMIN";
-    if (!isOwner && !isTechnicalOffice && !isAdmin) {
+
+    // 🔴 TO-31 — كان `isTechnicalOffice` وحده يمرّر **أي** مهندس على **أي** عرض
+    // مُرجَع في الشركة. صار: عرضه هو، أو عرض **داخل مساره** (زميل في نفس الفريق —
+    // وهو الغرض المشروع من فتحه للمكتب الفني لا للمنشئ وحده).
+    // ⚠️ منطق الانتقال نفسه (RETURNED → PENDING_REVIEW) لم يُمس — الحارس فقط.
+    let isTechnicalOfficeAllowed = false;
+    if (roleCheck.role === "TECHNICAL_OFFICE") {
+      isTechnicalOfficeAllowed =
+        isOwner ||
+        (await checkEngineerRoute(
+          roleCheck.role,
+          roleCheck.userId,
+          quotation.quotationRequest?.technicalRoute,
+          "resubmitQuotation"
+        )) === null;
+    }
+
+    if (!isOwner && !isTechnicalOfficeAllowed && !isAdmin) {
       return { error: "errors.notAuthorized" as const };
     }
 

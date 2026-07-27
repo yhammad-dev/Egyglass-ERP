@@ -30,6 +30,8 @@ import { Label } from "@/components/ui/label";
 // TO-24: مستعملان في شريط بوابة الاعتماد المبدئي
 import { FieldError } from "@/components/ui/field-error";
 import { cn } from "@/lib/utils";
+// TO-31: نفس مصدر حارس السيرفر — لا نسخة ثانية من قائمة الأدوار في الواجهة.
+import { canChangeQuotationStatus } from "@/lib/quotation-roles";
 import {
   Dialog,
   DialogContent,
@@ -113,6 +115,13 @@ export function QuotationDetail({
   const [error, setError] = useState<string | null>(null);
 
   const canEdit = ["ADMIN", "SALES_MANAGER", "SALES_REP"].includes(currentRole);
+
+  // 🔴 TO-31 — أداة «تغيير الحالة» تتبع **نفس قائمة الحارس** لا `canEdit`.
+  // كانتا قائمتين مختلفتين، فانحرفتا في الاتجاهين معًا:
+  //  · `SALES_REP` كان **يرى** الأداة والأكشن يرفضه (زر يعد بما لا يقع).
+  //  · `TEC_APPROVER` كان **مسموحًا له** والأداة مخفية عنه.
+  // `canEdit` تبقى كما هي لزرّي العقد وطلب الخصم — وهما شغل مبيعات لا حالة.
+  const canChangeStatus = canChangeQuotationStatus(currentRole);
 
   // ── TO-24: بوابة الاعتماد المبدئي ─────────────────────────────────────────
   // كل ما هنا **إخفاء إضافي** لا بديل عن الحارس: الأفعال الثلاثة تُعيد فحص الدور
@@ -539,7 +548,7 @@ export function QuotationDetail({
         </Suspense>
       </div>
 
-      {canEdit && (
+      {canChangeStatus && (
         <div className="space-y-2 max-w-sm">
           <p className="text-sm font-medium">{t("quotations.detail.changeStatus")}</p>
           <div className="flex items-center gap-2">
