@@ -54,6 +54,9 @@ type RecipeLine = {
   unitCost: number;
   lineTotal: number;
   factorMode: string;
+  // TO-40: مصدر الكمية — عرض فقط.
+  qtyRule?: string;
+  qtyMultiplier?: number;
 };
 
 type CalculationResult = {
@@ -71,7 +74,17 @@ const KNOWN_CATEGORY_LABEL_KEY: Record<string, string> = {
   ELBOW: "quotations.shower.selectElbow",
 };
 
-function buildFormSchema(hasConfigTypes: boolean) {
+/**
+ * TO-40 — العرض التقريبي للوح الواجهة بالمتر، أساس **القيمة المقترحة** لعدد
+ * الألواح. مكان واحد موثّق: القيمة اقتراح لا قاعدة عمل — التقسيم الفعلي قرار
+ * تصميم يعدّله المهندس، ولذلك لا تعيش في `SystemSettings` ولا في القاعدة.
+ */
+const PANEL_WIDTH_M = 1.6;
+
+/** TO-40: أقل عدد ألواح مقبول — واجهة بلا لوح واحد لا معنى لها. */
+const MIN_PANEL_COUNT = 1;
+
+function buildFormSchema(hasConfigTypes: boolean, usesPanelCount: boolean) {
   return z.object({
     height: z.coerce.number().positive("errors.invalidInput"),
     width: z.coerce.number().positive("errors.invalidInput"),
@@ -79,6 +92,10 @@ function buildFormSchema(hasConfigTypes: boolean) {
       ? z.string().min(1, "errors.invalidInput")
       : z.string().optional(),
     pricingFactorId: z.string().min(1, "errors.invalidInput"),
+    // TO-40: إلزامي وموجب **فقط** للمنتجات التي تستعمل قواعد الألواح؛ غيرها لا يرسله.
+    panelCount: usesPanelCount
+      ? z.coerce.number().int().min(MIN_PANEL_COUNT, "errors.invalidInput")
+      : z.coerce.number().int().optional(),
   });
 }
 type FormData = z.infer<ReturnType<typeof buildFormSchema>>;
@@ -91,6 +108,7 @@ export function ProductRecipeForm({
   defaultPricingFactorId,
   onResult,
   initialPricing,
+  usesPanelCount = false,
 }: {
   productTypeCode: string;
   title: string;
@@ -104,6 +122,8 @@ export function ProductRecipeForm({
   // الحساب مرة واحدة عند التركيب، فيُفتح البند في المحرك بكل قيمه بدل حقول نصية.
   // ⚠️ إضافة بحتة: مسار البثّ (`onResult`) لم يُمس، والحساب يمرّ بنفس الدالة.
   initialPricing?: ItemPricingInput;
+  // TO-40: مُشتق من وصفة المنتج server-side — يحكم ظهور حقل عدد الألواح وإلزاميته.
+  usesPanelCount?: boolean;
 }) {
   const t = useTranslations();
   const [result, setResult] = useState<CalculationResult | null>(null);
@@ -115,14 +135,15 @@ export function ProductRecipeForm({
   const [selections, setSelections] = useState<Record<string, string>>({});
 
   const formSchema = useMemo(
-    () => buildFormSchema(configTypes.length > 0),
-    [configTypes.length]
+    () => buildFormSchema(configTypes.length > 0, usesPanelCount),
+    [configTypes.length, usesPanelCount]
   );
 
   const {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -134,6 +155,9 @@ export function ProductRecipeForm({
             height: initialPricing.height,
             width: initialPricing.width,
             ...(initialPricing.configTypeId ? { configTypeId: initialPricing.configTypeId } : {}),
+            // TO-40: عدد الألواح المحفوظ يُسترجع كما هو — لا يُعاد اقتراحه من العرض،
+            // وإلا دهس الاقتراحُ تقسيمًا اختاره المهندس بنفسه.
+            ...(initialPricing.panelCount ? { panelCount: initialPricing.panelCount } : {}),
           }
         : {}),
     },
@@ -193,6 +217,7 @@ export function ProductRecipeForm({
         width: initialPricing.width,
         configTypeId: initialPricing.configTypeId,
         pricingFactorId: initialPricing.pricingFactorId,
+        panelCount: initialPricing.panelCount,
       } as FormData,
       initialPricing.selections
     );
@@ -237,6 +262,11 @@ export function ProductRecipeForm({
       width: lastInput.width,
       ...(lastInput.configTypeId ? { configTypeId: lastInput.configTypeId } : {}),
       pricingFactorId: lastInput.pricingFactorId,
+      // TO-40: يُرسَل فقط للمنتجات التي تستعمل قواعد الألواح — بنفس نمط
+      // `configTypeId` أعلاه (نشر شرطي)، فلا يظهر مفتاح فارغ في حمولة غيرها.
+      ...(usesPanelCount && lastInput.panelCount
+        ? { panelCount: lastInput.panelCount }
+        : {}),
       // TO-21-FIX: الاختيار المُلغى يُخزَّن `""` (السطر الذي يقرأ `value ?? ""`).
       // إرساله كما هو يعني «اخترتُ لا شيء» فيُحسب اختيارًا لا يطابق أي خامة ⇒ تحذيرة
       // SELECTION_NOT_MATCHED كاذبة. حذف المفتاح **لا يغيّر أي سلوك** (قاعدة الاختيار
@@ -255,6 +285,29 @@ export function ProductRecipeForm({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, grandTotal, approvalInfo, pricing]);
+
+  /**
+   * TO-40 — شرح موجز لمصدر كمية أسطر الألواح. يقرأ `panelCount` من **آخر حساب
+   * ناجح** (`lastInput`) لا من الفورم الحيّ: الجدول يعرض نتيجة ذلك الحساب،
+   * فقراءة قيمة غُيّرت بعده كانت ستشرح رقمًا غير معروض.
+   */
+  function panelQtySource(line: RecipeLine): string | null {
+    const panels = lastInput?.panelCount ?? 0;
+    if (!panels) return null;
+    if (line.qtyRule === "BY_PANEL") {
+      return t("quotations.shower.qtyFromPanels", {
+        panels,
+        multiplier: line.qtyMultiplier ?? 0,
+      });
+    }
+    if (line.qtyRule === "BY_PANEL_JOINT") {
+      return t("quotations.shower.qtyFromJoints", {
+        joints: panels + 1,
+        multiplier: line.qtyMultiplier ?? 0,
+      });
+    }
+    return null;
+  }
 
   function categoryLabel(category: string) {
     const knownKey = KNOWN_CATEGORY_LABEL_KEY[category];
@@ -287,9 +340,44 @@ export function ProductRecipeForm({
             step="0.01"
             dir="ltr"
             {...register("width")}
+            // TO-40: العرض يقترح عدد الألواح — والمستخدم يبقى صاحب القرار.
+            // `onChange` مُمرَّر بعد النشر عمدًا كي **يُستدعى تسجيل RHF أولًا**
+            // فلا تُفقد قيمة العرض نفسها.
+            onChange={(e) => {
+              register("width").onChange(e);
+              if (!usesPanelCount) return;
+              const w = Number(e.target.value);
+              if (!Number.isFinite(w) || w <= 0) return;
+              setValue("panelCount", Math.max(MIN_PANEL_COUNT, Math.ceil(w / PANEL_WIDTH_M)), {
+                shouldValidate: false,
+              });
+            }}
           />
           <FieldError message={errors.width?.message && t(errors.width.message)} />
         </div>
+
+        {/* 🔴 TO-40 — عدد الألواح: مدخل بشري لا مُشتق. القيمة المقترحة تُملأ من
+            العرض عند تغييره، لكنها **قابلة للتعديل** لأن التقسيم الفعلي قرار
+            تصميم. يظهر الحقل فقط لمنتج وصفته تستعمل قواعد الألواح. */}
+        {usesPanelCount && (
+          <div className="space-y-1">
+            <Label htmlFor="panelCount">{t("quotations.shower.panelCount")}</Label>
+            <Input
+              id="panelCount"
+              type="number"
+              step="1"
+              min={MIN_PANEL_COUNT}
+              dir="ltr"
+              {...register("panelCount")}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("quotations.shower.panelCountHint", { panelWidth: PANEL_WIDTH_M })}
+            </p>
+            <FieldError
+              message={errors.panelCount?.message && t(errors.panelCount.message)}
+            />
+          </div>
+        )}
 
         {configTypes.length > 0 && (
           <div className="space-y-1">
@@ -422,6 +510,14 @@ export function ProductRecipeForm({
                   <TableCell>{line.nameAr}</TableCell>
                   <TableCell className="text-start">
                     <span dir="ltr">{line.qty.toFixed(2)}</span>
+                    {/* TO-40: مصدر الكمية لأسطر الألواح — «6 ألواح × 4» أو
+                        «7 خطوط × 2». يُعرض لهاتين القاعدتين فقط: بقية القواعد
+                        مفهومة من المقاس ولا تحتاج شرحًا يزحم الجدول. */}
+                    {panelQtySource(line) && (
+                      <span className="block text-xs text-muted-foreground">
+                        {panelQtySource(line)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-start">
                     <span dir="ltr">{line.unitCost.toFixed(2)}</span>

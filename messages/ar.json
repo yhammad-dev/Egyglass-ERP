@@ -377,7 +377,11 @@
       "selectHandle": "اختار المقبض",
       "selectElbow": "اختار الكوع",
       "silicon": "سيليكون",
-      "selectGroup": "اختار {category}"
+      "selectGroup": "اختار {category}",
+      "panelCount": "عدد الألواح",
+      "panelCountHint": "عدد الألواح يحدد كميات الزوايا والبلاطات والاسبايدر. القيمة المقترحة محسوبة من العرض ÷ {panelWidth} م — عدّلها حسب التقسيم الفعلي للواجهة.",
+      "qtyFromPanels": "{panels} ألواح × {multiplier}",
+      "qtyFromJoints": "{joints} خطوط × {multiplier}"
     },
     "new": {
       "quotationTitle": "عنوان عرض السعر",

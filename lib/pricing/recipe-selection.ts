@@ -22,6 +22,14 @@ export type ItemPricingInput = {
   width: number;
   configTypeId?: string;
   pricingFactorId: string;
+  /**
+   * TO-40: عدد ألواح الواجهة — مدخل قواعد `BY_PANEL` و`BY_PANEL_JOINT`.
+   * **اختياري**: المنتجات التي لا تستعمل القاعدتين لا ترسله، والبنود المحفوظة
+   * قبل TO-40 لا تحمله ⇒ يُقرأ كـ0 فتُرجع القاعدتان 0 (لا انهيار ولا تخمين).
+   * ⚠️ مضاف في **آخر** النوع عمدًا: بقية الحقول وترتيبها كما هي حرفيًا — هذه
+   * الحمولة هي ما كُسر في TO-21، ولا تُعاد هيكلتها لأي سبب.
+   */
+  panelCount?: number;
   /** فئة الوصفة (`ProductRecipe.notes`) → `materialId` المختار. نفس شكل حالة الواجهة. */
   selections: Record<string, string>;
 };

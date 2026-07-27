@@ -865,6 +865,11 @@ enum QtyRule {
   BY_LENGTH
   BY_CONFIG
   MANUAL
+  /// TO-40: الكمية = defaultQty × عدد الألواح. (زوايا ×4 · بلتة أرضي ×2 · وسط ×1 · اسبايدر زوجي ×1)
+  BY_PANEL
+  /// TO-40: الكمية = defaultQty × (عدد الألواح + 1) — الخطوط الرأسية بين الألواح
+  /// وعلى طرفيها، وعددها دائمًا أكثر من الألواح بواحد. (اسبايدر ثنائي ×2 · زعانف ×1)
+  BY_PANEL_JOINT
 }
 
 model QuotationApproval {
