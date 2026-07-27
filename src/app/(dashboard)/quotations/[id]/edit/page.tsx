@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getPricingFactors, getProductTypes } from "../../../../../../lib/pricing/actions";
 import { QuotationBuilder } from "../../new/_components/quotation-builder";
+import type { ItemPricingInput } from "../../new/_components/product-recipe-form";
 
 export default async function EditQuotationPage(props: {
   params: Promise<{ id: string }>;
@@ -49,6 +50,10 @@ export default async function EditQuotationPage(props: {
         description: item.description,
         quantity: item.quantity.toNumber(),
         unitPrice: item.unitPrice.toNumber(),
+        // TO-33: `Json?` يصل كـJsonValue — الواجهة تتعامل معه كمدخلات تسعير أو null.
+        // ⚠️ التحقق الصارم يبقى server-side (`parseItemPricing`) عند الحفظ: هذا
+        // الحقل بيانات محفوظة لا عقد موثوق، والمحرك يعيد الحساب من القاعدة دائمًا.
+        pricingInput: (item.pricingInput as ItemPricingInput | null) ?? null,
       }))}
       customers={customers}
       productTypes={productTypes}

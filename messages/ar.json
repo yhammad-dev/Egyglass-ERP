@@ -394,7 +394,8 @@
       "errorNoSections": "أضف منتجًا واحدًا على الأقل قبل الحفظ",
       "errorSectionNoPrice": "المنتج {index} بلا سعر محسوب — اضغط «احسب» ثم اختر الخامات",
       "collapseProduct": "طيّ التفاصيل",
-      "expandProduct": "تعديل"
+      "expandProduct": "تعديل",
+      "legacyItemsTitle": "بنود سابقة — بلا بيانات تسعير (تُعدَّل يدويًا ولا تُحتسب تكلفتها)"
     },
     "detail": {
       "product": "المنتج",

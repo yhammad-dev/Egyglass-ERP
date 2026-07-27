@@ -395,7 +395,8 @@
       "errorNoSections": "Add at least one product before saving",
       "errorSectionNoPrice": "Product {index} has no calculated price — press Calculate, then choose materials",
       "collapseProduct": "Collapse details",
-      "expandProduct": "Edit"
+      "expandProduct": "Edit",
+      "legacyItemsTitle": "Legacy items — no pricing data (edited manually; their cost is not computed)"
     },
     "detail": {
       "product": "Product",

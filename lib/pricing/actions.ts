@@ -471,6 +471,52 @@ async function computeCatalogCostSnapshot(
   return cost;
 }
 
+/**
+ * TO-33 — يحسب لكل بند: صورة التكلفة + مدخلات التسعير المُتحقَّقة التي تُحفظ معه.
+ *
+ * 🔴 مصدر واحد يستعمله الإنشاء **والتعديل**. كان المنطق داخل `createQuotation`
+ * وحدها، فمسار التعديل يعيد بناء البنود من أرقام يدوية بلا تكلفة ولا مدخلات
+ * ⇒ `costSnapshot` يُمسح إلى null عند كل تعديل (BL-151). نسخة ثانية منه كانت
+ * ستُبقي المسارين قابلين للانحراف — وهو نمط تكرّر في هذه السلسلة أكثر من مرة.
+ *
+ * السلوك كما هو حرفيًا (TO-21-FIX): فشل مدخلات بند **لا يُسقط العرض** — يُسجَّل
+ * ويُكمَل بـnull. البند بلا مدخلات (يدوي) يبقى بلا تكلفة ولا مدخلات محفوظة.
+ */
+async function resolveItemPricing(
+  items: { pricing?: unknown }[]
+): Promise<{
+  costSnapshots: (Prisma.Decimal | null)[];
+  pricingInputs: (ItemPricingInput | null)[];
+}> {
+  const costSnapshots: (Prisma.Decimal | null)[] = [];
+  const pricingInputs: (ItemPricingInput | null)[] = [];
+
+  for (const [i, item] of items.entries()) {
+    const itemPricing = parseItemPricing(item.pricing, i);
+    // TO-33: يُحفظ **المُتحقَّق منه** لا الخام — لا نكتب في القاعدة شكلًا لم يُفحص.
+    pricingInputs.push(itemPricing);
+
+    if (!itemPricing) {
+      if (item.pricing === undefined || item.pricing === null) {
+        // TO-21: بند يدوي مشروع، أو إسقاط في طريق الواجهة. التمييز يبدأ من هذا السطر.
+        // (الشكل غير الصالح سُجِّل بالفعل داخل parseItemPricing بسببه التفصيلي.)
+        console.warn(`[pricing] COST_SNAPSHOT_NULL item#${i} NO_PRICING_INPUT — البند وصل بلا مدخلات تسعير`);
+      }
+      costSnapshots.push(null);
+      continue;
+    }
+
+    try {
+      costSnapshots.push(await computeCatalogCostSnapshot(itemPricing, i));
+    } catch (error) {
+      console.error(`[pricing] COST_SNAPSHOT_ERROR item#${i}`, error);
+      costSnapshots.push(null);
+    }
+  }
+
+  return { costSnapshots, pricingInputs };
+}
+
 const createQuotationSchema = z.object({
   customerId: z.string().min(1, "errors.invalidInput"),
   title: z.string().min(1, "errors.invalidInput"),
@@ -583,25 +629,7 @@ export async function createQuotation(
     // مستند تجاري، وضياع رقم إحصائي لا يبرر منع حفظه.
     // TO-21-FIX: الفحص الصارم لـ`pricing` يقع **هنا** لا في مخطط الطلب — بعد أن صار
     // العرض مضمون الحفظ. أي فشل يُسجَّل ويتحوّل إلى null، ولا يُرجع خطأ للمستخدم.
-    const costSnapshots: (Prisma.Decimal | null)[] = [];
-    for (const [i, item] of items.entries()) {
-      const itemPricing = parseItemPricing(item.pricing, i);
-      if (!itemPricing) {
-        if (item.pricing === undefined || item.pricing === null) {
-          // TO-21: بند يدوي مشروع، أو إسقاط في طريق الواجهة. التمييز يبدأ من هذا السطر.
-          // (الشكل غير الصالح سُجِّل بالفعل داخل parseItemPricing بسببه التفصيلي.)
-          console.warn(`[pricing] COST_SNAPSHOT_NULL item#${i} NO_PRICING_INPUT — البند وصل بلا مدخلات تسعير`);
-        }
-        costSnapshots.push(null);
-        continue;
-      }
-      try {
-        costSnapshots.push(await computeCatalogCostSnapshot(itemPricing, i));
-      } catch (error) {
-        console.error(`[pricing] COST_SNAPSHOT_ERROR item#${i}`, error);
-        costSnapshots.push(null);
-      }
-    }
+    const { costSnapshots, pricingInputs } = await resolveItemPricing(items);
     const snapshotCount = costSnapshots.filter((c) => c !== null).length;
 
     const quotation = await prisma.quotation.create({
@@ -631,6 +659,9 @@ export async function createQuotation(
             lineTotal: lineTotals[i],
             // TO-05: null = «غير معروفة» لا صفر (انظر التعليق على العمود في schema).
             costSnapshot: costSnapshots[i],
+            // TO-33: المدخلات تُحفظ مع البند ليصير فتحه في المحرك لاحقًا ممكنًا.
+            // `?? Prisma.DbNull` — البند اليدوي يُكتب NULL في القاعدة لا JSON `null`.
+            pricingInput: pricingInputs[i] ?? Prisma.DbNull,
           })),
         },
       },
@@ -787,6 +818,14 @@ export async function updateQuotation(
     const taxAmount = netAfterDiscount.mul(vatPct).div(100);
     const total = netAfterDiscount.add(taxAmount);
 
+    // 🔴 TO-33 — إصلاح BL-151. كان التعديل يعيد بناء البنود من `{وصف · كمية · سعر}`
+    // وحدها، فتُمسح `costSnapshot` إلى null عند **كل** حفظ ⇒ العرض المعدَّل يخرج من
+    // حساب الهامش. الآن نفس دالة الإنشاء (`resolveItemPricing`) تعمل هنا حرفيًا:
+    // بند وصل بمدخلات ⇒ تكلفة مُعاد حسابها من القاعدة + مدخلاته محفوظة؛ بند يدوي
+    // ⇒ null صادقة كما كان. **لا تلفيق ولا ترحيل — التكلفة تُحسب أو تبقى مجهولة.**
+    // ⚠️ صفر تغيير على أي مبلغ: كل الإجماليات أعلاه مشتقّة قبل هذا السطر ولا تقرأ منه.
+    const { costSnapshots, pricingInputs } = await resolveItemPricing(items);
+
     const quotation = await prisma.$transaction(async (tx) => {
       await tx.quotationItem.deleteMany({ where: { quotationId: id } });
       return tx.quotation.update({
@@ -805,6 +844,9 @@ export async function updateQuotation(
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               lineTotal: lineTotals[i],
+              // TO-33: نفس دلالة الإنشاء بالضبط — null = «غير معروفة» لا صفر.
+              costSnapshot: costSnapshots[i],
+              pricingInput: pricingInputs[i] ?? Prisma.DbNull,
             })),
           },
         },

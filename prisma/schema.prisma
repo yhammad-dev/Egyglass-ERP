@@ -210,6 +210,7 @@ model QuotationItem {
   /// TO-05 — تكلفة الكتالوج للوحدة وقت إنشاء العرض (بلا معامل ربح).
   /// nullable عمدًا: null = التكلفة غير معروفة، لا تساوي صفر.
   costSnapshot Decimal? @db.Decimal(12, 2)
+  pricingInput Json?
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   @@index([quotationId])
