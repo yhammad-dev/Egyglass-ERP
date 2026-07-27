@@ -23,8 +23,12 @@ export default async function QuotationsPage() {
 
   // SF-01: قائمة عملاء المندوب لِمُنتقي التدفّق (عميل→طلب). تُجلب للمندوب فقط —
   // getCustomers مُنطاق ذاتيًا (ownerId/coveredById) بلا أي تغيير RBAC.
+  // TO-29: أُضيف SALES_MANAGER لأنه صار يرى مُنتقي الطلب بدل زر الباني — ودياله
+  // بلا قائمة عملاء = حوار فارغ لا يفعل شيئًا. **صفر تغيير RBAC:** `getCustomers`
+  // مُنطاق ذاتيًا ولا يضيّق إلا لـSALES_REP (customers.ts:46)، فالمدير يحصل على
+  // نفس ما يراه في /customers اليوم بالضبط.
   const customers =
-    roleCheck.role === "SALES_REP"
+    ["SALES_REP", "SALES_MANAGER"].includes(roleCheck.role)
       ? (await getCustomers(roleCheck.userId, roleCheck.role)).map((c) => ({
           id: c.id,
           name: c.name,

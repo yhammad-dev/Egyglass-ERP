@@ -182,8 +182,10 @@ export function QuotationsClient({
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t("quotations.title")}</h1>
         {/* SF-01: المندوب يطلب عرض سعر (تدفّق عميل→طلب)، لا يُسعّر مباشرة (W-01).
-            ADMIN/SALES_MANAGER يحتفظان بمسار الباني /quotations/new كما كان. */}
-        {currentRole === "SALES_REP" ? (
+            TO-29: و**مدير المبيعات مثله** — خرج من PRICING_ROLES، فلو بقي على زر
+            «/quotations/new» لرأى زرًا يقوده لشاشة ترفضه (نفس عيب TO-19 و TO-26).
+            مساره الصحيح هو نفس مسار المندوب: طلب تسعير. */}
+        {["SALES_REP", "SALES_MANAGER"].includes(currentRole) ? (
           <NewQuotationRequestDialog customers={customers} />
         ) : (
           !isViewer && (

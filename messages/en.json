@@ -908,7 +908,8 @@
     "leadTransitionNotAllowed": "This action is not allowed in the quotation's current state",
     "quotationNotGated": "This quotation is not linked to a pricing request — the lead approval gate does not apply",
     "noLeadRecipient": "Submitted, but no team lead exists for this route — nobody was notified",
-    "noCustomerOwner": "Approved, but the customer has no sales owner — nobody was notified"
+    "noCustomerOwner": "Approved, but the customer has no sales owner — nobody was notified",
+    "requestOutsideEngineerRoute": "This request is outside your route — your route follows your team lead, and you cannot price requests from another route"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",

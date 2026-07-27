@@ -79,7 +79,38 @@ async function buildWhere(userId: string, role: string, filters?: TecFilters) {
 
   if (role === "TECHNICAL_OFFICE") {
     // دفعة هـ: المهندس يرى طلباته + الطلبات غير المُسنَدة (كي يلتقطها/يوزّعها المدير)
-    and.push({ OR: [{ engineerId: userId }, { engineerId: null }] });
+    //
+    // 🔴 TO-30 — الشق الثاني كان **بلا فلتر مسار**، فكل مهندس يرى (ويسعّر) كل
+    // الطلبات غير المُسنَدة من كل المسارات. أثره المُثبَت ميدانيًا: مهندس تابع
+    // لتيم ليدر سوشيال سعّر طلب مشروعات (Q-2026-00034)، فذهب الإشعار لتيم ليدره
+    // الذي لا يملك اعتماده (`canDecide` يطابق المسار) ⇒ عرض عالق بلا معتمِد.
+    // القاعدة النافذة (قرار المالك): **مسار المهندس = مسار تيم ليدره**.
+    const engineer = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { teamLead: { select: { leadRoute: true } } },
+    });
+    const engineerRoute = engineer?.teamLead?.leadRoute ?? null;
+
+    if (engineerRoute) {
+      and.push({
+        OR: [
+          // ⚠️ المُسنَد إليه يبقى مرئيًا **بلا فلتر مسار** عمدًا: لو أُسند له طلب
+          // من مسار آخر (بقرار مدير مثلًا) فإخفاؤه يُضيّع شغلًا قائمًا من أمامه
+          // بلا أي إشعار. الفلترة تخصّ الالتقاط الجديد لا العمل الجاري.
+          { engineerId: userId },
+          { engineerId: null, technicalRoute: engineerRoute },
+        ],
+      });
+    } else {
+      // مهندس بلا تيم ليدر ⇒ **لا مسار يمكن اشتقاقه**، فلا أساس للفلترة.
+      // السلوك يبقى كما كان (يرى كل غير المُسنَد) — لأن البديل (لا يرى شيئًا)
+      // يشلّ 3 من 4 مهندسين في القاعدة اليوم. الثغرة تبقى مفتوحة لهم **حتى
+      // يُربطوا بتيم ليدر من /users**، وتُسجَّل هنا كي تكون مرئية لا صامتة.
+      console.warn(
+        `[tec] ENGINEER_WITHOUT_TEAM_LEAD userId=${userId} — نطاق المسار غير مُطبَّق (يرى كل الطلبات غير المُسنَدة)`
+      );
+      and.push({ OR: [{ engineerId: userId }, { engineerId: null }] });
+    }
   }
 
   if (role === "TEC_LEAD") {

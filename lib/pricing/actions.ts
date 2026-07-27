@@ -21,7 +21,12 @@ import {
 // دفعة هـ (W-01): التسعير للمكتب الفني حصرًا. المندوب يطلب لا يسعّر.
 // SALES_MANAGER يبقى (إشراف/حالات مباشرة) — SALES_REP سُحب.
 // TO-26: التيم ليدر يسعّر بنفسه (قرار المالك) ⇒ TEC_LEAD داخل قائمة التسعير.
-const PRICING_ROLES = ["ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"];
+// TO-29: `SALES_MANAGER` **أُزيل** — «مدير المبيعات يرسل طلب تسعير فقط ولا يعمل
+// عروض أسعار» (قرار المالك). كان بقية من قبل W-01 الذي سحب `SALES_REP` ونسيه،
+// والتناقض كان ظاهرًا: المندوب خارج القائمة ومديره داخلها.
+// مساره المشروع سليم ومفتوح: `createQuotationRequestAction` محروس بـ
+// `ALLOWED_ROLES` (`customers/actions.ts:39`) وهو يضمّه.
+const PRICING_ROLES = ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"];
 
 // 🔴 TO-26 — قائمة منفصلة عمدًا، وهي PRICING_ROLES **قبل** إضافة TEC_LEAD حرفيًا.
 // السبب: `updateQuotationStatus` ليس تسعيرًا — إنه المسار الذي يكتب `approvedById`
@@ -472,6 +477,52 @@ const createQuotationSchema = z.object({
   quotationRequestId: z.string().optional(),
 });
 
+/**
+ * TO-30 — القاعدة: **مسار المهندس = مسار تيم ليدره** (قرار المالك).
+ *
+ * 🔴 مصدر واحد يستعمله الإنشاء **والتعديل** معًا. نسختان من القاعدة = بوابة
+ * نصفية — وهو ما وقع فعلًا: مُنع الإنشاء وبقي التعديل مفتوحًا.
+ *
+ * يُرجع مفتاح خطأ للرفض، أو `null` للسماح. لا يرمي أبدًا.
+ * حالات السماح الصريح:
+ *  · الدور ليس `TECHNICAL_OFFICE` — ADMIN/TEC_APPROVER بلا حدود مسار، وTEC_LEAD
+ *    محدود سلفًا بمساره في نطاقه الخاص.
+ *  · العرض بلا طلب تسعير ⇒ لا مسار يُقارَن به.
+ *  · المهندس بلا تيم ليدر ⇒ لا مسار يمكن اشتقاقه (نفس قرار `buildWhere`: لا نشلّ
+ *    من لم يُربط بعد — 3 من 4 مهندسين اليوم). يُسجَّل كي لا يكون التخطي صامتًا.
+ */
+async function checkEngineerRoute(
+  role: string,
+  userId: string,
+  requestRoute: string | null | undefined,
+  context: string
+): Promise<string | null> {
+  if (role !== "TECHNICAL_OFFICE") return null;
+  if (!requestRoute) return null;
+
+  const engineer = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { teamLead: { select: { leadRoute: true } } },
+  });
+  const engineerRoute = engineer?.teamLead?.leadRoute ?? null;
+
+  if (!engineerRoute) {
+    console.warn(
+      `[pricing] ROUTE_GUARD_SKIPPED ${context} engineer=${userId} — المهندس بلا تيم ليدر`
+    );
+    return null;
+  }
+
+  if (engineerRoute !== requestRoute) {
+    console.warn(
+      `[pricing] ROUTE_MISMATCH_BLOCKED ${context} engineer=${userId} engineerRoute=${engineerRoute} requestRoute=${requestRoute}`
+    );
+    return "errors.requestOutsideEngineerRoute";
+  }
+
+  return null;
+}
+
 export async function createQuotation(
   input: unknown
 ): Promise<
@@ -508,9 +559,20 @@ export async function createQuotation(
     if (quotationRequestId) {
       const req = await prisma.quotationRequest.findUnique({
         where: { id: quotationRequestId },
-        select: { id: true, quotationId: true },
+        select: { id: true, quotationId: true, technicalRoute: true },
       });
       if (!req) return { error: "errors.notFound" };
+
+      // 🔴 TO-30 — الإنفاذ النافذ. إخفاء الطلب من القائمة (`buildWhere`) لا يكفي:
+      // من يعرف الرابط `/quotations/new?requestId=…` يصل الشاشة مباشرة.
+      const routeError = await checkEngineerRoute(
+        roleCheck.role,
+        roleCheck.userId,
+        req.technicalRoute,
+        "createQuotation"
+      );
+      if (routeError) return { error: routeError };
+
       previousQuotationId = req.quotationId; // null للأولي، العرض السابق لإعادة التسعير
     }
 
@@ -721,9 +783,25 @@ export async function updateQuotation(
 
     const existing = await prisma.quotation.findUnique({
       where: { id },
-      include: { contract: { select: { id: true } } },
+      include: {
+        contract: { select: { id: true } },
+        // TO-30: مسار العرض مشتقّ من طلبه — لازم لحارس المسار أدناه.
+        quotationRequest: { select: { technicalRoute: true } },
+      },
     });
     if (!existing) return { error: "errors.notFound" };
+
+    // 🔴 TO-30 — نفس حارس الإنشاء حرفيًا (`checkEngineerRoute`). منع الإنشاء دون
+    // منع التعديل = نصف بوابة: المهندس يفتح `/quotations/<id>/edit` لعرض خارج
+    // مساره ويعيد كتابة بنوده وأسعاره بالكامل. قبل حارس العقد أم بعده لا يهم —
+    // كلاهما يسبق أي كتابة.
+    const routeError = await checkEngineerRoute(
+      roleCheck.role,
+      roleCheck.userId,
+      existing.quotationRequest?.technicalRoute,
+      "updateQuotation"
+    );
+    if (routeError) return { error: routeError };
 
     // Immutability guard (Amr's rule): a signed contract is a source document —
     // its quotation can never be edited. Any change goes through a contract
