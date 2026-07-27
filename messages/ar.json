@@ -393,7 +393,7 @@
       "quantity": "الكمية",
       "errorNoSections": "أضف منتجًا واحدًا على الأقل قبل الحفظ",
       "errorSectionNoPrice": "المنتج {index} بلا سعر محسوب — اضغط «احسب» ثم اختر الخامات",
-      "collapseProduct": "طيّ",
+      "collapseProduct": "طيّ التفاصيل",
       "expandProduct": "تعديل"
     },
     "detail": {

@@ -432,12 +432,22 @@ export function QuotationBuilder({
                     اختيارات الخامات) وعاد فارغًا عند الفتح، بينما الباني ما زال
                     يحمل سعره ⇒ انحراف صامت وفقدان مدخلات. */}
                 <div className={isFolded ? "hidden" : undefined}>
+                  {/* TO-27-FIX: كان زرًا `ghost` صغيرًا خارج البطاقة وبمحاذاة اليسار
+                      في RTL ⇒ يُصيَّر فعلًا ولا يُرى (بلغة الحقل: «الزر لا يظهر»).
+                      صار شريط رأس مُحدَّد بحدّ فوق البطاقة مباشرة، يحمل الملخص وزرًا
+                      بحدّ ظاهر — بنفس بروز «إزالة». **شرط الظهور لم يتغيّر إطلاقًا.** */}
                   {isCompleted(s) && !isFolded && (
-                    <div className="mb-2 flex justify-end">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate text-muted-foreground">
+                        {productTypes.find((p) => p.code === s.pricing?.productTypeCode)?.nameAr ??
+                          t("quotations.detail.product")}
+                        {" · "}
+                        <span dir="ltr">{s.subtotal.toFixed(2)}</span>
+                      </span>
                       <Button
                         type="button"
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
                         onClick={() => setCollapsed((p) => ({ ...p, [s.key]: true }))}
                       >
                         {t("quotations.new.collapseProduct")}
