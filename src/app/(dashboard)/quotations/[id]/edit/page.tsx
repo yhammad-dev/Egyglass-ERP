@@ -15,8 +15,11 @@ export default async function EditQuotationPage(props: {
   // updateQuotation (المستدعى من QuotationBuilder) محروس بـPRICING_ROLES التي تشملهما.
   // TO-26: تعديل العرض جزء من التسعير. ⚠️ حارس L-08 (عرض له عقد) يبقى نافذًا
   // داخل `updateQuotation` ولم يُمس — الفتح هنا لا يمسّ حصانة العقد الموقّع.
+  // TO-29: `SALES_MANAGER` أُزيل — تعديل العرض تسعير. ⚠️ أثر معلوم على بيانات قائمة:
+  // يفقد تعديل Q-2026-00022 (العرض الوحيد الذي أنشأه). يحتفظ بتغيير الحالة
+  // (QUOTATION_STATUS_ROLES) وطلب الخصم (DISCOUNT_ROLES) والعرض والطباعة.
   const roleCheck = await requireRole([
-    "ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
+    "ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 

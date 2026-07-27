@@ -13,8 +13,9 @@ export default async function NewQuotationPage(props: {
   // REVIEW أُزيل — رقابة وجودة لا تسعير، وكل طفرات التسعير تستبعده أصلًا (حارس يتيم).
   // المصفوفة صريحة لأن PRICING_ROLES يستحيل تصديره: الملف "use server" ⇒ لا يُصدَّر إلا async.
   // TO-26: TEC_LEAD يسعّر بنفسه — الزر كان ظاهرًا له والأكشن يرفضه (وعد بما لا يقع).
+  // TO-29: `SALES_MANAGER` أُزيل — مطابقة لـPRICING_ROLES، وإلا وصل الشاشة ثم رفضه الأكشن.
   const roleCheck = await requireRole([
-    "ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
+    "ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
   ]);
   if (!roleCheck.authorized) redirect("/customers");
 

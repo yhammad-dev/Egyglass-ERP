@@ -30,8 +30,9 @@ export default async function NewProductQuotationPage(props: {
   // و TECHNICAL_OFFICE/TEC_APPROVER أُضيفا — كانا محجوبين عن شاشة التسعير رغم أن
   // calculateProductPricing (المستدعى منها) محروس بـPRICING_ROLES التي تشملهما.
   // TO-26: نفس قائمة /quotations/new — شاشة الوصفة جزء من مسار التسعير نفسه.
+  // TO-29: `SALES_MANAGER` أُزيل — مطابقة لـPRICING_ROLES.
   const roleCheck = await requireRole([
-    "ADMIN", "SALES_MANAGER", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
+    "ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD",
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
