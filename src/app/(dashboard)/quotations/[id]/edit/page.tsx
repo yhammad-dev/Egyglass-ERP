@@ -40,12 +40,20 @@ export default async function EditQuotationPage(props: {
 
   if (!quotation) notFound();
 
+  // 🔴 TO-36 — كان `initialTitle={quotation.number}`، وأسماء البنود تُشتق من
+  // العنوان ⇒ كل حفظ يستبدل اسم المنتج برقم العرض («Q-2026-00039 - 1»)، فيصل
+  // العميل مستند بلا معنى. لا عمود `title` على `Quotation` — العنوان عابر يُستعمل
+  // وقت الإنشاء فقط — فالمصدر الصادق الوحيد هو اسم أول بند بعد نزع اللاحقة
+  // « - رقم». يخدم الأقسام **الجديدة** وحدها؛ القديمة تصون أسماءها المحفوظة.
+  const derivedTitle =
+    quotation.items[0]?.description.replace(/\s*-\s*\d+\s*$/, "").trim() || quotation.number;
+
   return (
     <QuotationBuilder
       mode="edit"
       quotationId={quotation.id}
       initialCustomerId={quotation.customerId}
-      initialTitle={quotation.number}
+      initialTitle={derivedTitle}
       initialItems={quotation.items.map((item) => ({
         description: item.description,
         quantity: item.quantity.toNumber(),
