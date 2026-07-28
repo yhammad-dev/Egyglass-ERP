@@ -31,7 +31,14 @@ type CustomerOption = { id: string; name: string; phone: string };
 // `pricing` لم تُمس. يميّز «قسم فارغ لم يُختر نوعه» (يُتجاهَل صامتًا عند الحفظ)
 // من «قسم اختير نوعه ولم يُحسب سعره» (خطأ مسمّى — رسالة TO-21-FIX كما هي).
 // إلزامي لا اختياري: نسيانه عند تحديث القسم = خطأ بناء لا إسقاط صامت.
-type Section = { key: number; hasProductType: boolean } & RecipeResult;
+// TO-36: `description` = اسم البند **الأصلي** كما حُفظ. حقل واجهة محلي خارج
+// `RecipeResult`، إلزامي لا اختياري كي يبقى حارس TO-21 عاضًّا عند نقل القسم.
+// `undefined` = قسم جديد لم يُحفظ بعد ⇒ يُشتق اسمه من العنوان كما في الإنشاء.
+type Section = {
+  key: number;
+  hasProductType: boolean;
+  description: string | undefined;
+} & RecipeResult;
 
 /** TO-27: القسم المكتمل = له سعر محسوب. هو وحده يُحفظ ويظهر في الملخص. */
 function isCompleted(s: Section): boolean {
@@ -92,12 +99,23 @@ export function QuotationBuilder({
       ? engineItems.map((it, i) => ({
           key: i,
           hasProductType: true,
+          // TO-36: الوصف الأصلي يُحمل كما هو — لا يُعاد اشتقاقه من العنوان.
+          description: it.description,
           // مبدئي حتى يُنهي المحرك ترطيبه ويبثّ القيمة المُعاد حسابها.
           subtotal: it.unitPrice,
           approvalInfo: undefined,
           pricing: it.pricingInput!,
         }))
-      : [{ key: 0, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined }]
+      : [
+          {
+            key: 0,
+            hasProductType: false,
+            description: undefined,
+            subtotal: 0,
+            approvalInfo: undefined,
+            pricing: undefined,
+          },
+        ]
   );
   const [nextKey, setNextKey] = useState(isEdit ? engineItems.length : 1);
 
@@ -132,7 +150,15 @@ export function QuotationBuilder({
   function addSection() {
     setSections((prev) => [
       ...prev,
-      { key: nextKey, hasProductType: false, subtotal: 0, approvalInfo: undefined, pricing: undefined },
+      {
+        key: nextKey,
+        hasProductType: false,
+        // قسم جديد بلا اسم محفوظ ⇒ يُشتق من العنوان عند الحفظ (سلوك الإنشاء).
+        description: undefined,
+        subtotal: 0,
+        approvalInfo: undefined,
+        pricing: undefined,
+      },
     ]);
     setNextKey((k) => k + 1);
   }
@@ -147,7 +173,9 @@ export function QuotationBuilder({
   function updateSubtotal(key: number, result: RecipeResult) {
     setSections((prev) =>
       prev.map((s) =>
-        s.key === key ? { key: s.key, hasProductType: s.hasProductType, ...result } : s
+        s.key === key
+          ? { key: s.key, hasProductType: s.hasProductType, description: s.description, ...result }
+          : s
       )
     );
   }
@@ -213,7 +241,11 @@ export function QuotationBuilder({
         // ثم البنود اليدوية بلا `pricing` (⇒ تكلفتها تبقى null بصدق).
         items: [
           ...completedForEdit.map((s, i) => ({
-            description: `${title} - ${i + 1}`,
+            // 🔴 TO-36 — اسم البند المحفوظ يُصان. كان يُعاد اشتقاقه من العنوان،
+            // والعنوان في شاشة التعديل كان يُملأ برقم العرض ⇒ كل حفظ يحوّل
+            // «شاور زجاج» إلى «Q-2026-00039 - 1» ويصل العميل مستند بلا معنى.
+            // القسم الجديد وحده (بلا اسم محفوظ) يُشتق اسمه كما في الإنشاء.
+            description: s.description ?? `${title} - ${i + 1}`,
             quantity: 1,
             unitPrice: s.subtotal,
             // ⚠️ نفس سطر مسار الإنشاء حرفيًا — سلسلة `pricing` بلا أي تفرّع.

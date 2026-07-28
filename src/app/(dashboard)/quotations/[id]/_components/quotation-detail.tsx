@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, Fragment } from "react";
 import { DiscountApprovalPanel } from "./discount-approval-panel";
 const DocumentUpload = lazy(() =>
   import("@/components/document-upload").then((m) => ({ default: m.DocumentUpload }))
@@ -97,7 +97,23 @@ type QuotationDetailData = {
   leadNote: string | null;
   isSelfLeadApproved: boolean;
   isCreator: boolean;
-  items: { id: string; description: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: {
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    // TO-34: تفاصيل التسعير جاهزة للعرض (الأسماء مُحلّة server-side).
+    // null = بند يدوي أو سابق لـTO-33. **لا تكلفة ولا هامش هنا إطلاقًا.**
+    details: {
+      productTypeName: string;
+      height: number;
+      width: number;
+      factorLabel: string | null;
+      panelCount: number | null;
+      materials: string[];
+    } | null;
+  }[];
 };
 
 export function QuotationDetail({
@@ -127,6 +143,9 @@ export function QuotationDetail({
   // تصدّهما صفحته بـ307 (خرجا من التسعير في W-01/TO-29).
   // `canEdit` تبقى كما هي لزرّي العقد وطلب الخصم — شغل مبيعات لا تسعير.
   const canEditPricing = canEditQuotation(currentRole);
+
+  // TO-34: طيّ/توسعة تفاصيل البند — حالة عرض محلية، مطوية افتراضيًا.
+  const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({});
 
   // TO-39-B: يُشتق مرة واحدة ويُستعمل في التسمية وفي شرط السطرين — لا تكرار.
   const displayTotals = quotationDisplayTotals({
@@ -536,19 +555,82 @@ export function QuotationDetail({
           <TableBody>
             {quotation.items.length ? (
               quotation.items.map((item, i) => (
-                <TableRow key={item.id}>
-                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                  <TableCell className="break-words">{item.description}</TableCell>
-                  <TableCell className="text-end">
-                    <span dir="ltr">{item.quantity}</span>
-                  </TableCell>
-                  <TableCell className="text-end">
-                    <span dir="ltr">{itemFmt.format(item.unitPrice)}</span>
-                  </TableCell>
-                  <TableCell className="text-end font-medium">
-                    <span dir="ltr">{itemFmt.format(item.lineTotal)}</span>
-                  </TableCell>
-                </TableRow>
+                <Fragment key={item.id}>
+                  <TableRow>
+                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                    <TableCell className="break-words">
+                      {item.description}
+                      {/* 🔴 TO-34 — الشاشة كانت تقول «غف - 1 · 1» ولا تقول ما بيع،
+                          فيضطر المستخدم لفتح «تعديل» ليرى المقاس والخامات.
+                          البيانات محفوظة منذ TO-33 — تُعرض هنا **للقراءة فقط**،
+                          مطوية افتراضيًا كي لا تزدحم الشاشة. */}
+                      <button
+                        type="button"
+                        className="ms-2 text-xs text-muted-foreground underline"
+                        onClick={() =>
+                          setOpenDetails((p) => ({ ...p, [item.id]: !p[item.id] }))
+                        }
+                      >
+                        {openDetails[item.id]
+                          ? t("quotations.new.collapseProduct")
+                          : t("quotations.detail.product")}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-end">
+                      <span dir="ltr">{item.quantity}</span>
+                    </TableCell>
+                    <TableCell className="text-end">
+                      <span dir="ltr">{itemFmt.format(item.unitPrice)}</span>
+                    </TableCell>
+                    <TableCell className="text-end font-medium">
+                      <span dir="ltr">{itemFmt.format(item.lineTotal)}</span>
+                    </TableCell>
+                  </TableRow>
+                  {openDetails[item.id] && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="bg-muted/40 text-xs">
+                        {item.details ? (
+                          <div className="flex flex-wrap gap-x-6 gap-y-1">
+                            <span>
+                              {t("quotations.new.productType")}: {item.details.productTypeName}
+                            </span>
+                            <span>
+                              {t("quotations.shower.height")}:{" "}
+                              <span dir="ltr">{itemFmt.format(item.details.height)}</span>
+                            </span>
+                            <span>
+                              {t("quotations.shower.width")}:{" "}
+                              <span dir="ltr">{itemFmt.format(item.details.width)}</span>
+                            </span>
+                            {item.details.factorLabel && (
+                              <span>
+                                {t("quotations.shower.globalFactor")}:{" "}
+                                <span dir="ltr">{item.details.factorLabel}</span>
+                              </span>
+                            )}
+                            {item.details.panelCount !== null && (
+                              <span>
+                                {t("quotations.shower.panelCount")}:{" "}
+                                <span dir="ltr">{item.details.panelCount}</span>
+                              </span>
+                            )}
+                            {item.details.materials.length > 0 && (
+                              <span className="w-full">
+                                {t("quotations.detail.product")}:{" "}
+                                {item.details.materials.join(" · ")}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          /* TO-34: لا فراغ صامت — البند بلا مدخلات يقول ذلك. */
+                          <span className="text-muted-foreground">
+                            {t("quotations.new.legacyItemsTitle")}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
               ))
             ) : (
               <TableRow>

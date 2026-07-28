@@ -23,12 +23,17 @@ export default async function QuotationPrintPage(props: {
 }) {
   const { id } = await props.params;
 
+  // TO-35: `TEC_LEAD` كان غائبًا وحده من بين أدوار المكتب الفني — يسعّر (TO-26)
+  // ويرى عروض مساره (TO-23) ويعتمدها مبدئيًا (TO-24)، ثم يُصدّ عن طباعة ما اعتمده.
+  // ⚠️ إضافة **وصول بالدور فقط**: نطاق الرؤية يبقى محكومًا كما هو، وبوابة
+  // الاعتماد المبدئي (TO-24) أدناه تبقى نافذة عليه كغيره.
   const roleCheck = await requireRole([
     "ADMIN",
     "SALES_MANAGER",
     "SALES_REP",
     "TECHNICAL_OFFICE",
     "TEC_APPROVER",
+    "TEC_LEAD",
     "VIEWER",
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");

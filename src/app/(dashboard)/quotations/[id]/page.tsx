@@ -4,6 +4,8 @@ import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getSystemSettings } from "@/lib/config";
 import { QuotationDetail } from "./_components/quotation-detail";
+// TO-34: نوع مدخلات التسعير المحفوظة (TO-33) — يُقرأ للعرض فقط.
+import type { ItemPricingInput } from "../new/_components/product-recipe-form";
 
 export default async function QuotationDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -59,6 +61,46 @@ export default async function QuotationDetailPage(props: {
 
   // TO-23: `updatedById` عمود scalar بلا relation (SCR-021) — الاسم باستعلام منفصل،
   // نفس نمط approvedById في قالب الطباعة (print/page.tsx:56-59).
+  // 🔴 TO-34 — تفاصيل البند للقراءة من `pricingInput` (TO-33). `selections` تحمل
+  // **معرّفات** خامات، والمستخدم يحتاج أسماءها العربية.
+  // ⚠️ استعلام **واحد** لكل الأسماء عبر كل البنود (`id: { in: [...] }`) — لا N+1:
+  // عرض بعشرة بنود × خمس خامات كان سيصير 50 استعلامًا على فتح شاشة واحدة.
+  const itemPricings = quotation.items.map(
+    (item) => item.pricingInput as ItemPricingInput | null
+  );
+  const materialIds = [
+    ...new Set(
+      itemPricings.flatMap((p) => (p ? Object.values(p.selections ?? {}) : [])).filter(Boolean)
+    ),
+  ];
+  const factorIds = [...new Set(itemPricings.map((p) => p?.pricingFactorId).filter(Boolean))];
+  const typeCodes = [...new Set(itemPricings.map((p) => p?.productTypeCode).filter(Boolean))];
+
+  const [materials, factors, productTypes] = await Promise.all([
+    materialIds.length
+      ? prisma.material.findMany({
+          where: { id: { in: materialIds as string[] } },
+          select: { id: true, nameAr: true },
+        })
+      : Promise.resolve([]),
+    factorIds.length
+      ? prisma.pricingFactor.findMany({
+          where: { id: { in: factorIds as string[] } },
+          select: { id: true, label: true },
+        })
+      : Promise.resolve([]),
+    typeCodes.length
+      ? prisma.productType.findMany({
+          where: { code: { in: typeCodes as string[] } },
+          select: { code: true, nameAr: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const materialNames = Object.fromEntries(materials.map((m) => [m.id, m.nameAr]));
+  const factorLabels = Object.fromEntries(factors.map((f) => [f.id, f.label]));
+  const typeNames = Object.fromEntries(productTypes.map((p) => [p.code, p.nameAr]));
+
   const lastUpdater = quotation.updatedById
     ? await prisma.user.findUnique({
         where: { id: quotation.updatedById },
@@ -97,13 +139,32 @@ export default async function QuotationDetailPage(props: {
           quotation.leadDecidedById !== null &&
           quotation.leadDecidedById === quotation.createdById,
         isCreator: quotation.createdById === roleCheck.userId,
-        items: quotation.items.map((item) => ({
-          id: item.id,
-          description: item.description,
-          quantity: item.quantity.toNumber(),
-          unitPrice: item.unitPrice.toNumber(),
-          lineTotal: item.lineTotal.toNumber(),
-        })),
+        items: quotation.items.map((item, i) => {
+          const p = itemPricings[i];
+          return {
+            id: item.id,
+            description: item.description,
+            quantity: item.quantity.toNumber(),
+            unitPrice: item.unitPrice.toNumber(),
+            lineTotal: item.lineTotal.toNumber(),
+            // TO-34: تفاصيل جاهزة للعرض — الأسماء مُحلّة هنا server-side.
+            // 🔴 **صفر `costSnapshot`**: بيانات تكلفة لا تُعرض في هذه الشاشة إطلاقًا،
+            // ولا أي اشتقاق منها (هامش/ربح). مكانها الداشبورد بقرار منفصل.
+            // null = بند يدوي أو سابق لـTO-33 ⇒ الواجهة تقول ذلك صراحةً.
+            details: p
+              ? {
+                  productTypeName: typeNames[p.productTypeCode] ?? p.productTypeCode,
+                  height: p.height,
+                  width: p.width,
+                  factorLabel: factorLabels[p.pricingFactorId] ?? null,
+                  panelCount: p.panelCount ?? null,
+                  materials: Object.values(p.selections ?? {})
+                    .map((id) => materialNames[id])
+                    .filter(Boolean) as string[],
+                }
+              : null,
+          };
+        }),
       }}
       currentRole={roleCheck.role}
       discountRequest={

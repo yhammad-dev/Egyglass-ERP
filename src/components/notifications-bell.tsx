@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,33 @@ type NotificationRow = {
 };
 
 const POLL_INTERVAL_MS = 30_000;
+
+/**
+ * TO-37 — وجهة الإشعار مُشتقّة من `entityType` + `entityId` وحدهما.
+ *
+ * 🔴 **لا اشتقاق من نص الإشعار العربي ولا من `type`** — النص للقراءة البشرية
+ * وقد يتغيّر بأي تعديل صياغة، فبناء تنقّل عليه يجعل الروابط تنكسر صامتة.
+ *
+ * الخريطة تقتصر على الكيانات التي **لها صفحة تفصيل فعلًا** (مُتحقَّق بوجود
+ * `page.tsx` لكل مسار). الكيانات الباقية — `Drawing` · `Contract` · `Invoice` ·
+ * `InstallationItem` — `entityId` فيها معرّف الكيان نفسه ولا توجد له صفحة
+ * مستقلة، واشتقاق صفحة الأب يحتاج استعلامًا لا يملكه هذا المكوّن ⇒ **تبقى نصًّا
+ * بلا رابط**. رابط يقود لمكان خاطئ أسوأ من غياب الرابط.
+ */
+const ENTITY_ROUTES: Record<string, (id: string) => string> = {
+  Quotation: (id) => `/quotations/${id}`,
+  QuotationRequest: (id) => `/technical-office/${id}`,
+  InspectionRequest: (id) => `/inspections/${id}`,
+  ManufacturingOrder: (id) => `/manufacturing/${id}`,
+  InstallationOrder: (id) => `/installations/${id}`,
+  FaultInvestigation: (id) => `/investigations/${id}`,
+  Customer: (id) => `/customers/${id}`,
+};
+
+function notificationHref(entityType: string | null, entityId: string | null): string | null {
+  if (!entityType || !entityId) return null;
+  return ENTITY_ROUTES[entityType]?.(entityId) ?? null;
+}
 
 export function NotificationsBell() {
   const t = useTranslations();
@@ -75,19 +103,33 @@ export function NotificationsBell() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         {notifications.length ? (
-          notifications.map((notification) => (
-            <DropdownMenuItem
-              key={notification.id}
-              onClick={() => markAsRead(notification.id)}
-              className="flex flex-col items-start gap-0.5 whitespace-normal"
-            >
-              {/* SF-19: title مخزَّن كمفتاح ترجمة كامل (notifications.* / discount.* /
-                  invoices.* / tec.*) — لازم t() الجذري ليُحلّ. كان يُعرض خامًا. body نص
-                  عربي حرفي (لا مفتاح) فيبقى بلا t(). نقطة استهلاك واحدة تُصلح كل الإشعارات. */}
-              <span className="text-sm font-medium">{t(notification.title)}</span>
-              <span className="text-xs text-muted-foreground">{notification.body}</span>
-            </DropdownMenuItem>
-          ))
+          notifications.map((notification) => {
+            const href = notificationHref(notification.entityType, notification.entityId);
+            // SF-19: title مخزَّن كمفتاح ترجمة كامل (notifications.* / discount.* /
+            // invoices.* / tec.*) — لازم t() الجذري ليُحلّ. كان يُعرض خامًا. body نص
+            // عربي حرفي (لا مفتاح) فيبقى بلا t(). نقطة استهلاك واحدة تُصلح كل الإشعارات.
+            const content = (
+              <>
+                <span className="text-sm font-medium">{t(notification.title)}</span>
+                <span className="text-xs text-muted-foreground">{notification.body}</span>
+              </>
+            );
+
+            // TO-37: الإشعار الذي له وجهة يصير رابطًا؛ وما لا وجهة له يبقى كما كان
+            // بالضبط (يُعلَّم مقروءًا فقط) — لا رابط ميت ولا وعد بفتح لا يقع.
+            // ⚠️ لا استثناء صلاحية هنا: إشعار لكيان خارج نطاق المستخدم يقود لصفحته
+            // فيصدّه حارسها القائم برسالته المعتادة — وهو السلوك المقصود.
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onClick={() => markAsRead(notification.id)}
+                className="flex flex-col items-start gap-0.5 whitespace-normal"
+                {...(href ? { render: <Link href={href} /> } : {})}
+              >
+                {content}
+              </DropdownMenuItem>
+            );
+          })
         ) : (
           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
             {t("notifications.empty")}
