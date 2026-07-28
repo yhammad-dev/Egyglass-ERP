@@ -40,6 +40,14 @@ export const navRegistry: NavItem[] = [
     roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"],
   },
   {
+    // TO-08: نفس أدوار شاشة المكتب الفني — الداشبورد قراءة مُجمَّعة لما تراه.
+    // ⚠️ ترتيبه بعدها مقصود: الشاشة هي مكان العمل، والداشبورد نظرة عليها.
+    labelKey: "nav.tecDashboard",
+    href: "/technical-office/dashboard",
+    icon: "analytics",
+    roles: ["ADMIN", "TECHNICAL_OFFICE", "TEC_APPROVER", "TEC_LEAD"],
+  },
+  {
     // PHASE 2 (D-03): شاشة اعتماد عروض الأسعار = المدير التنفيذي (TEC_APPROVER)،
     // لا محمد حسام. دور REVIEW الحقيقي على أمر التصنيع (PHASE 3).
     labelKey: "nav.review",

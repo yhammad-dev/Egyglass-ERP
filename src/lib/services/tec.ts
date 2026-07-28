@@ -72,7 +72,10 @@ export interface EngineerOption {
  * من القاعدة (الجلسة تحمل userId/role فقط — `src/lib/rbac.ts:28-32`). نفس السبب
  * والنمط في `getQuotations` (TO-23).
  */
-async function buildWhere(userId: string, role: string, filters?: TecFilters) {
+// TO-08: صار مُصدَّرًا ليستعمله داشبورد المكتب الفني **نفس** قاعدة النطاق.
+// نسخة ثانية من النطاق = انحراف مؤجَّل: أي تعديل مستقبلي على نطاق دور واحد
+// كان سيسري على الشاشة دون الداشبورد فيعرضان رقمين مختلفين للحقيقة نفسها.
+export async function buildWhere(userId: string, role: string, filters?: TecFilters) {
   const where: Record<string, any> = { deletedAt: null };
 
   const and: Record<string, any>[] = [];
