@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
-import type { AttachmentCategory } from "@prisma/client";
+import type { AttachmentCategory, Prisma } from "@prisma/client";
 import {
   createInspection,
   scheduleInspection,
@@ -80,7 +80,12 @@ export async function scheduleInspectionAction(data: unknown) {
       auth.userId
     );
     return { success: true as const, data: inspection };
-  } catch {
+  } catch (e) {
+    // IN-11: حارس الحالة الجديد داخل الخدمة يرفع InspectionError بمفتاح مترجم —
+    // ابتلاعه في `errors.updateFailed` كان سيُظهر «فشل التحديث» بدل سبب الرفض.
+    // نفس نمط createInspectionAction أدناه.
+    if (e instanceof InspectionError)
+      return { success: false as const, error: e.message };
     return { success: false as const, error: "errors.updateFailed" };
   }
 }
@@ -119,15 +124,28 @@ export async function getSelectableRequests(customerId: string) {
   if (!parsed.success)
     return { success: false as const, error: "errors.invalidInput" };
 
-  // BL-93 (مفتوح): لا نطاق ملكية للمندوب هنا — قرار سياسة (hard-scope مثل
-  // changeCustomerStage أم R-02 soft-control). لم يُخترع؛ يُحسم بيد يوسف.
+  // IN-18 (يُغلِق BL-93 — قرار يوسف، موجة IN-A): **hard-scope** على التعداد.
+  // كان بلا نطاق ملكية إطلاقًا ⇒ أي SALES_REP يمرّر أي customerId فيقرأ أكواد
+  // ومسارات طلبات عميل زميله. النمط المُعاد استخدامه هو نفسه في العملاء
+  // (`services/customers.ts` → OR[ownerId, coveredById]) — لا قاعدة ملكية جديدة.
+  //
+  // ⚠️ حدّ صريح: هذا يضيّق **القراءة/التعداد**. الكتابة عبر-مندوب تبقى مسموحة
+  // بـsoft-control (R-02/D-32: إشعار المالك + ActivityLog) داخل `createInspection`
+  // ولم تُمَس هنا — تضييقها قرار سياسة منفصل لم يُتخذ.
+  const where: Prisma.QuotationRequestWhereInput = {
+    customerId: parsed.data,
+    deletedAt: null,
+    inspectionRequestId: null,
+    status: { not: "DONE" },
+  };
+  if (auth.role === "SALES_REP") {
+    where.customer = {
+      OR: [{ ownerId: auth.userId }, { coveredById: auth.userId }],
+    };
+  }
+
   const requests = await prisma.quotationRequest.findMany({
-    where: {
-      customerId: parsed.data,
-      deletedAt: null,
-      inspectionRequestId: null,
-      status: { not: "DONE" },
-    },
+    where,
     orderBy: { createdAt: "desc" },
     select: { id: true, code: true, technicalRoute: true },
   });
@@ -408,7 +426,15 @@ export async function addInspectionAttachment(input: unknown) {
   }
 }
 
-const statusEnum = z.enum(["REQUESTED", "SCHEDULED", "DONE", "OVERDUE"]);
+// IN-07: `OVERDUE` **محذوفة من القيم المقبولة من العميل**. التأخير حالة **مشتقّة**
+// من `dueDate < now` (المصدر الوحيد: `services/inspections.ts` → `effectiveStatus`)
+// لا قيمة تُكتب يدويًا. كتابتها كانت تُنتج عيبين معًا:
+//   (١) لوحة تكذب: المدير يعلّم معاينة لم يفت موعدها كمتأخرة.
+//   (٢) الأخطر — صف محبوس: بعد الكتابة لم تعد الحالة REQUESTED فيختفي زر
+//       «جدولة» من القائمة نهائيًا، فتبقى المعاينة بلا توزيع.
+// القيمة تبقى في enum قاعدة البيانات (صفوف قديمة) وتبقى معروضة ومترجمة — الممنوع
+// هو **كتابتها**، لا قراءتها.
+const statusEnum = z.enum(["REQUESTED", "SCHEDULED", "DONE"]);
 
 const updateStatusSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
@@ -428,6 +454,13 @@ export async function updateInspectionStatus(input: unknown) {
       include: { customer: { select: { name: true } } },
     });
     if (!inspection) return { error: "errors.notFound" as const };
+
+    // IN-13: القفل بعد الاعتماد كان يغطي المقاسات والمرفقات فقط، وتغيير الحالة
+    // يمرّ فوق معاينة معتمدة — فتُرجَع DONE إلى REQUESTED مع بقاء `approvedById`
+    // و`approvedAt` كما هما، ويكون المكتب الفني قد أُخطر بمقاسات «معتمدة» لمعاينة
+    // عادت قيد التنفيذ. الفتح المُقنَّن بعد الاعتماد بند الموجة B لا هذه.
+    if (inspection.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedNoChange" as const };
 
     await prisma.inspectionRequest.update({
       where: { id: parsed.data.id },
@@ -471,9 +504,17 @@ export async function updateSiteReadiness(input: unknown) {
 
     const inspection = await prisma.inspectionRequest.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, approvalStatus: true },
     });
     if (!inspection) return { error: "errors.notFound" as const };
+
+    // IN-13 (توسيع بمسار ثالث خارج نصّ البند — راجعه): البند نصّ على «الجدولة
+    // والإسناد»، وهذا مسار ثالث بنفس العيب حرفيًا — جاهزية الموقع تُقلَب على معاينة
+    // معتمدة أُخطِر بها المكتب الفني، مع بقاء approvedById/approvedAt كما هما.
+    // تركه يعني قفلًا بثقب معروف، فأُضيف؛ وإن رأيته توسيعًا غير مرغوب فهذه الكتلة
+    // وحدها تُحذف بلا أثر على البنود السبعة.
+    if (inspection.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedNoChange" as const };
 
     await prisma.inspectionRequest.update({
       where: { id },
