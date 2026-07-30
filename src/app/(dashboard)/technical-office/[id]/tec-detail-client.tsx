@@ -405,6 +405,74 @@ export function TecDetailClient({
           <p>{initialJob.inspectionOwnerName ?? "—"}</p>
         </div>
 
+        {/* ── IN-06: مقاسات المعاينة — للقراءة فقط ──
+            كان المكتب الفني يُطلب منه إعادة التسعير على مقاسات لا يراها إطلاقًا
+            (صفر قراءة في هذا المجلد). تظهر بعد اعتماد مدير المعاينات حصرًا (D-37)،
+            وكل حالة غياب مُصرَّح بها بنصّها — لا جدول فارغ بلا تفسير. */}
+        <div className="md:col-span-2 space-y-2 pt-2 border-t">
+          <p className="font-semibold">{t("tec.inspectionMeasurements")}</p>
+
+          {initialJob.inspection.kind === "NO_INSPECTION" && (
+            <p className="text-sm text-muted-foreground">
+              {t("tec.noLinkedInspection")}
+            </p>
+          )}
+
+          {initialJob.inspection.kind === "NOT_APPROVED" && (
+            <p className="text-sm text-amber-600">
+              {t("tec.inspectionNotApproved")}
+            </p>
+          )}
+
+          {initialJob.inspection.kind === "APPROVED" &&
+            (initialJob.inspection.measurements.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("tec.inspectionApprovedNoRows")}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border rounded-md">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-2 text-start">
+                        {t("inspections.detail.description")}
+                      </th>
+                      <th className="p-2 text-start">
+                        {t("inspections.detail.width")}
+                      </th>
+                      <th className="p-2 text-start">
+                        {t("inspections.detail.height")}
+                      </th>
+                      <th className="p-2 text-start">
+                        {t("inspections.detail.unit")}
+                      </th>
+                      <th className="p-2 text-start">
+                        {t("inspections.detail.quantity")}
+                      </th>
+                      <th className="p-2 text-start">{t("inspections.notes")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {initialJob.inspection.measurements.map((m) => (
+                      <tr key={m.id} className="border-t">
+                        <td className="p-2">{m.description}</td>
+                        <td className="p-2" dir="ltr">{m.width}</td>
+                        <td className="p-2" dir="ltr">{m.height}</td>
+                        <td className="p-2">
+                          {t(`inspections.detail.unit_${m.unit}`)}
+                        </td>
+                        <td className="p-2" dir="ltr">{m.quantity}</td>
+                        <td className="p-2 text-muted-foreground">
+                          {m.notes ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+        </div>
+
         {/* Notes */}
         <div className="md:col-span-2 space-y-2 pt-2 border-t">
           <Label htmlFor="job-notes">{t("tec.notes")}</Label>

@@ -731,7 +731,10 @@
       "categorySketches": "Sketches",
       "categoryOther": "Other attachments",
       "addAttachment": "Add Attachment",
-      "attachmentAdded": "Attachment added successfully"
+      "attachmentAdded": "Attachment added successfully",
+      "requestContext": "Request context",
+      "requestCode": "Request code",
+      "requestSummary": "Request summary"
     },
     "siteReadiness": "Site Readiness",
     "siteReady": "Site Ready",
@@ -1363,7 +1366,11 @@
     "returnedTitle": "Quotations returned from review",
     "quotationReturnedTitle": "Quotation returned from review",
     "quotationReturnedReason": "Reason for return",
-    "quotationReturnedNoReason": "No reason recorded"
+    "quotationReturnedNoReason": "No reason recorded",
+    "inspectionMeasurements": "Inspection measurements",
+    "noLinkedInspection": "No inspection is linked to this request",
+    "inspectionNotApproved": "The inspection manager has not approved it yet — measurements are not final and must not be priced",
+    "inspectionApprovedNoRows": "The inspection is approved but has no measurement rows"
   },
   "import": {
     "title": "Import Data",

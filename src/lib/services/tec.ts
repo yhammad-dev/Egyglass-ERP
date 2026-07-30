@@ -43,7 +43,33 @@ export interface TecJobRow {
   updatedAt: Date;
 }
 
+/** IN-06: صف مقاس للعرض في شاشة المكتب الفني — نصوص لا Decimal (حدّ العرض، L-07) */
+export interface TecMeasurementRow {
+  id: string;
+  description: string;
+  width: string;
+  height: string;
+  unit: string;
+  quantity: number;
+  notes: string | null;
+}
+
+/**
+ * IN-06: حالة ضلع المعاينة كما يراها المكتب الفني. اتحاد مُوسوم لا أعلام منفصلة،
+ * كي تكون الحالات الثلاث حصرية ومتبادلة الاستبعاد ولا تنشأ حالة «معتمدة وبلا معاينة».
+ */
+export type TecInspectionState =
+  | { kind: "NO_INSPECTION"; measurements: TecMeasurementRow[] }
+  | { kind: "NOT_APPROVED"; measurements: TecMeasurementRow[] }
+  | {
+      kind: "APPROVED";
+      approvedAt: Date | null;
+      measurements: TecMeasurementRow[];
+    };
+
 export interface TecJobDetail extends TecJobRow {
+  /** IN-06: مقاسات المعاينة المعتمدة (أو سبب غيابها) — للقراءة فقط */
+  inspection: TecInspectionState;
   notes: string | null;
   // TO-09: منشئ العرض — تُستعمل حصرًا لمرآة حارس resubmitQuotationAction في الواجهة
   // (المنشئ أو TECHNICAL_OFFICE أو ADMIN). بدونها لا يُميَّز TEC_APPROVER المنشئ عن
@@ -236,6 +262,14 @@ export async function getTecJobDetail(
       salesOwner: { select: { name: true } },
       inspectionOwner: { select: { name: true } },
       _count: { select: { drawings: true } },
+      // IN-06: ضلع المعاينة — صفوف مهيكلة عبر السلسلة inspectionRequestId
+      inspectionRequest: {
+        select: {
+          approvalStatus: true,
+          approvedAt: true,
+          measurements: { orderBy: { createdAt: "asc" } },
+        },
+      },
       drawings: {
         orderBy: { createdAt: "desc" },
         include: {
@@ -248,8 +282,36 @@ export async function getTecJobDetail(
 
   if (!job) return null;
 
+  // ── IN-06: مقاسات المعاينة تُسلَّم للمكتب الفني ──────────────────────────────
+  // الجذر: مجلد technical-office كان بصفر قراءة للمقاسات (بحث مُتحقَّق → لا نتائج)،
+  // فيُطلب من المكتب الفني إعادة التسعير على مقاسات لا يراها. السطح الوحيد الذي
+  // كان يعرضها هو `/manufacturing/[id]` ولا يوجد إلا **بعد** إصدار أمر التصنيع.
+  //
+  // الشرط: `APPROVED` فقط (D-37) — قبل اعتماد المدير المقاسات غير نهائية ولا يُخطَر
+  // بها أحد، فعرضها كان سيدعو للتسعير على أرقام قابلة للتغيير.
+  // ثلاث حالات متمايزة صراحةً (لا جدول فارغ بلا تفسير): بلا معاينة · غير معتمدة · معتمدة.
+  const inspectionState: TecInspectionState = !job.inspectionRequest
+    ? { kind: "NO_INSPECTION", measurements: [] }
+    : job.inspectionRequest.approvalStatus !== "APPROVED"
+      ? { kind: "NOT_APPROVED", measurements: [] }
+      : {
+          kind: "APPROVED",
+          approvedAt: job.inspectionRequest.approvedAt,
+          measurements: job.inspectionRequest.measurements.map((m) => ({
+            id: m.id,
+            description: m.description,
+            // L-07: Decimal → نص عند حدّ العرض، لا Number
+            width: m.width.toString(),
+            height: m.height.toString(),
+            unit: m.unit,
+            quantity: m.quantity,
+            notes: m.notes,
+          })),
+        };
+
   return {
     id: job.id,
+    inspection: inspectionState,
     code: job.code,
     status: job.status,
     technicalRoute: job.technicalRoute,
