@@ -226,13 +226,16 @@ export function InspectionsClient({
               header: t("app.actions"),
               cell: (info) => {
                 const row = info.row.original;
-                // IN-07 (الشق الثاني — الصف المحبوس): كان الشرط `!== "REQUESTED"`،
-                // فأي معاينة كُتبت حالتها OVERDUE يدويًا (قبل IN-07) تفقد زر
-                // «جدولة» **نهائيًا** فتبقى بلا توزيع. الشرط الآن يستثني المنتهي
-                // والمجدول فقط ⇒ صفوف OVERDUE القديمة تعود قابلة للتوزيع.
-                // إعادة جدولة المجدول (SCHEDULED) بند الموجة B لا هذه.
-                if (row.status === "DONE" || row.status === "SCHEDULED")
+                // IN-07: الشرط كان `!== "REQUESTED"` فحبس صفوف OVERDUE القديمة.
+                // IN-28: وصار يشمل `SCHEDULED` كذلك — **إعادة التعيين** هي شكوى
+                // يوسف الأصلية، والحارس الخادمي جاهز من موجة A (يمنع DONE و
+                // APPROVED ويسمح بالباقي) فالناقص كان الواجهة وحدها.
+                // `DONE` مستبعد (معاينة منتهية) و`APPROVED` كذلك: الحارس يرفضه،
+                // فإظهار الزر كان سيُنتج نداءً فاشلًا (نمط IN-13: الواجهة تعكس الحارس).
+                if (row.status === "DONE" || row.approvalStatus === "APPROVED")
                   return null;
+                // تمييز بصري صريح بين أول إسناد وإعادة إسناد — ليسا الفعل نفسه
+                const isReassign = row.assigneeId !== null;
                 return (
                   <Button
                     type="button"
@@ -240,7 +243,9 @@ export function InspectionsClient({
                     variant="outline"
                     onClick={() => openSchedule(row)}
                   >
-                    {t("inspections.schedule")}
+                    {isReassign
+                      ? t("inspections.reassign")
+                      : t("inspections.schedule")}
                   </Button>
                 );
               },
@@ -440,6 +445,22 @@ export function InspectionsClient({
             onSubmit={handleScheduleSubmit(onScheduleSubmit)}
             className="space-y-4"
           >
+            {/* IN-48: تحذير مرئي غير حاجز — «غير جاهز» تُجدوَل بقرار المدير، لكنه
+                يقرأ الحقيقة قبل أن يصرف وقود مندوب ووقته. */}
+            {scheduleRow?.siteReadiness === false && (
+              <p className="rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+                {t("inspections.siteNotReadyWarning")}
+              </p>
+            )}
+            {/* 🔴 تصحيح مراجعة: الحوار كان يحذّر من الحالة **المسموحة** ويصمت عن
+                الحالة **الحاجزة**. المدير يملأ الموعد والمندوب ثم يُرفض بـtoast.
+                يُحذَّر مسبقًا — ولا يُعطَّل الحفظ: الصفوف الأقدم من الحدّ يقبلها
+                الخادم فعلًا، وتعطيل الزر كان سيحبسها في الواجهة. */}
+            {scheduleRow?.siteReadiness === null && (
+              <p className="rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+                {t("inspections.siteReadinessBlocksScheduling")}
+              </p>
+            )}
             <div className="space-y-1">
               <Label htmlFor="scheduledAt">{t("inspections.scheduledAt")}</Label>
               <Input

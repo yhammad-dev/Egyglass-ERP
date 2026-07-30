@@ -38,7 +38,23 @@ const createSchema = z.object({
   phone: z.string().min(1, "errors.required"),
   type: typeEnum,
   notes: z.string().optional(),
+  /**
+   * IN-48 (D-IN-15): جاهزية الموقع تُعلَن من المبيعات وقت الطلب.
+   * ثلاثية صريحة: "READY" · "NOT_READY" · "UNCONFIRMED" — **بلا افتراضي**، فالمندوب
+   * مُجبَر على القراءة والاختيار. تُحوَّل لـ`boolean | null` أدناه لأن العمود القائم
+   * `siteReadiness Boolean?` (لا عمود جديد، لا migration).
+   */
+  siteReadiness: z.enum(["READY", "NOT_READY", "UNCONFIRMED"]),
 });
+
+/** IN-48: ثلاثية الواجهة → العمود البولياني القائم. UNCONFIRMED = null (يحجب الجدولة). */
+function toSiteReadiness(
+  value: "READY" | "NOT_READY" | "UNCONFIRMED"
+): boolean | null {
+  if (value === "READY") return true;
+  if (value === "NOT_READY") return false;
+  return null;
+}
 
 // 🔴 ALLOWED_ROLES = أدوار **الكتابة** (مقاس/مرفق/تقديم). لا يُضاف إليها دور قراءة
 // أبدًا: هي مستعملة في addMeasurementAction · deleteMeasurementAction ·
@@ -134,7 +150,14 @@ export async function createInspectionAction(data: unknown) {
   }
 
   try {
-    const inspection = await createInspection(parsed.data, auth.userId);
+    const inspection = await createInspection(
+      {
+        ...parsed.data,
+        // IN-48: الثلاثية تُترجَم عند حدّ الأكشن، فالخدمة ترى `boolean | null` وحده
+        siteReadiness: toSiteReadiness(parsed.data.siteReadiness),
+      },
+      auth.userId
+    );
     return { success: true as const, data: inspection };
   } catch (e) {
     // D-31: الحارس server-side (طلب غير مؤهَّل) يصل للواجهة برسالة صريحة
@@ -283,6 +306,25 @@ export async function getInspectionDetail(id: string) {
       // IN-49: الخادم يقرّر من يكتب، والواجهة تعرض فقط. `canWrite` مشتقّ من نفس
       // ALLOWED_ROLES التي تحرس الأكشنات ⇒ مصدر واحد، فلا تتباعد الواجهة عن الحارس.
       canWrite: ALLOWED_ROLES.includes(auth.role),
+      /**
+       * 🔴 IN-48 (تصحيح مراجعة): **مسار خروج داخل المنتج** لجاهزية الموقع.
+       *
+       * العيب الذي أُصلح: سحبتُ الكتابة من المدير وتركتُ الحقل بلا أي واجهة تعديل
+       * لأي دور ⇒ معاينة أُنشئت بـ«لم يؤكّد العميل» تصير **غير قابلة للجدولة أبدًا**،
+       * والصفوف المُنشأة بين تاريخ الحدّ ويوم الدمج كذلك. أي أنني أنتجتُ **نفس فئة
+       * عيب الصف المحبوس** (IN-07) التي يقوم هذا البند على منعها.
+       *
+       * ولماذا **المبيعات** هي صاحبة التصحيح لا المدير: D-IN-15 يقول إن المبيعات
+       * تُعلن الجاهزية لأن العميل هو مصدرها. القرار لم يقل «مرة واحدة عند الإنشاء» —
+       * فمن يملك الإعلان يملك تصحيحه بعد أن يؤكّد العميل. المدير يبقى مستهلكًا فقط،
+       * وهو جوهر IN-48. (وشاشة التفاصيل متاحة للمبيعات أصلًا من IN-49.)
+       */
+      canEditSiteReadiness:
+        auth.role === "ADMIN" ||
+        auth.role === "SALES_MANAGER" ||
+        (auth.role === "SALES_REP" &&
+          (inspection.customer.ownerId === auth.userId ||
+            inspection.customer.coveredById === auth.userId)),
       /**
        * IN-06/IN-49: المقاسات محجوبة عن المكتب الفني قبل الاعتماد. تُبلَّغ الواجهة
        * صراحةً كي تعرض السبب («لم تُعتمد بعد») بدل جدول فارغ يُقرأ كـ«لا مقاسات».
@@ -624,9 +666,23 @@ const siteReadinessSchema = z.object({
   siteReadiness: z.boolean().nullable(),
 });
 
+/**
+ * IN-48 (D-IN-15): **سُحبت من مدير المعاينات.** جاهزية الموقع حقيقة يعرفها العميل،
+ * ويعلنها مندوب المبيعات وقت الطلب (حوار طلب المعاينة) — المدير **يستهلكها** ليقرّر
+ * الجدولة، لا يُدخلها. إدخالها من المدير كان يعني تسجيل حقيقة ميدانية بالسماع.
+ *
+ * 🔴 الأكشن باقٍ لـ`ADMIN` وحده كصمّام تصحيح (خطأ إدخال من المبيعات، أو صف قديم
+ * بلا قيمة يلزم فتحه للجدولة) — لا كمسار تشغيلي. الواجهة لا تعرضه لأي دور
+ * (`inspection-detail-client` لا يعرض العنصر لأدوار المعاينة)، وكل استدعاء مُسجَّل
+ * في ActivityLog كما كان.
+ */
 export async function updateSiteReadiness(input: unknown) {
   try {
-    const auth = await requireRole(["ADMIN", "INSPECTION_MANAGER"]);
+    // 🔴 تصحيح مراجعة: **ليس ADMIN-only.** قصره على ADMIN بلا أي واجهة جعل معاينة
+    // بـ«لم يؤكّد العميل» طريقًا مسدودًا لا يُجدوَل أبدًا — نفس فئة عيب الصف المحبوس
+    // (IN-07) التي يقوم هذا البند على منعها. المصرَّح لهم: ADMIN · SALES_MANAGER ·
+    // و SALES_REP **لعملائه وحدهم**. مدير المعاينات ومندوبها مستبعدان عن قصد: هذا IN-48.
+    const auth = await requireRole(["ADMIN", "SALES_MANAGER", "SALES_REP"]);
     if (!auth.authorized) return { error: "errors.notAuthorized" as const };
 
     const parsed = siteReadinessSchema.safeParse(input);
@@ -634,11 +690,24 @@ export async function updateSiteReadiness(input: unknown) {
 
     const { id, siteReadiness } = parsed.data;
 
-    const inspection = await prisma.inspectionRequest.findUnique({
-      where: { id },
-      select: { id: true, approvalStatus: true },
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        approvalStatus: true,
+        customer: { select: { ownerId: true, coveredById: true } },
+      },
     });
     if (!inspection) return { error: "errors.notFound" as const };
+
+    // الحارس على **السجل** لا على الدور وحده (L-05) — نفس نطاق IN-49 حرفيًا
+    if (
+      auth.role === "SALES_REP" &&
+      inspection.customer.ownerId !== auth.userId &&
+      inspection.customer.coveredById !== auth.userId
+    ) {
+      return { error: "errors.notAuthorized" as const };
+    }
 
     // IN-13 (توسيع بمسار ثالث خارج نصّ البند — راجعه): البند نصّ على «الجدولة
     // والإسناد»، وهذا مسار ثالث بنفس العيب حرفيًا — جاهزية الموقع تُقلَب على معاينة

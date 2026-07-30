@@ -187,7 +187,8 @@
     "investigationJudgedTitle": "صدر حكم الإدارة في تحقيق",
     "leadApprovalRequestedTitle": "عرض سعر بانتظار اعتمادك المبدئي",
     "leadApprovedTitle": "عرض سعر اعتُمد مبدئيًا — جاهز للعميل",
-    "leadReturnedTitle": "أُرجع عرض السعر إليك للتصحيح"
+    "leadReturnedTitle": "أُرجع عرض السعر إليك للتصحيح",
+    "siteReadinessRequiredTitle": "جاهزية الموقع غير مؤكَّدة"
   },
   "manufacturing": {
     "title": "أوامر التصنيع",
@@ -756,7 +757,14 @@
       "submitted": "قُدّمت المعاينة لاعتماد المدير",
       "approved": "تم اعتماد المعاينة",
       "returned": "تم إرجاع المعاينة للتصحيح"
-    }
+    },
+    "reassign": "تعديل المندوب/الموعد",
+    "selectSiteReadiness": "اختر حالة جاهزية الموقع",
+    "siteReadiness_READY": "الموقع جاهز",
+    "siteReadiness_NOT_READY": "الموقع غير جاهز",
+    "siteReadiness_UNCONFIRMED": "لم يؤكّد العميل",
+    "siteReadinessBlocksScheduling": "بلا تأكيد من العميل لا يمكن جدولة المعاينة — أكّد الجاهزية ثم عدّلها من الأدمن إن لزم",
+    "siteNotReadyWarning": "تنبيه: المبيعات سجّلت أن الموقع غير جاهز. الجدولة مسموحة بقرارك."
   },
   "users": {
     "title": "المستخدمين",
@@ -921,7 +929,8 @@
     "quotationNotGated": "هذا العرض غير مرتبط بطلب تسعير — لا تنطبق عليه بوابة الاعتماد المبدئي",
     "noLeadRecipient": "تم التقديم، لكن لا يوجد تيم ليدر لهذا المسار — لم يصل الإشعار لأحد",
     "noCustomerOwner": "تم الاعتماد، لكن العميل بلا مسؤول مبيعات — لم يصل الإشعار لأحد",
-    "requestOutsideEngineerRoute": "هذا الطلب خارج مسارك — مسارك يتبع تيم ليدرك، ولا يمكنك تسعير طلبات مسار آخر"
+    "requestOutsideEngineerRoute": "هذا الطلب خارج مسارك — مسارك يتبع تيم ليدرك، ولا يمكنك تسعير طلبات مسار آخر",
+    "siteReadinessRequired": "لا يمكن جدولة المعاينة قبل تأكيد جاهزية الموقع مع العميل"
   },
   "discount": {
     "approvalRequestedTitle": "طلب موافقة على خصم",
