@@ -84,6 +84,11 @@ type InspectionDetail = {
   canWrite: boolean;
   /** IN-06/IN-49: false = المكتب الفني قبل الاعتماد — يُعرض السبب لا جدول فارغ */
   measurementsVisible: boolean;
+  /**
+   * IN-48: هل يملك المستخدم الحالي تصحيح جاهزية الموقع؟ (ADMIN · SALES_MANAGER ·
+   * مندوب المبيعات المالك/المغطّي). يُقرَّر خادميًا لأنه مشروط بملكية العميل.
+   */
+  canEditSiteReadiness: boolean;
   /** IN-39: سياق الطلب المرتبط — المندوب كان يعاين بلا معرفة مساره ولا ملخّصه */
   request: {
     id: string;
@@ -119,7 +124,13 @@ export function InspectionDetailClient({
   // IN-13: بعد الاعتماد تُقفَل الجدولة والحالة وجاهزية الموقع سيرفر-سايد. هذا
   // المتغيّر مرآة واجهة لذلك القفل فقط — لا حارس (STD-15).
   const approvalLocked = inspection.approvalStatus === "APPROVED";
-  const canEditSiteReadiness = canManage && !approvalLocked;
+  // IN-48 (D-IN-15): جاهزية الموقع **للقراءة فقط لأدوار المعاينة** — المدير يستهلك
+  // ولا يُدخل. لكن **المبيعات تصحّح**: هي صاحبة الحقيقة (العميل مصدرها)، وبلا مسار
+  // تصحيح كانت «لم يؤكّد العميل» تصير طريقًا مسدودًا لا يُجدوَل أبدًا.
+  // القرار من الخادم (`canEditSiteReadiness`) لا من `currentRole`، لأن صلاحية المندوب
+  // مشروطة بملكية العميل — وهي معلومة لا تُسلَّم للعميل (IN-49).
+  const canEditSiteReadiness =
+    inspection.canEditSiteReadiness && !approvalLocked;
 
   async function handleSiteReadiness(value: boolean | null) {
     setUpdatingSiteReadiness(true);

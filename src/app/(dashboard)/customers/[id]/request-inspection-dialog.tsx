@@ -30,6 +30,8 @@ import {
 
 const LOCATIONS = ["INSIDE_CAIRO", "OUTSIDE_CAIRO"] as const;
 const TYPES = ["PRICING", "EXECUTION"] as const;
+// IN-48: ثلاثية جاهزية الموقع — مرآة لـzod في inspections/actions.ts (الحارس هناك)
+const SITE_READINESS_OPTIONS = ["READY", "NOT_READY", "UNCONFIRMED"] as const;
 
 export function RequestInspectionDialog({
   customerId,
@@ -54,6 +56,10 @@ export function RequestInspectionDialog({
   const [address, setAddress] = useState(customerAddress ?? "");
   const [phone, setPhone] = useState(customerPhone);
   const [type, setType] = useState<string>("PRICING");
+  // IN-48 (D-IN-15): **بلا افتراضي** — سلسلة فارغة تُجبر المندوب على القراءة
+  // والاختيار. افتراضٌ مُحدَّد مسبقًا كان سيُنتج «جاهز» بالسهو، وهي حقيقة ميدانية
+  // تُبنى عليها جدولة زيارة (وقود بنزين ووقت مندوب).
+  const [siteReadiness, setSiteReadiness] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,11 @@ export function RequestInspectionDialog({
       setError(t("errors.required"));
       return;
     }
+    // IN-48: الاختيار إلزامي — الخادم يرفضه بـzod أيضًا، وهذا منع مبكر برسالة أوضح
+    if (!siteReadiness) {
+      setError(t("inspections.selectSiteReadiness"));
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -102,6 +113,7 @@ export function RequestInspectionDialog({
         address: address.trim(),
         phone: phone.trim(),
         type,
+        siteReadiness,
         notes: notes.trim() || undefined,
       });
 
@@ -209,6 +221,41 @@ export function RequestInspectionDialog({
             </div>
           </div>
 
+          {/* IN-48 (D-IN-15): المبيعات تُعلن جاهزية الموقع — العميل هو من يعرفها.
+              بلا قيمة افتراضية: الـtrigger يعرض placeholder حتى يختار المندوب. */}
+          <div className="space-y-2">
+            <Label htmlFor="ri-site-readiness">
+              {t("inspections.siteReadiness")}
+            </Label>
+            {/* `v ?? ""` لا `setSiteReadiness` مباشرة: توقيع onValueChange يمرّر
+                `string | null`، والتمرير المباشر يُنتج خطأ نوع (نفس نمط
+                setScheduleValue في inspections-client). */}
+            <Select
+              value={siteReadiness}
+              onValueChange={(v) => setSiteReadiness(v ?? "")}
+            >
+              <SelectTrigger id="ri-site-readiness">
+                <SelectValue placeholder={t("inspections.selectSiteReadiness")}>
+                  {siteReadiness
+                    ? t(`inspections.siteReadiness_${siteReadiness}`)
+                    : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SITE_READINESS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {t(`inspections.siteReadiness_${opt}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {siteReadiness === "UNCONFIRMED" && (
+              <p className="text-xs text-amber-600">
+                {t("inspections.siteReadinessBlocksScheduling")}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="ri-address">{t("inspections.address")}</Label>
             <Input
@@ -250,7 +297,12 @@ export function RequestInspectionDialog({
             type="button"
             onClick={handleSubmit}
             disabled={
-              submitting || loadingRequests || requests.length === 0 || !quotationRequestId
+              submitting ||
+              loadingRequests ||
+              requests.length === 0 ||
+              !quotationRequestId ||
+              // IN-48: حقل إلزامي كأخيه — بلا هذا كان الحفظ يُقبل ثم يفشل بخطأ داخلي
+              !siteReadiness
             }
           >
             {submitting ? t("app.loading") : t("app.save")}

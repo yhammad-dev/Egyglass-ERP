@@ -188,7 +188,8 @@
     "investigationJudgedTitle": "Management verdict issued on an investigation",
     "leadApprovalRequestedTitle": "A quotation awaits your preliminary approval",
     "leadApprovedTitle": "Quotation preliminarily approved — ready for the customer",
-    "leadReturnedTitle": "A quotation was returned to you for correction"
+    "leadReturnedTitle": "A quotation was returned to you for correction",
+    "siteReadinessRequiredTitle": "Site readiness not confirmed"
   },
   "manufacturing": {
     "title": "Manufacturing Orders",
@@ -757,7 +758,14 @@
       "submitted": "Inspection submitted for manager approval",
       "approved": "Inspection approved",
       "returned": "Inspection returned for correction"
-    }
+    },
+    "reassign": "Change rep / date",
+    "selectSiteReadiness": "Select site readiness",
+    "siteReadiness_READY": "Site is ready",
+    "siteReadiness_NOT_READY": "Site is not ready",
+    "siteReadiness_UNCONFIRMED": "Customer has not confirmed",
+    "siteReadinessBlocksScheduling": "Without customer confirmation the inspection cannot be scheduled — confirm readiness first",
+    "siteNotReadyWarning": "Note: sales recorded the site as not ready. Scheduling is allowed at your discretion."
   },
   "users": {
     "title": "Users",
@@ -922,7 +930,8 @@
     "quotationNotGated": "This quotation is not linked to a pricing request — the lead approval gate does not apply",
     "noLeadRecipient": "Submitted, but no team lead exists for this route — nobody was notified",
     "noCustomerOwner": "Approved, but the customer has no sales owner — nobody was notified",
-    "requestOutsideEngineerRoute": "This request is outside your route — your route follows your team lead, and you cannot price requests from another route"
+    "requestOutsideEngineerRoute": "This request is outside your route — your route follows your team lead, and you cannot price requests from another route",
+    "siteReadinessRequired": "The inspection cannot be scheduled before site readiness is confirmed with the customer"
   },
   "discount": {
     "approvalRequestedTitle": "Discount Approval Request",
