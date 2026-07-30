@@ -28,9 +28,15 @@ import {
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
 
+// OVERDUE تبقى في نوع **العرض**: صفوف قديمة كُتبت يدويًا قبل IN-07 يجب أن تُعرَض
+// مترجمةً لا كقيمة خام.
 type InspectionStatus = "REQUESTED" | "SCHEDULED" | "DONE" | "OVERDUE";
 
-const STATUS_OPTIONS: InspectionStatus[] = ["REQUESTED", "SCHEDULED", "DONE", "OVERDUE"];
+// IN-07: القيم **القابلة للكتابة** — بلا OVERDUE. التأخير مشتقّ من dueDate لا
+// يُختار من قائمة. مرآة لـ`statusEnum` في `../actions.ts`؛ الحارس النافذ هناك.
+type SettableStatus = Exclude<InspectionStatus, "OVERDUE">;
+
+const STATUS_OPTIONS: SettableStatus[] = ["REQUESTED", "SCHEDULED", "DONE"];
 
 // D-40/BL-109: تلوين شارة حالة اعتماد المعاينة
 const APPROVAL_BADGE: Record<
@@ -90,7 +96,10 @@ export function InspectionDetailClient({
   // updateInspectionStatus/updateSiteReadiness) كما هو، لم يُمَس.
   const canManage =
     currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
-  const canEditSiteReadiness = canManage;
+  // IN-13: بعد الاعتماد تُقفَل الجدولة والحالة وجاهزية الموقع سيرفر-سايد. هذا
+  // المتغيّر مرآة واجهة لذلك القفل فقط — لا حارس (STD-15).
+  const approvalLocked = inspection.approvalStatus === "APPROVED";
+  const canEditSiteReadiness = canManage && !approvalLocked;
 
   async function handleSiteReadiness(value: boolean | null) {
     setUpdatingSiteReadiness(true);
@@ -294,7 +303,7 @@ export function InspectionDetailClient({
     }
   }
 
-  async function handleStatusChange(status: InspectionStatus) {
+  async function handleStatusChange(status: SettableStatus) {
     if (status === inspection.status) return;
 
     setUpdatingStatus(true);
@@ -441,8 +450,11 @@ export function InspectionDetailClient({
           <Label>{t("inspections.detail.updateStatus")}</Label>
           <Select
             value={inspection.status}
-            onValueChange={(value) => handleStatusChange((value as InspectionStatus) ?? inspection.status)}
-            disabled={updatingStatus}
+            onValueChange={(value) => {
+              if (!value) return;
+              handleStatusChange(value as SettableStatus);
+            }}
+            disabled={updatingStatus || approvalLocked}
           >
             <SelectTrigger>
               <SelectValue>{t(`inspections.status_${inspection.status}`)}</SelectValue>
@@ -455,6 +467,13 @@ export function InspectionDetailClient({
               ))}
             </SelectContent>
           </Select>
+          {/* IN-13: مرآة الحارس الخادمي (STD-15) — بدونها القائمة تبدو فعّالة ثم
+              ترتدّ القيمة بعد نداء فاشل بـtoast وحده. الرفض الحقيقي server-side. */}
+          {approvalLocked && (
+            <p className="text-xs text-muted-foreground">
+              {t("errors.inspectionApprovedNoChange")}
+            </p>
+          )}
         </div>
       )}
 

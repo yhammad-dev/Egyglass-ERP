@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/rbac";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
 import {
   recomputeQuotationRequestStatus,
@@ -62,17 +63,56 @@ function computeDueDate(location: string): Date {
   return addBusinessDays(now, days);
 }
 
-export async function getInspections(
+/**
+ * BL-94 (نطاق جزئي): INSPECTION_REP يرى المعاينات المسندة إليه فقط — نفس
+ * تضييق الملكية المفروض في getInspectionDetail. لا توسيع لأي دور آخر:
+ * ADMIN/INSPECTION_MANAGER يريان الكل كما كانا (المدير يوزّع فيلزمه الكل).
+ *
+ * IN-12: صار مُستخرَجًا ليستعمله عدّاد الداشبورد **نفس** قاعدة النطاق.
+ * نسخة ثانية من النطاق = انحراف مؤجَّل: الداشبورد كان يعدّ بلا تضييق وبلا
+ * `deletedAt` فيعرض للمندوب رقمًا (20) يناقض قائمته (2) على الشاشة نفسها.
+ * (نفس علّة TO-08 في `buildWhere` بالمكتب الفني وبنفس علاجها.)
+ */
+function buildInspectionScope(
   userId: string,
   role: string
-): Promise<InspectionRow[]> {
-  // BL-94 (نطاق جزئي): INSPECTION_REP يرى المعاينات المسندة إليه فقط — نفس
-  // تضييق الملكية المفروض في getInspectionDetail. لا توسيع لأي دور آخر:
-  // ADMIN/INSPECTION_MANAGER يريان الكل كما كانا (المدير يوزّع فيلزمه الكل).
+): Prisma.InspectionRequestWhereInput {
   const where: Prisma.InspectionRequestWhereInput = { deletedAt: null };
   if (role === "INSPECTION_REP") {
     where.assigneeId = userId;
   }
+  return where;
+}
+
+/**
+ * IN-12: أدوار عدّاد المعاينات على الداشبورد. الأدوار غير المعنية
+ * (ACCOUNTING · VIEWER · PROCUREMENT · HR · PROJECTS …) لا ترى العدّاد إطلاقًا.
+ * SALES_REP/SALES_MANAGER لهما فرعهما الخاص (getSalesDashboard) ولا يصلان هنا.
+ */
+const INSPECTION_KPI_ROLES = ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"];
+
+/**
+ * IN-12: عدّاد «معاينات معلّقة» للداشبورد — محروس ومُنطَّق ومُصفّى.
+ * `null` = هذا الدور لا يرى العدّاد (نفس عقد `getDashboardKPIs`/`getSalesDashboard`:
+ * الحارس داخل دالة البيانات لا على الصفحة، لأن `/dashboard` مشتركة بين كل الأدوار).
+ */
+export async function getPendingInspectionsCount(): Promise<number | null> {
+  const auth = await requireRole(INSPECTION_KPI_ROLES);
+  if (!auth.authorized) return null;
+
+  return prisma.inspectionRequest.count({
+    where: {
+      ...buildInspectionScope(auth.userId, auth.role),
+      status: { not: "DONE" },
+    },
+  });
+}
+
+export async function getInspections(
+  userId: string,
+  role: string
+): Promise<InspectionRow[]> {
+  const where = buildInspectionScope(userId, role);
 
   const inspections = await prisma.inspectionRequest.findMany({
     where,
@@ -264,6 +304,28 @@ export async function scheduleInspection(
   assigneeId: string,
   actorId: string
 ): Promise<InspectionRow> {
+  // IN-11: الحارس كان في الواجهة وحدها (`inspections-client.tsx` يخفي الزر لغير
+  // REQUESTED) — وهو إخفاء لا حارس (STD-15): نداء مباشر كان يكتب على أي صف بأي
+  // حالة، فيُرجع معاينة DONE إلى SCHEDULED. الحارس النافذ هنا، سيرفر-سايد.
+  //
+  // 🔴 حدّ مقصود: **لا نقفل الجدولة على REQUESTED فقط.** إعادة الجدولة قاعدة عمل
+  // مطلوبة (Q5) تُقنَّن في الموجة B، وقفلها هنا كان سيبني حاجزًا يلزم نقضه بعد
+  // أسبوع. المرفوض هو الكتابة **غير المشروعة** لا إعادة الجدولة:
+  //   · DONE → معاينة منتهية لا تُعاد جدولتها.
+  //   · APPROVED (IN-13) → الاعتماد ذهب للمكتب الفني؛ تغيير المندوب/الموعد بعده
+  //     يُباعد `approvedById` عن واقع المعاينة.
+  // OVERDUE تبقى **قابلة للجدولة** عمدًا: صفوف قديمة كُتبت يدويًا (قبل IN-07)
+  // يجب ألا تبقى محبوسة بلا توزيع.
+  const current = await prisma.inspectionRequest.findUnique({
+    where: { id },
+    select: { id: true, status: true, approvalStatus: true },
+  });
+  if (!current) throw new InspectionError("errors.notFound");
+  if (current.status === "DONE")
+    throw new InspectionError("errors.inspectionNotSchedulable");
+  if (current.approvalStatus === "APPROVED")
+    throw new InspectionError("errors.inspectionApprovedNoChange");
+
   const inspection = await prisma.inspectionRequest.update({
     where: { id },
     data: {

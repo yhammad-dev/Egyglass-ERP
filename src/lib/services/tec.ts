@@ -116,6 +116,15 @@ export async function buildWhere(userId: string, role: string, filters?: TecFilt
     }
   }
 
+  if (role === "INSPECTION_MANAGER") {
+    // IN-24 (D-IN-2 — تضييق لا إزالة): كان مُدرَجًا في حارس `/technical-office/[id]`
+    // بلا أي فرع نطاق هنا، و`where` يبدأ بـ`{deletedAt:null}` وحده ⇒ يفتح تفاصيل
+    // **أي** طلب في الشركة برابط مباشر. الوصول الشرعي له سببه المعاينة، فيُقصر
+    // على الطلبات التي لها معاينة مرتبطة فعلًا؛ وطلب بلا معاينة يعود null من
+    // `findFirst` ⇒ notFound (الوصول ليس الرؤية — نفس نمط TO-23/TO-25).
+    and.push({ inspectionRequestId: { not: null } });
+  }
+
   if (role === "TEC_LEAD") {
     // TO-25: التيم ليدر يرى **طلبات مساره فقط** — لا كل الطلبات ولا المسند إليه وحده،
     // فهو يوزّع ما يرد على مساره. `technicalRoute` حقل إلزامي على QuotationRequest

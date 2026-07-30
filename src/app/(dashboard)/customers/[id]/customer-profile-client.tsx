@@ -83,10 +83,15 @@ export function CustomerProfileClient({
   // الذي لا يُشتق من حدث. باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
   const canChangeStage = currentRole === "ADMIN";
   const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
-  // D-31 (BL-91): طلب المعاينة من شاشة العميل = المبيعات (+ المدير للاستثناء)
+  // D-31 (BL-91) + D-37: طلب المعاينة = المبيعات وحدها (+ ADMIN).
+  // IN-16: كان الشرط يضم INSPECTION_MANAGER فيظهر له زر **ميت**: يفتح الحوار
+  // فتفشل قائمة الطلبات ثم يفشل الإنشاء بـ`errors.notAuthorized`. الخادم
+  // (`CREATE_ROLES` في inspections/actions.ts) هو المطابق لـD-37، والواجهة كانت
+  // المخالفة — فصُحّحت الواجهة لا الخادم.
+  // ⚠️ منح PROJECTS حق الطلب (D-IN-7) موجة B: يلزمه تحديد الشاشة التي يطلب منها
+  // ثم إضافته لـ`CREATE_ROLES` — لا يُضاف هنا وحده وإلا وُلد زر ميت جديد.
   const canCreateInspection =
     currentRole === "ADMIN" ||
-    currentRole === "INSPECTION_MANAGER" ||
     currentRole === "SALES_MANAGER" ||
     currentRole === "SALES_REP";
   const canCreateQuotation =

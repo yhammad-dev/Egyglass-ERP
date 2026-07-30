@@ -216,7 +216,13 @@ export function InspectionsClient({
               header: t("app.actions"),
               cell: (info) => {
                 const row = info.row.original;
-                if (row.status !== "REQUESTED") return null;
+                // IN-07 (الشق الثاني — الصف المحبوس): كان الشرط `!== "REQUESTED"`،
+                // فأي معاينة كُتبت حالتها OVERDUE يدويًا (قبل IN-07) تفقد زر
+                // «جدولة» **نهائيًا** فتبقى بلا توزيع. الشرط الآن يستثني المنتهي
+                // والمجدول فقط ⇒ صفوف OVERDUE القديمة تعود قابلة للتوزيع.
+                // إعادة جدولة المجدول (SCHEDULED) بند الموجة B لا هذه.
+                if (row.status === "DONE" || row.status === "SCHEDULED")
+                  return null;
                 return (
                   <Button
                     type="button"

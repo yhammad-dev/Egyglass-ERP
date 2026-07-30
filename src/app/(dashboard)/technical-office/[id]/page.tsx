@@ -9,9 +9,12 @@ export default async function TecDetailPage(props: {
 }) {
   const { id } = await props.params;
 
-  // دفعة ب: INSPECTION_MANAGER يدخل لبوابة G2 (تحقق الرسومات)
-  // TO-25: TEC_LEAD مضاف — النطاق (طلبات مساره) يفرضه buildWhere داخل getTecJobDetail،
-  // فطلب خارج مساره يعود null ⇒ notFound. الوصول ليس الرؤية (نفس نمط TO-23).
+  // IN-24: كان هنا تعليق يعلّل دخول INSPECTION_MANAGER ببوابة **G2** — وG2 مُلغاة
+  // (BL-03/D-05) فالتعليل ساقط، وحُذف كي لا يُبنى عليه لاحقًا. السبب النافذ الآن:
+  // القسم يحتاج رسومات المشروع الذي يعاينه، والنطاق (طلبات لها معاينة مرتبطة)
+  // يفرضه buildWhere داخل getTecJobDetail.
+  // TO-25: TEC_LEAD مضاف — النطاق (طلبات مساره) يفرضه buildWhere كذلك.
+  // في الحالتين: طلب خارج النطاق يعود null ⇒ notFound. الوصول ليس الرؤية (TO-23).
   const roleCheck = await requireRole([
     "ADMIN",
     "TECHNICAL_OFFICE",
