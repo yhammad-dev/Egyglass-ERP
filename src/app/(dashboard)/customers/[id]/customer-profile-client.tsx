@@ -78,6 +78,16 @@ export function CustomerProfileClient({
   }, [router]);
 
   const isViewer = currentRole === "VIEWER";
+  // IN-43: الرابط لا يُعرض إلا لمن يفتح وجهته فعلًا. حارس `/inspections/[id]`
+  // (DETAIL_READ_ROLES) لا يشمل VIEWER ولا INSTALLATIONS، وهما **داخل** حارس هذه
+  // الشاشة ⇒ رابط لهما = redirect صامت إلى /dashboard، وهو حرفيًا العيب الذي
+  // يصلحه IN-47 في الإشعارات. لا نُنتج نسخة جديدة منه هنا.
+  // هذا **تقاطع** الحارسين لا نسخة من أحدهما: أدوار هذه الشاشة الخمسة ∩ أدوار قراءة
+  // المعاينة = هذه الثلاثة. أي توسيع لأحد الحارسين يُراجَع هنا.
+  const canOpenInspection =
+    currentRole === "ADMIN" ||
+    currentRole === "SALES_MANAGER" ||
+    currentRole === "SALES_REP";
   // دفعة هـ · Phase 4: المرحلة تُشتق من الأحداث آليًا — لا زر يدوي للتقدّم العادي.
   // يبقى الزر لـ ADMIN فقط كاستثناء override + قرار الرفض (REJECTED) البشري
   // الذي لا يُشتق من حدث. باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
@@ -386,7 +396,7 @@ export function CustomerProfileClient({
             />
           )}
 
-          {/* Inspections Tab (stub) */}
+          {/* Inspections Tab */}
           {activeTab === "inspections" && (
             <div>
               {customer.inspections.length === 0 ? (
@@ -396,8 +406,33 @@ export function CustomerProfileClient({
                   {customer.inspections.map((ins) => (
                     <div key={ins.id} className="flex items-center justify-between py-2 border-b last:border-0">
                       <div>
-                        <p className="text-sm font-medium">{ins.status}</p>
-                        <p className="text-xs text-gray-500">{ins.location}</p>
+                        {/* IN-43: كان نصًّا لا رابطًا — المبيعات ترى المعاينة ولا تفتحها.
+                            الرابط مشروع الآن: IN-49 منح المبيعات قراءة التفاصيل
+                            (نطاق ملكية العميل)، فالوجهة ليست صفحة محرَّمة.
+                            IN-15: القيم كانت تُطبع خامًا (SCHEDULED / INSIDE_CAIRO) —
+                            خرق قاعدة t(). المفاتيح قائمة سلفًا، والترجمة تسري على
+                            الأدوار كلها بصرف النظر عن الرابط. */}
+                        {canOpenInspection ? (
+                          <Link
+                            href={`/inspections/${ins.id}`}
+                            className="text-sm font-medium text-primary hover:underline"
+                          >
+                            {t(`inspections.status_${ins.status}`)}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-medium">
+                            {t(`inspections.status_${ins.status}`)}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          {t(
+                            `inspections.${
+                              ins.location === "OUTSIDE_CAIRO"
+                                ? "outsideCairo"
+                                : "insideCairo"
+                            }`
+                          )}
+                        </p>
                       </div>
                       <p className="text-xs text-gray-500">
                         {ins.scheduledAt

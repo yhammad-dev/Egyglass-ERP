@@ -29,7 +29,7 @@ Every `"use server"` module inspected. Columns: **Auth** = `requireRole`/`auth()
 |---|:-:|:-:|:-:|---|
 | scheduleInspectionAction | ✅ | ✅ | via service | `:29` |
 | createInspectionAction | ✅ | ✅ | via service | `:55` |
-| getInspectionDetail | ✅ | — (id read) | read | `:76` |
+| getInspectionDetail | ✅ | — (id read) | read | **IN-49 (موجة B1): أوسع منحة قراءة في الموديول.** الحارس صار `DETAIL_READ_ROLES` = أدوار المعاينة + `SALES_REP`/`SALES_MANAGER` + `TECHNICAL_OFFICE`/`TEC_LEAD`/`TEC_APPROVER` — **قراءة فقط**، و`ALLOWED_ROLES` (الكتابة) لم تُمَس. النطاق مفروض داخل الدالة لكل دور: المندوب بالإسناد · `SALES_REP` بملكية العميل (`ownerId`/`coveredById`) · أدوار المكتب الفني بـ`buildWhere` من `services/tec.ts`. خارج النطاق ⇒ `null` ⇒ 404. المقاسات محجوبة عن المكتب الفني قبل `APPROVED` (D-37). ⚠️ `TEC_APPROVER` بلا فرع في `buildWhere` ⇒ يقرأ أي معاينة لها طلب — مرصود لا مُصحَّح |
 | addMeasurements | ✅ | ✅ | ✅ | `:138` |
 | addInspectionAttachment | ✅ | ✅ | ✅ | **UPL-001**: path unvalidated `:172` |
 | updateInspectionStatus | ✅ | ✅ | ✅ | `:232` |

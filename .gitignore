@@ -6,6 +6,10 @@ node_modules/
 .DS_Store
 debug-*
 *-diag.*
+backup_*.sql
+*.diff
+~$*.docx
+~$*.xlsx
 
 # stray shell artifact
 e exec app npx prisma validate

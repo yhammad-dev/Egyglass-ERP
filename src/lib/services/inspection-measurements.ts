@@ -5,7 +5,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
-import { recomputeQuotationRequestStatus } from "@/lib/services/status-derivation";
+import { recomputeAfterInspection } from "@/lib/services/status-derivation";
 
 // 1ب (BL-81 / SCR-018): المقاسات صفوف مهيكلة في `InspectionMeasurement`.
 // المسار النصي القديم (ActivityLog MEASUREMENTS_RECORDED) حُذف — الجدول هو المصدر الوحيد.
@@ -120,7 +120,17 @@ export async function addMeasurement(
 
     // الأثر الجانبي 3 (الأخطر): اشتقاق حالة الطلب المربوط (ON_HOLD → IN_PROGRESS).
     // 🔴 داخل نفس المعاملة (الدالة تقبل tx) — المقاس والحالة يثبتان معًا أو لا يثبتان.
-    await recomputeLinkedRequest(input.inspectionRequestId, actorId, tx);
+    // IN-37: صارت تحرّك **مرحلة العميل أيضًا** بنفس الاستدعاء. تسجيل مقاس لا يغيّر
+    // بذاته أي واقعة من وقائع `deriveCustomerStage` (لا عقد ولا عرض ولا تركيب،
+    // و`inspectionActive` تتبع `status` لا المقاسات) ⇒ الاستدعاء هنا **مُصحِّح
+    // (idempotent) لا مُحرِّك**: يشفي مرحلة انحرفت سابقًا ولا يخترع انتقالًا.
+    // بلا try/catch عمدًا: داخل معاملة، والذرّية مقصودة (التعليق أعلاه).
+    await recomputeAfterInspection(
+      input.inspectionRequestId,
+      inspection.customerId,
+      actorId,
+      tx
+    );
 
     return row;
   });
@@ -161,7 +171,13 @@ export async function deleteMeasurement(
 ): Promise<void> {
   const row = await prisma.inspectionMeasurement.findUnique({
     where: { id: measurementId },
-    select: { id: true, inspectionRequestId: true, description: true },
+    select: {
+      id: true,
+      inspectionRequestId: true,
+      description: true,
+      // IN-37: مالك المعاينة لازم لاشتقاق مرحلة العميل داخل نفس المعاملة
+      inspectionRequest: { select: { customerId: true } },
+    },
   });
   if (!row) throw new MeasurementError("errors.notFound");
 
@@ -183,24 +199,18 @@ export async function deleteMeasurement(
     });
 
     // الحذف يغيّر واقعة "وصلت مقاسات؟" → نفس الاشتقاق داخل المعاملة (لا حالة كاذبة)
-    await recomputeLinkedRequest(row.inspectionRequestId, actorId, tx);
+    await recomputeAfterInspection(
+      row.inspectionRequestId,
+      row.inspectionRequest.customerId,
+      actorId,
+      tx
+    );
   });
 }
 
-/** الطلب المربوط بهذه المعاينة — إن وُجد — تُعاد اشتقاق حالته داخل نفس المعاملة */
-async function recomputeLinkedRequest(
-  inspectionRequestId: string,
-  actorId: string,
-  tx: Prisma.TransactionClient
-): Promise<void> {
-  const linkedRequest = await tx.quotationRequest.findFirst({
-    where: { inspectionRequestId },
-    select: { id: true },
-  });
-  if (linkedRequest) {
-    await recomputeQuotationRequestStatus(linkedRequest.id, actorId, tx);
-  }
-}
+// IN-37: `recomputeLinkedRequest` الخاصة حُذفت — كانت نصف القاعدة (تحرّك الطلب
+// وتنسى العميل) ونسخة ثانية منها. القاعدة الكاملة الوحيدة الآن
+// `recomputeAfterInspection` في `status-derivation.ts` وتستدعيها المواضع الأربعة.
 
 /** مالك المعاينة — لحارس BL-105 على الكتابة (REP يكتب على معايناته فقط) */
 export async function getMeasurementAssignee(

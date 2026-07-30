@@ -21,6 +21,10 @@ import {
   MeasurementError,
 } from "@/lib/services/inspection-measurements";
 import { notifyRole, sendNotification } from "@/lib/notifications/send";
+// IN-37: القاعدة الكاملة (حالة الطلب + مرحلة العميل) — المصدر الوحيد
+import { recomputeAfterInspection } from "@/lib/services/status-derivation";
+// IN-49: نطاق المكتب الفني القائم — يُستدعى ولا يُعاد كتابته
+import { buildWhere } from "@/lib/services/tec";
 
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
@@ -36,8 +40,34 @@ const createSchema = z.object({
   notes: z.string().optional(),
 });
 
+// 🔴 ALLOWED_ROLES = أدوار **الكتابة** (مقاس/مرفق/تقديم). لا يُضاف إليها دور قراءة
+// أبدًا: هي مستعملة في addMeasurementAction · deleteMeasurementAction ·
+// addInspectionAttachment · submitInspectionForApproval. أي توسيع لها = منح كتابة.
 const ALLOWED_ROLES = ["ADMIN", "INSPECTION_MANAGER", "INSPECTION_REP"];
 const MANAGER_ROLES = ["ADMIN", "INSPECTION_MANAGER"];
+
+/**
+ * IN-49 (D-IN-12): أدوار **قراءة تفاصيل المعاينة** — قائمة منفصلة عن الكتابة عمدًا.
+ *
+ * الجذر: المبيعات تطلب المعاينة وتُخطَر بتسجيل مقاساتها ولا تستطيع فتحها، والمكتب
+ * الفني يُطلب منه إعادة التسعير على مقاسات لا يراها. القسم يعمل والبيانات تموت عنده.
+ *
+ * 🔴 لماذا قائمة ثانية لا توسيع للأولى: `ALLOWED_ROLES` تحرس مسارات الكتابة الأربعة،
+ * و`canWriteOnInspection` يعيد `true` لكل دور ليس `INSPECTION_REP` — فإضافة
+ * `SALES_REP` هناك كانت ستمنحه **كتابة المقاسات** لا قراءتها. القراءة والكتابة
+ * قائمتان منفصلتان، ولا تُدمجان.
+ *
+ * النطاق لكل دور يُفرض أدناه في `getInspectionDetail` بإعادة استخدام دالة نطاق
+ * قسمه القائمة — لا شروط ملكية جديدة (نفس علّة IN-12: نسختان من قاعدة = انحراف).
+ */
+const DETAIL_READ_ROLES = [
+  ...ALLOWED_ROLES,
+  "SALES_REP",
+  "SALES_MANAGER",
+  "TECHNICAL_OFFICE",
+  "TEC_LEAD",
+  "TEC_APPROVER",
+];
 // D-37: مدير المعاينات يوزّع ويعتمد — لا يُنشئ. الطلب = المبيعات وحدها (D-31: من شاشة
 // العميل باختيار QuotationRequest صريح). الجدولة/التعيين تبقى للمدير (MANAGER_ROLES).
 const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -154,21 +184,83 @@ export async function getSelectableRequests(customerId: string) {
 
 export async function getInspectionDetail(id: string) {
   try {
-    const auth = await requireRole(ALLOWED_ROLES);
+    const auth = await requireRole(DETAIL_READ_ROLES);
     if (!auth.authorized) return null;
 
-    const inspection = await prisma.inspectionRequest.findUnique({
-      where: { id },
+    // `findFirst` لا `findUnique`: يسمح بإضافة `deletedAt` للشرط. القائمة والاشتقاق
+    // يستثنيان المحذوف منطقيًا (buildInspectionScope · recomputeCustomerStage) وهذه
+    // القراءة كانت الوحيدة التي لا تفعل — فرق كان سيصير ثغرة يوم يُبنى soft-delete.
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
       include: {
-        customer: { select: { id: true, name: true, phone: true } },
+        // IN-49: حقول الملكية لنطاق المبيعات — نفس زوج services/customers.ts
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            ownerId: true,
+            coveredById: true,
+          },
+        },
         assignee: { select: { id: true, name: true } },
+        // IN-39: سياق الطلب — كود/مسار/نوع/ملخّص. مُتحقَّق أن أي شاشة معاينة لا
+        // تقرأ `summary` اليوم (IN-20) رغم وجوده. وهو أيضًا مصدر نطاق المكتب الفني.
+        quotationRequest: {
+          select: {
+            id: true,
+            code: true,
+            technicalRoute: true,
+            salesRequestType: true,
+            summary: true,
+          },
+        },
       },
     });
     if (!inspection) return null;
 
+    // ── IN-49: نطاق القراءة لكل دور — خارج النطاق ⇒ null ⇒ 404 (لا صفحة منع) ──
     if (auth.role === "INSPECTION_REP" && inspection.assigneeId !== auth.userId) {
       return null;
     }
+
+    // المبيعات: معاينات عملائه فقط. نفس قاعدة العملاء حرفيًا (ownerId أو التغطية).
+    if (
+      auth.role === "SALES_REP" &&
+      inspection.customer.ownerId !== auth.userId &&
+      inspection.customer.coveredById !== auth.userId
+    ) {
+      return null;
+    }
+
+    // المكتب الفني: المعاينة مرئية إن كان **طلبها** داخل نطاقه القائم. النطاق
+    // يُقرأ من `buildWhere` نفسها (مسار المهندس/التيم ليدر) — لا شرط جديد هنا.
+    if (
+      auth.role === "TECHNICAL_OFFICE" ||
+      auth.role === "TEC_LEAD" ||
+      auth.role === "TEC_APPROVER"
+    ) {
+      if (!inspection.quotationRequest) return null;
+      const tecScope = await buildWhere(auth.userId, auth.role);
+      const inScope = await prisma.quotationRequest.findFirst({
+        where: { ...tecScope, id: inspection.quotationRequest.id },
+        select: { id: true },
+      });
+      if (!inScope) return null;
+    }
+
+    // 🔴 IN-49/IN-06 (تعارض أُغلق): IN-06 يحجب المقاسات عن المكتب الفني قبل الاعتماد
+    // (D-37: غير نهائية فلا تُسعَّر) — لكن IN-49 فتح له `/inspections/{id}` الذي كان
+    // يعيد المقاسات **بلا شرط**، فيقرأ من باب ما مُنع منه في الباب الآخر.
+    // القاعدة الواحدة: أدوار المكتب الفني ترى المقاسات **بعد الاعتماد فقط**.
+    // المبيعات مستثناة عن قصد: تُخطَر بتسجيل المقاسات قبل الاعتماد أصلًا
+    // (W-02/SAL-R10 في inspection-measurements) فحجبها عنها يخالف قاعدة قائمة.
+    const isTecReader =
+      auth.role === "TECHNICAL_OFFICE" ||
+      auth.role === "TEC_LEAD" ||
+      auth.role === "TEC_APPROVER";
+    const measurementsVisible =
+      !isTecReader || inspection.approvalStatus === "APPROVED";
 
     // 1ب: المقاسات من الجدول المهيكل — لا ActivityLog
     const [attachments, measurements] = await Promise.all([
@@ -176,12 +268,36 @@ export async function getInspectionDetail(id: string) {
         where: { parent: "INSPECTION", parentId: id },
         orderBy: { createdAt: "desc" },
       }),
-      listMeasurements(id),
+      // لا تُقرأ من القاعدة أصلًا لمن لا يراها — الحجب عند المصدر لا عند العرض
+      measurementsVisible ? listMeasurements(id) : Promise.resolve([]),
     ]);
 
     return {
       id: inspection.id,
-      customer: inspection.customer,
+      // الملكية لا تُسلَّم للعميل: النطاق فُرض أعلاه سيرفر-سايد، والواجهة لا تحتاجها
+      customer: {
+        id: inspection.customer.id,
+        name: inspection.customer.name,
+        phone: inspection.customer.phone,
+      },
+      // IN-49: الخادم يقرّر من يكتب، والواجهة تعرض فقط. `canWrite` مشتقّ من نفس
+      // ALLOWED_ROLES التي تحرس الأكشنات ⇒ مصدر واحد، فلا تتباعد الواجهة عن الحارس.
+      canWrite: ALLOWED_ROLES.includes(auth.role),
+      /**
+       * IN-06/IN-49: المقاسات محجوبة عن المكتب الفني قبل الاعتماد. تُبلَّغ الواجهة
+       * صراحةً كي تعرض السبب («لم تُعتمد بعد») بدل جدول فارغ يُقرأ كـ«لا مقاسات».
+       */
+      measurementsVisible,
+      // IN-39: سياق الطلب (null لو المعاينة بلا طلب مرتبط — لا يحدث بعد D-31)
+      request: inspection.quotationRequest
+        ? {
+            id: inspection.quotationRequest.id,
+            code: inspection.quotationRequest.code,
+            technicalRoute: inspection.quotationRequest.technicalRoute,
+            salesRequestType: inspection.quotationRequest.salesRequestType,
+            summary: inspection.quotationRequest.summary,
+          }
+        : null,
       location: inspection.location,
       address: inspection.address,
       phone: inspection.phone,
@@ -480,6 +596,22 @@ export async function updateInspectionStatus(input: unknown) {
     // D-40/D-37 (BL-109): DONE **لا يُخطر المكتب الفني** — الإخطار حصريًا عند اعتماد
     // المدير (approveInspection). DONE هنا حالة تشغيلية للمعاينة، لا بوابة تسليم.
 
+    // 🔴 IN-37 — هنا كان الجذر. `DONE` هو الحدث الوحيد الذي يُسقط `inspectionActive`،
+    // وكان يُكتب **بلا أي إعادة اشتقاق** ⇒ `Customer.stage` تبقى `INSPECTION` للأبد
+    // ومعها `QuotationRequest.status` عند `ON_HOLD`. هذا حرفيًا ما رآه يوسف.
+    // بلا معاملة هنا (الكتابة والسجل أعلاه بلا معاملة أصلًا — لا أُنشئ واحدة في بند
+    // هدفه التوصيل)، ولذلك محوَّطة: فشل الاشتقاق لا يُبطل تغيير حالة تمّ فعلًا
+    // (نمط D-39). الخطأ يُسجَّل لا يُبتلع — الاشتقاق الصامت الفاشل هو أصل هذا البند.
+    try {
+      await recomputeAfterInspection(
+        parsed.data.id,
+        inspection.customerId,
+        auth.userId
+      );
+    } catch (error) {
+      console.error("[updateInspectionStatus/recomputeAfterInspection]", error);
+    }
+
     return { success: true as const };
   } catch (error) {
     console.error("[updateInspectionStatus]", error);
@@ -622,6 +754,10 @@ export async function approveInspection(input: unknown) {
       select: {
         id: true,
         approvalStatus: true,
+        // IN-50: الحالة السابقة تُقرأ لتُسجَّل في الأثر (من ماذا إلى DONE)
+        status: true,
+        // IN-37: مالك المعاينة لازم لإعادة اشتقاق مرحلته بعد الاعتماد
+        customerId: true,
         customer: { select: { name: true } },
       },
     });
@@ -631,12 +767,21 @@ export async function approveInspection(input: unknown) {
     if (inspection.approvalStatus !== "PENDING_APPROVAL")
       return { error: "errors.inspectionNotPending" as const };
 
+    // 🔴 IN-50 (قرار يوسف، الخيار أ): **الاعتماد يُنهي المعاينة تشغيليًا.**
+    // قبله كان `approvalStatus` و`InspectionStatus` بُعدين منفصلين تمامًا، فمعاينة
+    // تُعتمد وهي `SCHEDULED` تبقى `inspectionActive = true` للأبد — ثم يرفض حارس
+    // IN-13 تعليمها `DONE` لأنها معتمدة ⇒ **صف محبوس ومرحلة عميل لا تخرج من
+    // INSPECTION مهما فعل المستخدم** (مُتحقَّق: معاينتان في القاعدة بهذا الوصف).
+    // الآن الاعتماد يكتب الاثنين معًا في نفس الـupdate — لا تسلسل يدوي يُنسى،
+    // ولا حاجة لتعليم DONE بعد الاعتماد (وهو المحجوب بحارس IN-13 أصلًا).
+    // متسق مع D-40: الاعتماد بوابة التسليم النهائية لدورة المعاينة.
     await prisma.inspectionRequest.update({
       where: { id: parsed.data.id },
       data: {
         approvalStatus: "APPROVED",
         approvedById: auth.userId,
         approvedAt: new Date(),
+        status: "DONE",
       },
     });
 
@@ -646,18 +791,51 @@ export async function approveInspection(input: unknown) {
         action: "INSPECTION_APPROVED",
         entity: "InspectionRequest",
         entityId: parsed.data.id,
-        details: `اعتمد المدير معاينة العميل ${inspection.customer.name}`,
+        // IN-50: الأثر يحمل الانتقال التشغيلي المصحوب بالاعتماد — لا اعتماد صامت
+        details: `اعتمد المدير معاينة العميل ${inspection.customer.name} — الحالة ${inspection.status} ← DONE`,
       },
     });
 
-    // D-37: المكتب الفني يُخطَر **الآن فقط** (بعد الاعتماد) — جاهزة لإعادة التسعير
+    // ── IN-47 (D-IN-13): وجهة الإشعار = صفحة **الطلب** لا صفحة المعاينة ──
+    // العيب: `entityType: "InspectionRequest"` كان يُشتق منه `/inspections/{id}`
+    // (`notifications-bell.tsx` ENTITY_ROUTES) وهي صفحة حارسها لا يشمل المكتب الفني
+    // ⇒ redirect صامت إلى /dashboard. والأسوأ أن الضغطة **تعلّم الإشعار مقروءًا**
+    // و`GET /api/notifications` لا يُرجع المقروء ⇒ الإشعار يُحرق بلا أن يُسلَّم.
+    // العلاج عند المُرسِل لا في الجرس: الجرس يشتق من entityType وحده ولا يعرف الدور،
+    // فتوجيهه بالدور كان سيبني منطق صلاحيات في مكوّن عميل. الطلب هو الكيان الذي
+    // يملك المكتب الفني صفحته فعلًا، وهو أيضًا مكان إعادة التسعير المطلوبة.
+    const linkedRequest = await prisma.quotationRequest.findFirst({
+      where: { inspectionRequestId: parsed.data.id },
+      select: { id: true },
+    });
+    if (!linkedRequest) {
+      // بعد D-31 لا تُنشأ معاينة بلا طلب. يُسجَّل تحذيرًا لا يُبتلع.
+      console.warn(
+        `[approveInspection] INSPECTION_WITHOUT_REQUEST id=${parsed.data.id} — الإشعار بلا وجهة قابلة للفتح`
+      );
+    }
     await notifyRole("TECHNICAL_OFFICE", {
       title: "notifications.measurementsReadyTitle",
       body: `مقاسات معتمدة للعميل ${inspection.customer.name} — جاهزة لإعادة التسعير`,
       type: "MEASUREMENTS_READY",
-      entityId: parsed.data.id,
-      entityType: "InspectionRequest",
+      entityId: linkedRequest?.id ?? parsed.data.id,
+      entityType: linkedRequest ? "QuotationRequest" : "InspectionRequest",
     });
+
+    // IN-37 + IN-50: هذا الاستدعاء **مُحرِّك حقيقي** الآن — الـupdate أعلاه كتب
+    // `status = "DONE"` فأسقط `inspectionActive`، فيسقط معه حجب `INSPECTION` عن
+    // `hasQuotation`/`hasContract` (ترتيب الأولوية في status-derivation.ts:54-58)
+    // ⇒ مرحلة العميل تتقدّم فعليًا عند الاعتماد.
+    // (قبل IN-50 كان مُصحِّحًا فقط، لأن الاعتماد لم يكن يمسّ `status` إطلاقًا.)
+    try {
+      await recomputeAfterInspection(
+        parsed.data.id,
+        inspection.customerId,
+        auth.userId
+      );
+    } catch (error) {
+      console.error("[approveInspection/recomputeAfterInspection]", error);
+    }
 
     return { success: true as const };
   } catch (error) {

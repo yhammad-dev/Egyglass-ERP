@@ -76,6 +76,22 @@ type InspectionDetail = {
   measurements: MeasurementRow[];
   approvalStatus: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "RETURNED";
   returnReason: string | null;
+  /**
+   * IN-49: صلاحية الكتابة **من الخادم** (مشتقّة من ALLOWED_ROLES نفسها التي تحرس
+   * الأكشنات) لا من `currentRole` في العميل. المبيعات والمكتب الفني يقرأان فقط،
+   * فلا يُعرض لهما زر كتابة واحد. الحارس النافذ سيرفر-سايد ولم يُمَس (STD-15).
+   */
+  canWrite: boolean;
+  /** IN-06/IN-49: false = المكتب الفني قبل الاعتماد — يُعرض السبب لا جدول فارغ */
+  measurementsVisible: boolean;
+  /** IN-39: سياق الطلب المرتبط — المندوب كان يعاين بلا معرفة مساره ولا ملخّصه */
+  request: {
+    id: string;
+    code: string;
+    technicalRoute: string;
+    salesRequestType: string;
+    summary: string | null;
+  } | null;
 };
 
 export function InspectionDetailClient({
@@ -94,8 +110,12 @@ export function InspectionDetailClient({
 
   // STD-15: هذا إخفاء واجهة فقط — الحارس الحقيقي server-side (MANAGER_ROLES في
   // updateInspectionStatus/updateSiteReadiness) كما هو، لم يُمَس.
+  // IN-49: كل كتلة كتابة تُشترط بـ`canWrite` القادم من الخادم. `canManage` يبقى
+  // للتمييز الإداري داخل أدوار الكتابة (اعتماد/إرجاع/حالة/جاهزية).
+  const canWrite = inspection.canWrite;
   const canManage =
-    currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER";
+    canWrite &&
+    (currentRole === "ADMIN" || currentRole === "INSPECTION_MANAGER");
   // IN-13: بعد الاعتماد تُقفَل الجدولة والحالة وجاهزية الموقع سيرفر-سايد. هذا
   // المتغيّر مرآة واجهة لذلك القفل فقط — لا حارس (STD-15).
   const approvalLocked = inspection.approvalStatus === "APPROVED";
@@ -140,7 +160,14 @@ export function InspectionDetailClient({
       toast.error(t(res.error ?? "errors.updateFailed"));
       return;
     }
-    setInspection((prev) => ({ ...prev, approvalStatus: "APPROVED" }));
+    // IN-50: الخادم يكتب `status: "DONE"` مع الاعتماد في نفس الـupdate، فالمرآة
+    // المحلية لازم تحمل الاثنين. بدون `status` كانت شارة الترويسة وقائمة الحالة
+    // تبقيان على القيمة القديمة (SCHEDULED) جوار شارة «معتمدة» — شاشة تناقض نفسها.
+    setInspection((prev) => ({
+      ...prev,
+      approvalStatus: "APPROVED",
+      status: "DONE",
+    }));
     toast.success(t("inspections.approval.approved"));
   }
 
@@ -361,6 +388,42 @@ export function InspectionDetailClient({
         </div>
       </div>
 
+      {/* ── IN-39: سياق الطلب المرتبط ──
+          المندوب كان يذهب للموقع بلا معرفة كود الطلب ولا مساره ولا ملخّصه، و
+          `QuotationRequest.summary` موجود ولا تقرؤه أي شاشة معاينة (IN-20).
+          `salesRequestType` أُضيف في موجة المبيعات C وهذه أول نقطة استهلاك له. */}
+      {inspection.request && (
+        <div className="max-w-xl space-y-2 rounded-md border p-4">
+          <p className="text-sm font-medium">{t("inspections.detail.requestContext")}</p>
+          {/* ثلاثة حقول: grid-cols-3 لا 2 — في RTL كان الثالث يبقى وحده في صف
+              نصفه فارغ فيُقرأ كتخطيط ناقص. ينهار لعمود واحد على الموبايل. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-muted-foreground">{t("inspections.detail.requestCode")}</p>
+              <p dir="ltr">{inspection.request.code}</p>
+            </div>
+            {/* المفاتيح قائمة سلفًا: route_* يستعملها ملف العميل وحوار طلب المعاينة،
+                و salesType_* يستعملها داشبورد المبيعات — صفر مفتاح enum جديد */}
+            <div>
+              <p className="text-muted-foreground">{t("quotationRequest.route")}</p>
+              <p>{t(`quotationRequest.route_${inspection.request.technicalRoute}`)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">{t("quotationRequest.salesType")}</p>
+              <p>{t(`quotationRequest.salesType_${inspection.request.salesRequestType}`)}</p>
+            </div>
+          </div>
+          {inspection.request.summary && (
+            <div>
+              <p className="text-muted-foreground text-sm">
+                {t("inspections.detail.requestSummary")}
+              </p>
+              <p className="text-sm">{inspection.request.summary}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {inspection.notes && (
         <div className="max-w-xl">
           <p className="text-sm text-muted-foreground">{t("inspections.notes")}</p>
@@ -383,8 +446,9 @@ export function InspectionDetailClient({
           </p>
         )}
 
-        {(inspection.approvalStatus === "DRAFT" ||
-          inspection.approvalStatus === "RETURNED") && (
+        {canWrite &&
+          (inspection.approvalStatus === "DRAFT" ||
+            inspection.approvalStatus === "RETURNED") && (
           <div className="space-y-1">
             <Button
               type="button"
@@ -534,13 +598,32 @@ export function InspectionDetailClient({
                 <th className="p-2 text-start">{t("inspections.detail.unit")}</th>
                 <th className="p-2 text-start">{t("inspections.detail.quantity")}</th>
                 <th className="p-2 text-start">{t("inspections.notes")}</th>
-                <th className="p-2 text-start">{t("app.actions")}</th>
+                {/* IN-49: عمود الإجراءات يختفي كليًا لأدوار القراءة — لا عمود فارغ */}
+                {canWrite && (
+                  <th className="p-2 text-start">{t("app.actions")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {inspection.measurements.length === 0 ? (
+              {/* ترتيب الفروع مقصود: «محجوبة» تُفحَص **قبل** «فارغة». المكتب الفني
+                  قبل الاعتماد تصله المقاسات مصفوفةً فارغة (حُجبت عند المصدر)، فلو
+                  فُحص الفراغ أولًا لرأى «لا مقاسات» — وهي كذبة: المقاسات موجودة
+                  لكنها ليست له بعد. */}
+              {!inspection.measurementsVisible ? (
                 <tr>
-                  <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                  <td
+                    colSpan={canWrite ? 7 : 6}
+                    className="p-4 text-center text-amber-600"
+                  >
+                    {t("tec.inspectionNotApproved")}
+                  </td>
+                </tr>
+              ) : inspection.measurements.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={canWrite ? 7 : 6}
+                    className="p-4 text-center text-muted-foreground"
+                  >
                     {t("inspections.detail.noMeasurements")}
                   </td>
                 </tr>
@@ -553,17 +636,23 @@ export function InspectionDetailClient({
                     <td className="p-2">{t(`inspections.detail.unit_${m.unit}`)}</td>
                     <td className="p-2" dir="ltr">{m.quantity}</td>
                     <td className="p-2 text-muted-foreground">{m.notes ?? "—"}</td>
-                    <td className="p-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={deletingMeasurementId === m.id}
-                        onClick={() => handleDeleteMeasurement(m.id)}
-                      >
-                        {t("app.delete")}
-                      </Button>
-                    </td>
+                    {canWrite && (
+                      <td className="p-2">
+                        {/* IN-13 mirror: بعد الاعتماد الخادم يرفض الحذف — زر يبدو
+                            فعّالًا ثم يفشل بـtoast هو ما تمنعه قاعدة STD-15. */}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            deletingMeasurementId === m.id || approvalLocked
+                          }
+                          onClick={() => handleDeleteMeasurement(m.id)}
+                        >
+                          {t("app.delete")}
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -571,7 +660,10 @@ export function InspectionDetailClient({
           </table>
         </div>
 
-        {/* صف جديد */}
+        {/* صف جديد — IN-49: لأدوار الكتابة فقط · IN-13 mirror: ويختفي بعد الاعتماد
+            (الخادم يرفض الإضافة، فإظهار فورم كامل يعمل ثم يفشل خدعة لا خدمة) */}
+        {canWrite && !approvalLocked && (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="space-y-1 col-span-2 md:col-span-1">
             <Label htmlFor="description">{t("inspections.detail.description")}</Label>
@@ -646,10 +738,16 @@ export function InspectionDetailClient({
         <Button type="button" onClick={handleAddMeasurement} disabled={savingMeasurement}>
           {savingMeasurement ? t("app.loading") : t("inspections.detail.addMeasurements")}
         </Button>
+        </>
+        )}
       </div>
 
       <div className="space-y-3 max-w-xl border-t pt-6">
         <h2 className="font-semibold">{t("inspections.detail.attachments")}</h2>
+        {/* IN-49: الرفع لأدوار الكتابة فقط — العرض أدناه للجميع.
+            IN-13 mirror: والرفع يُقفَل بعد الاعتماد كالمقاسات (نفس حارس الخادم). */}
+        {canWrite && !approvalLocked && (
+        <>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="attachmentType">
@@ -695,6 +793,8 @@ export function InspectionDetailClient({
         >
           {savingAttachment ? t("app.loading") : t("inspections.detail.addAttachment")}
         </Button>
+        </>
+        )}
 
         {inspection.attachments.length > 0 && (
           <div className="space-y-4 pt-2">

@@ -166,6 +166,16 @@ export function InspectionsClient({
         header: t("inspections.location"),
         cell: (info) => t(`inspections.${info.getValue() === "INSIDE_CAIRO" ? "insideCairo" : "outsideCairo"}`),
       }),
+      // IN-39: العنوان كان يُجلب في InspectionRow ولا يُعرض في القائمة إطلاقًا —
+      // فالمندوب لا يعرف وجهته إلا بفتح كل صف على حدة. مقصوص لأن العناوين طويلة.
+      columnHelper.accessor("address", {
+        header: t("inspections.address"),
+        cell: (info) => (
+          <span className="block max-w-[18rem] truncate" title={info.getValue()}>
+            {info.getValue()}
+          </span>
+        ),
+      }),
       columnHelper.accessor("type", {
         header: t("inspections.type"),
         cell: (info) => t(`inspections.type_${info.getValue()}`),

@@ -730,7 +730,10 @@
       "categorySketches": "الكروكيات",
       "categoryOther": "مرفقات أخرى",
       "addAttachment": "إضافة مرفق",
-      "attachmentAdded": "تم إضافة المرفق بنجاح"
+      "attachmentAdded": "تم إضافة المرفق بنجاح",
+      "requestContext": "سياق الطلب",
+      "requestCode": "كود الطلب",
+      "requestSummary": "ملخّص الطلب"
     },
     "siteReadiness": "جاهزية الموقع",
     "siteReady": "الموقع جاهز",
@@ -1362,7 +1365,11 @@
     "returnedTitle": "عروض مرتجعة من المراجعة",
     "quotationReturnedTitle": "عرض السعر مُرجَع من المراجعة",
     "quotationReturnedReason": "سبب الإرجاع",
-    "quotationReturnedNoReason": "لم يُسجَّل سبب للإرجاع"
+    "quotationReturnedNoReason": "لم يُسجَّل سبب للإرجاع",
+    "inspectionMeasurements": "مقاسات المعاينة",
+    "noLinkedInspection": "لا توجد معاينة مرتبطة بهذا الطلب",
+    "inspectionNotApproved": "المعاينة لم يعتمدها مدير المعاينات بعد — المقاسات غير نهائية ولا تُسعَّر",
+    "inspectionApprovedNoRows": "المعاينة معتمدة لكن بلا صفوف مقاسات"
   },
   "import": {
     "title": "استيراد البيانات",

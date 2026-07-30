@@ -48,7 +48,33 @@ export interface StageFacts {
   hasQuotation: boolean; // للعميل عرض سعر واحد على الأقل
 }
 
-/** يشتق مرحلة العميل من أحداثه — نقي. لا يعالج REJECTED (قرار بشري منفصل). */
+/**
+ * IN-37 — المراحل التي **لا يستطيع الاشتقاق إنتاجها**، فلا يجوز له دهسها.
+ *
+ * `enum PipelineStage` في القاعدة ثماني قيم (`prisma/schema.prisma:696-705`)
+ * و`deriveCustomerStage` أدناه تُنتج خمسًا فقط. الثلاث الباقية بلا حدث مشتِق
+ * وتُضبط بيد `ADMIN` حصرًا — وهذا مُقرَّر في CLAUDE.md صراحةً: «FOLLOW_UP /
+ * RE_INSPECTION_FOLLOWUP: بلا حدث مشتِق … تبقيان عبر ADMIN override حتى تعريف
+ * الحدث». فحماية `REJECTED` وحدها كانت **ناقصة لا مكتملة**.
+ *
+ * 🔴 لماذا الآن: البند IN-37 يضيف ثلاث نقاط استدعاء جديدة للاشتقاق، وبلا هذه
+ * الحماية كان أول حدث معاينة على عميل في `FOLLOW_UP` سيمحو قرارًا بشريًا بصمت.
+ * مُتحقَّق على القاعدة الحالية: عميل واحد في `FOLLOW_UP` كان سيصير `INSPECTION`.
+ * (توسيع مقصود خارج نصّ البند — كتلة واحدة، تُحذف بلا أثر على باقي الملحق.)
+ */
+const HUMAN_OWNED_STAGES = [
+  "REJECTED",
+  "FOLLOW_UP",
+  "RE_INSPECTION_FOLLOWUP",
+] as const;
+
+export type HumanOwnedStage = (typeof HUMAN_OWNED_STAGES)[number];
+
+function isHumanOwnedStage(stage: string): stage is HumanOwnedStage {
+  return (HUMAN_OWNED_STAGES as readonly string[]).includes(stage);
+}
+
+/** يشتق مرحلة العميل من أحداثه — نقي. لا يعالج المراحل البشرية (انظر أعلاه). */
 export function deriveCustomerStage(f: StageFacts): PipelineStage {
   // إتمام التركيب أقوى من مجرد وجود العقد — العميل في التنفيذ/ما بعده
   if (f.installationCompleted) return "EXECUTION";
@@ -135,15 +161,15 @@ export async function recomputeCustomerStage(
   customerId: string,
   actorId: string,
   tx: Prisma.TransactionClient | typeof prisma = prisma
-): Promise<PipelineStage | "REJECTED" | null> {
+): Promise<PipelineStage | HumanOwnedStage | null> {
   const customer = await tx.customer.findUnique({
     where: { id: customerId },
     select: { id: true, stage: true },
   });
   if (!customer) return null;
 
-  // REJECTED قرار بشري — لا اشتقاق يدهسه.
-  if (customer.stage === "REJECTED") return "REJECTED";
+  // قرار بشري — لا اشتقاق يدهسه.
+  if (isHumanOwnedStage(customer.stage)) return customer.stage;
 
   const [contract, activeInspection, quotation, completedInstallation] =
     await Promise.all([
@@ -186,4 +212,39 @@ export async function recomputeCustomerStage(
     });
   }
   return next;
+}
+
+/**
+ * IN-37 — أي حدث يمسّ المعاينة يحرّك **البُعدين معًا**: حالة الطلب ومرحلة العميل.
+ *
+ * 🔴 الجذر الذي يعالجه هذا الملحق: منطق الاشتقاق كان سليمًا تمامًا
+ * (`deriveCustomerStage` يعيد `INSPECTION` وهي معاينة نشطة، ويسقطها بمجرد أن تصير
+ * `status = DONE`) — لكن **لا أحد كان يستدعيه لحظة انتهاء المعاينة**. فكانت
+ * `Customer.stage` تُكتب `INSPECTION` عند الإنشاء وتبقى هناك للأبد، لأن
+ * `inspectionActive` يسبق `hasQuotation`/`hasContract` في ترتيب الأولوية
+ * (سطور 54-58) فيحجبهما ما دام لم يُعَد الاشتقاق.
+ *
+ * ولماذا دالة واحدة لا استدعاءان في كل موضع: كان في المستودع نسخة خاصة من نصف
+ * هذه القاعدة (`recomputeLinkedRequest` في `inspection-measurements.ts`) تُحرّك
+ * الطلب وحده وتنسى العميل. نسختان من قاعدة واحدة = انحراف مؤجَّل (نفس علّة IN-12).
+ * هذه هي القاعدة الوحيدة، وموضعها هنا التزامًا بتعليق أعلى الملف: **أي منطق حالة
+ * جديد يعيش هنا حصرًا**.
+ *
+ * `customerId` يُمرَّر ولا يُقرأ من المعاينة: المنادي قرأ الصف بالفعل، فقراءة ثانية
+ * داخل معاملة تُطيل القفل بلا فائدة.
+ */
+export async function recomputeAfterInspection(
+  inspectionRequestId: string,
+  customerId: string,
+  actorId: string,
+  tx: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<void> {
+  const linkedRequest = await tx.quotationRequest.findFirst({
+    where: { inspectionRequestId },
+    select: { id: true },
+  });
+  if (linkedRequest) {
+    await recomputeQuotationRequestStatus(linkedRequest.id, actorId, tx);
+  }
+  await recomputeCustomerStage(customerId, actorId, tx);
 }
