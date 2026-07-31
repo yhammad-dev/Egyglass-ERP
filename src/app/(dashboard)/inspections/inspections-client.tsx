@@ -51,7 +51,15 @@ const columnHelper = createColumnHelper<InspectionRow>();
 
 const LOCATIONS = ["INSIDE_CAIRO", "OUTSIDE_CAIRO"] as const;
 const TYPES = ["PRICING", "EXECUTION"] as const;
-const STATUSES = ["REQUESTED", "SCHEDULED", "DONE", "OVERDUE"] as const;
+// SCR-INS-D (C2): `POSTPONED` تُضاف للفلتر — وإلا صارت صفوفها غير قابلة للفلترة
+// (لا تُضاف لقائمة **الكتابة** في شاشة التفاصيل: لها إجراؤها الذي يفرض السبب).
+const STATUSES = [
+  "REQUESTED",
+  "SCHEDULED",
+  "POSTPONED",
+  "DONE",
+  "OVERDUE",
+] as const;
 
 const scheduleFormSchema = z.object({
   scheduledAt: z.string().min(1, "errors.required"),
@@ -469,18 +477,26 @@ export function InspectionsClient({
           >
             {/* IN-48: تحذير مرئي غير حاجز — «غير جاهز» تُجدوَل بقرار المدير، لكنه
                 يقرأ الحقيقة قبل أن يصرف وقود مندوب ووقته. */}
-            {scheduleRow?.siteReadiness === false && (
+            {scheduleRow?.siteReadiness === "NOT_READY" && (
               <p className="rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
                 {t("inspections.siteNotReadyWarning")}
               </p>
             )}
             {/* 🔴 تصحيح مراجعة: الحوار كان يحذّر من الحالة **المسموحة** ويصمت عن
                 الحالة **الحاجزة**. المدير يملأ الموعد والمندوب ثم يُرفض بـtoast.
-                يُحذَّر مسبقًا — ولا يُعطَّل الحفظ: الصفوف الأقدم من الحدّ يقبلها
-                الخادم فعلًا، وتعطيل الزر كان سيحبسها في الواجهة. */}
-            {scheduleRow?.siteReadiness === null && (
+                ✅ BL-160 (C2): اللافتة صارت **دقيقة**. كانت تظهر لكل `null` — بما
+                فيها الصفوف التاريخية التي **لا تُحجَب فعلًا** — فتَعِد بحجب لا يقع
+                وتقول «تم إخطار المبيعات» ولا إشعار (العرَض المسجَّل في تحديث B3).
+                الآن `UNCONFIRMED` وحدها تُحجَب وتُعرض، و`null` (لم يُسأل) لها نصّها. */}
+            {scheduleRow?.siteReadiness === "UNCONFIRMED" && (
               <p className="rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
                 {t("inspections.siteReadinessBlocksScheduling")}
+              </p>
+            )}
+            {/* `null` = لم يُسأل أصلًا (صفّ تاريخي) — تنبيه غير حاجز، والجدولة تمرّ */}
+            {scheduleRow?.siteReadiness === null && (
+              <p className="rounded-md bg-muted border p-2 text-xs text-muted-foreground">
+                {t("inspections.siteReadinessNeverAsked")}
               </p>
             )}
             <div className="space-y-1">

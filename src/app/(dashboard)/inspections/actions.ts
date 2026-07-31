@@ -31,6 +31,17 @@ import { buildWhere } from "@/lib/services/tec";
 const locationEnum = z.enum(["INSIDE_CAIRO", "OUTSIDE_CAIRO"]);
 const typeEnum = z.enum(["PRICING", "EXECUTION"]);
 
+/**
+ * ✅ BL-160 (موجة C2) — **البند مُغلق.** كان `siteReadiness Boolean?` لا يفرّق بين
+ * «سُئل العميل فقال لست متأكدًا» و«لم يُسأل أحد»: الاثنان `null`. ولذلك اضطرت B2
+ * لحدّ زمني **صلب** (`SITE_READINESS_GATE_FROM`) للتمييز بالتاريخ — وهو ما رصده
+ * البند نفسه كعلّة. الآن التمييز **في البيانات**: `UNCONFIRMED` قيمة صريحة.
+ *
+ * 🔴 **و`null` تبقى قيمة رابعة ذات معنى** (23 صفًّا تاريخيًا): «لم يُسأل أصلًا».
+ * لا تُعامَل كـ`UNCONFIRMED` — ذلك ادعاء بسؤال لم يقع، والفرق بينهما هو جوهر البند.
+ */
+const SITE_READINESS_ENUM = z.enum(["READY", "NOT_READY", "UNCONFIRMED"]);
+
 const createSchema = z.object({
   customerId: z.string().min(1, "errors.required"),
   // D-31 (BL-91): الطلب إلزامي — يختاره المندوب صراحةً، لا تخمين
@@ -41,22 +52,15 @@ const createSchema = z.object({
   type: typeEnum,
   notes: z.string().optional(),
   /**
-   * IN-48 (D-IN-15): جاهزية الموقع تُعلَن من المبيعات وقت الطلب.
-   * ثلاثية صريحة: "READY" · "NOT_READY" · "UNCONFIRMED" — **بلا افتراضي**، فالمندوب
-   * مُجبَر على القراءة والاختيار. تُحوَّل لـ`boolean | null` أدناه لأن العمود القائم
-   * `siteReadiness Boolean?` (لا عمود جديد، لا migration).
+   * IN-48 (D-IN-15): جاهزية الموقع تُعلَن من المبيعات وقت الطلب — **بلا افتراضي**،
+   * فالمندوب مُجبَر على القراءة والاختيار.
+   *
+   * ✅ BL-160 (موجة C2): العمود صار `SiteReadiness` enum بنفس القيم الثلاث، فسقط
+   * الجسر `toSiteReadiness` الذي كان يطويها في `boolean | null` — والواجهة كانت
+   * ثلاثية أصلًا منذ B2، فالتحويل كان خسارة معلومات لا تمثيلًا.
    */
-  siteReadiness: z.enum(["READY", "NOT_READY", "UNCONFIRMED"]),
+  siteReadiness: SITE_READINESS_ENUM,
 });
-
-/** IN-48: ثلاثية الواجهة → العمود البولياني القائم. UNCONFIRMED = null (يحجب الجدولة). */
-function toSiteReadiness(
-  value: "READY" | "NOT_READY" | "UNCONFIRMED"
-): boolean | null {
-  if (value === "READY") return true;
-  if (value === "NOT_READY") return false;
-  return null;
-}
 
 // 🔴 ALLOWED_ROLES = أدوار **الكتابة** (مقاس/مرفق/تقديم). لا يُضاف إليها دور قراءة
 // أبدًا: هي مستعملة في addMeasurementAction · deleteMeasurementAction ·
@@ -175,14 +179,8 @@ export async function createInspectionAction(data: unknown) {
   }
 
   try {
-    const inspection = await createInspection(
-      {
-        ...parsed.data,
-        // IN-48: الثلاثية تُترجَم عند حدّ الأكشن، فالخدمة ترى `boolean | null` وحده
-        siteReadiness: toSiteReadiness(parsed.data.siteReadiness),
-      },
-      auth.userId
-    );
+    // BL-160: بلا ترجمة — القيمة تمرّ كما هي من الواجهة إلى العمود (نفس الثلاثية)
+    const inspection = await createInspection(parsed.data, auth.userId);
     return { success: true as const, data: inspection };
   } catch (e) {
     // D-31: الحارس server-side (طلب غير مؤهَّل) يصل للواجهة برسالة صريحة
@@ -254,6 +252,9 @@ export async function getInspectionDetail(id: string) {
         assignee: { select: { id: true, name: true } },
         // SCR-INS-A: اسم مُعلِن المطابقة — نفس نمط `approvedBy`، بلا استعلام ثانٍ
         matchDeclaredBy: { select: { name: true } },
+        // SCR-INS-D/H (C2): أسماء مسجّل الانحراف وطالب إعادة القياس — نفس النمط
+        deviationBy: { select: { name: true } },
+        remeasureRequestedBy: { select: { name: true } },
         // IN-39: سياق الطلب — كود/مسار/نوع/ملخّص. مُتحقَّق أن أي شاشة معاينة لا
         // تقرأ `summary` اليوم (IN-20) رغم وجوده. وهو أيضًا مصدر نطاق المكتب الفني.
         quotationRequest: {
@@ -450,6 +451,20 @@ export async function getInspectionDetail(id: string) {
       matchDeclaredAt: inspection.matchDeclaredAt
         ? inspection.matchDeclaredAt.toISOString()
         : null,
+      // SCR-INS-D (C2): الانحراف — `null` في الكل = مسار مستقيم لم ينحرف
+      deviationReason: inspection.deviationReason,
+      deviationNote: inspection.deviationNote,
+      deviationRequestedBy: inspection.deviationRequestedBy,
+      deviationAt: inspection.deviationAt ? inspection.deviationAt.toISOString() : null,
+      deviationByName: inspection.deviationBy?.name ?? null,
+      // SCR-INS-E: التصنيف بجوار النصّ القائم `returnReason`
+      returnReasonCode: inspection.returnReasonCode,
+      // SCR-INS-H: أثر إعادة القياس — يبقى ظاهرًا بعد إعادة الفتح فيُعرف السبب
+      remeasureRequestedAt: inspection.remeasureRequestedAt
+        ? inspection.remeasureRequestedAt.toISOString()
+        : null,
+      remeasureReason: inspection.remeasureReason,
+      remeasureRequestedByName: inspection.remeasureRequestedBy?.name ?? null,
       assignee: inspection.assignee,
       attachments: attachments.map((a) => ({
         id: a.id,
@@ -785,7 +800,9 @@ export async function updateInspectionStatus(input: unknown) {
 
 const siteReadinessSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
-  siteReadiness: z.boolean().nullable(),
+  // BL-160: enum ثلاثي. `null` مقبولة عمدًا = **إعادة الحقل إلى «لم يُسأل»** — وهي
+  // حالة مشروعة (تراجع عن إدخال خاطئ) ومغايرة لـ`UNCONFIRMED` (سُئل ولم يؤكّد).
+  siteReadiness: SITE_READINESS_ENUM.nullable(),
 });
 
 /**
@@ -844,12 +861,16 @@ export async function updateSiteReadiness(input: unknown) {
       data: { siteReadiness },
     });
 
+    // BL-160: أربع حالات لا ثلاث — `UNCONFIRMED` (سُئل ولم يؤكّد) مفصولة عن `null`
+    // (لم يُسأل). دمجهما في نصّ واحد كان يُفقد الأثرَ التمييزَ الذي أُنشئ البند لأجله.
     const details =
-      siteReadiness === true
+      siteReadiness === "READY"
         ? "الموقع جاهز"
-        : siteReadiness === false
-        ? "الموقع غير جاهز"
-        : "تم إلغاء تحديد جاهزية الموقع";
+        : siteReadiness === "NOT_READY"
+          ? "الموقع غير جاهز"
+          : siteReadiness === "UNCONFIRMED"
+            ? "العميل لم يؤكّد جاهزية الموقع"
+            : "أُعيد الحقل إلى «لم يُسأل»";
 
     await prisma.activityLog.create({
       data: {
@@ -1052,9 +1073,26 @@ export async function approveInspection(input: unknown) {
   }
 }
 
+/**
+ * SCR-INS-E (IN-23 · D-IN-17): أسباب الإرجاع مقنَّنة. القيم معتمدة من يوسف.
+ * 🔴 **الكود يُضاف بجوار النصّ لا بدلًا منه:** `returnReason` النصّي يبقى إلزاميًا
+ * (مُتحقَّق ميدانيًا: «مع كتابة السبب إجباري») لأن التصنيف يُقاس والنصّ يشرح —
+ * وحذفه كان سيُفقد تفاصيل الحالة. نفس علّة SF-18 في المبيعات وبنفس علاجها.
+ */
+const RETURN_REASON_CODES = [
+  "MEASUREMENTS_INCOMPLETE",
+  "MEASUREMENTS_UNCLEAR",
+  "PHOTOS_MISSING",
+  "WRONG_LOCATION",
+  "OTHER",
+] as const;
+
 const returnInspectionSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),
   reason: z.string().trim().min(1, "errors.returnReasonRequired"),
+  // اختياري عمدًا: صفوف الواجهة القديمة (ونداءات قائمة) تبقى تعمل، والكود يُملأ
+  // حين تُرسله الشاشة. إلزامه كان سيكسر مسارًا قائمًا بلا مكسب.
+  reasonCode: z.enum(RETURN_REASON_CODES).optional(),
 });
 
 export async function returnInspection(input: unknown) {
@@ -1091,6 +1129,9 @@ export async function returnInspection(input: unknown) {
         approvalStatus: "RETURNED",
         // D-40/D-30: returnReason يبقى أثرًا — لا يُمسح عند إعادة التقديم
         returnReason: parsed.data.reason,
+        // SCR-INS-E: التصنيف بجوار النصّ. `undefined` ⇒ Prisma لا تلمس العمود،
+        // فالنداءات القديمة تبقى تعمل ولا تُصفّر كودًا سابقًا.
+        returnReasonCode: parsed.data.reasonCode,
       },
     });
 
@@ -1100,7 +1141,9 @@ export async function returnInspection(input: unknown) {
         action: "INSPECTION_RETURNED",
         entity: "InspectionRequest",
         entityId: parsed.data.id,
-        details: `أرجع المدير المعاينة للتصحيح — السبب: ${parsed.data.reason}`,
+        details: `أرجع المدير المعاينة للتصحيح — التصنيف: ${
+          parsed.data.reasonCode ?? "—"
+        } — السبب: ${parsed.data.reason}`,
       },
     });
 
@@ -1231,6 +1274,332 @@ export async function declareMatchResult(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[declareMatchResult]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ══ SCR-INS-D (موجة C2): تسجيل انحراف المعاينة ════════════════════════════════
+//
+// 🔴 **الحقيقة 1 من نصّ حسن:** التأجيل والرفض والإلغاء **مصدرها العميل** لا القسم.
+// ولذلك `deviationRequestedBy` ليس حقلًا تجميليًا: بدونه تُحمَّل مؤشرات أداء القسم
+// قراراتِ عملاء لا يملكها، فيُقاس شيء غير الأداء.
+
+const DEVIATION_REASONS = [
+  "CUSTOMER_POSTPONED",
+  "CUSTOMER_REJECTED",
+  "CUSTOMER_CANCELLED",
+  "UNSUITABLE_TIME",
+  "NO_STAFF_AVAILABLE",
+  "REMEASURE_REQUIRED",
+  "OTHER",
+] as const;
+
+type DeviationReason = (typeof DEVIATION_REASONS)[number];
+
+/**
+ * الأسباب التي **مصدرها العميل بالتعريف** — يُفرض عليها `CUSTOMER` خادميًا ولا
+ * تُترك لاختيار المستخدم (القاعدة 2). مشتقّة من البادئة لا مكتوبة يدويًا: أي سبب
+ * `CUSTOMER_*` جديد يرث القاعدة تلقائيًا ولا يحتاج تذكّر تحديث قائمة ثانية.
+ */
+function isCustomerSourced(reason: DeviationReason): boolean {
+  return reason.startsWith("CUSTOMER_");
+}
+
+/**
+ * الأسباب التي **تُحوّل الحالة إلى `POSTPONED`**. الرفض والإلغاء ليسا تأجيلًا —
+ * لكن لا قيمة `CANCELLED`/`REJECTED` في `InspectionStatus`، وإضافتها لم تُطلب في C2.
+ * ⇒ **الحالة لا تُلمس لهما**، والسبب المقنَّن يحمل الحقيقة كاملةً. مسجَّل: BL-171.
+ */
+const POSTPONING_REASONS: readonly string[] = [
+  "CUSTOMER_POSTPONED",
+  "UNSUITABLE_TIME",
+  "NO_STAFF_AVAILABLE",
+];
+
+const deviationSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  reason: z.enum(DEVIATION_REASONS),
+  note: z.string().trim().optional(),
+  qualityFollowUp: z.boolean().optional(),
+});
+
+export async function recordDeviation(input: unknown) {
+  try {
+    const auth = await requireRole(MANAGER_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = deviationSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { id, reason } = parsed.data;
+    const note = parsed.data.note?.trim() || null;
+
+    // القاعدة 1: `OTHER` بلا ملاحظة = تصنيف بلا معنى (علّة IN-23 حرفيًا)
+    if (reason === "OTHER" && !note)
+      return { error: "errors.deviationNoteRequired" as const };
+
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        approvalStatus: true,
+        customerId: true,
+        customer: { select: { name: true, ownerId: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // معاينة معتمدة انتهت دورتها — الانحراف عليها يعني إبطال اعتماد ذهب للمكتب
+    // الفني (نفس منطق IN-13). المخرج المشروع بعد الاعتماد هو `requestRemeasure`.
+    if (inspection.approvalStatus === "APPROVED")
+      return { error: "errors.inspectionApprovedNoChange" as const };
+
+    const becomesPostponed = POSTPONING_REASONS.includes(reason);
+
+    await prisma.inspectionRequest.update({
+      where: { id },
+      data: {
+        deviationReason: reason,
+        deviationNote: note,
+        // القاعدة 2: المصدر مفروض خادميًا لا مُختارًا
+        deviationRequestedBy: isCustomerSourced(reason) ? "CUSTOMER" : "INTERNAL",
+        deviationAt: new Date(),
+        deviationById: auth.userId,
+        /**
+         * D-IN-3: **يُكتب ولا يُقرأ.** موديول الجودة غير موجود، والحقل جاهز للربط
+         * حين يُبنى. 🔴 لا تقرأه ولا تُفرّع عليه اليوم — صفر مستهلك مقصود، وليس
+         * عمودًا منسيًّا. `undefined` ⇒ Prisma تتركه `null` = «لم يُقرَّر».
+         */
+        qualityFollowUp: parsed.data.qualityFollowUp,
+        ...(becomesPostponed ? { status: "POSTPONED" as const } : {}),
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "INSPECTION_DEVIATION_RECORDED",
+        entity: "InspectionRequest",
+        entityId: id,
+        details: JSON.stringify({
+          reason,
+          source: isCustomerSourced(reason) ? "CUSTOMER" : "INTERNAL",
+          note,
+          statusChangedTo: becomesPostponed ? "POSTPONED" : null,
+        }),
+      },
+    });
+
+    /**
+     * القاعدة 3: **إشعار المبيعات إلزامي** — الانحراف حدث يخصّ العميل، ومالكه هو
+     * من يتصرّف معه. fallback لـ`SALES_MANAGER` عند عميل بلا مالك (نمط B2:
+     * `Customer.ownerId` قابل للـnull، وبلا الفرع كان الطلب ينحرف ولا أحد يعلم).
+     */
+    try {
+      const body = `انحراف على معاينة العميل ${inspection.customer.name} — السبب: ${reason}`;
+      if (inspection.customer.ownerId) {
+        await sendNotification({
+          userId: inspection.customer.ownerId,
+          title: "notifications.inspectionDeviationTitle",
+          body,
+          type: "INSPECTION_DEVIATION",
+          entityId: id,
+          entityType: "InspectionRequest",
+        });
+      } else {
+        await notifyRole("SALES_MANAGER", {
+          title: "notifications.inspectionDeviationTitle",
+          body: `${body} (عميل بلا مالك مندوب)`,
+          type: "INSPECTION_DEVIATION",
+          entityId: id,
+          entityType: "InspectionRequest",
+        });
+      }
+    } catch {
+      // notification failure must not block the operation
+    }
+
+    // الحالة تغيّرت ⇒ يُعاد اشتقاق حالة الطلب ومرحلة العميل (درس IN-37: الكتابة
+    // بلا إعادة اشتقاق تترك المرحلة معلّقة للأبد). محوَّطة: فشلها لا يُبطل انحرافًا وقع.
+    if (becomesPostponed) {
+      try {
+        await recomputeAfterInspection(id, inspection.customerId, auth.userId);
+      } catch (error) {
+        console.error("[recordDeviation/recomputeAfterInspection]", error);
+      }
+    }
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[recordDeviation]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ══ SCR-INS-H (موجة C2): مسار إعادة القياس — يفتح IN-04 جزئيًا ═════════════════
+//
+// **الطريق المسدود:** معاينة `APPROVED` لا تُعدَّل مقاساتها (IN-13) ولا تُربَط بمعاينة
+// ثانية (`quotation_requests.inspectionRequestId @unique`, schema:1103). أي اختلاف
+// يُكتشف بعدها بلا مخرج. **قاعدة حسن:** إعادة الجدولة لإعادة رفع المقاسات مشروعة.
+//
+// 🔴 **فتح مُقنَّن لا إلغاء للقفل:** الإجراء يعيد `approvalStatus` إلى
+// `PENDING_APPROVAL` فينفتح القفل **تلقائيًا** — حرّاس IN-13 لم تُمَس ولا حرف.
+// 🔴 **`@unique` لم يُلمس:** المعاينة تبقى واحدة وإعادة القياس **دورة داخلها**.
+
+const remeasureSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  reason: z.string().trim().min(1, "errors.remeasureReasonRequired"),
+});
+
+export async function requestRemeasure(input: unknown) {
+  try {
+    // الحدّ 2: المدير وADMIN فقط. المبيعات تطلب عبر إشعار ولا تنفّذ.
+    const auth = await requireRole(MANAGER_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = remeasureSchema.safeParse(input);
+    if (!parsed.success)
+      return {
+        error:
+          parsed.error.flatten().fieldErrors.reason?.[0] ??
+          ("errors.invalidInput" as const),
+      };
+
+    const { id, reason } = parsed.data;
+
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        approvalStatus: true,
+        assigneeId: true,
+        customerId: true,
+        matchResult: true,
+        matchReason: true,
+        customer: { select: { name: true, ownerId: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // الحدّ 1: لا معنى للطلب على غير المعتمدة — المسار العادي مفتوح لها أصلًا
+    if (inspection.approvalStatus !== "APPROVED")
+      return { error: "errors.remeasureRequiresApproved" as const };
+
+    /**
+     * 🔴 الحدّ 4 (D-IN-18): **إعادة القياس تُمنع بوجود عقد.** بعد التعاقد قد تتغيّر
+     * قيمة العقد، وذلك قرار **تجاري لا تشغيلي** — ومتسق مع L-08 (العقد الموقّع سند
+     * لا يُعدَّل؛ التغيير = ملحق + عرض جديد).
+     *
+     * السلسلة: `InspectionRequest` ← `QuotationRequest.inspectionRequestId` ←
+     * `.quotationId` ← `Contract.quotationId` (@unique, schema:952).
+     * ⚠️ الرفض بمفتاح **صريح** لا برسالة عامة: المستخدم يجب أن يعرف أن المانع هو
+     * العقد لا عطل، وإلا كرّر المحاولة ثم صعّد شكوى عن «زر لا يعمل».
+     */
+    const linkedRequest = await prisma.quotationRequest.findFirst({
+      where: { inspectionRequestId: id },
+      select: { quotation: { select: { contract: { select: { id: true } } } } },
+    });
+    if (linkedRequest?.quotation?.contract)
+      return { error: "errors.remeasureBlockedByContract" as const };
+
+    // كل الكتابات في معاملة واحدة: فتح القفل ومسح الحكم وإعادة الحالة لا تتجزّأ —
+    // نجاح بعضها يترك معاينة بحكم مطابقة على مقاسات أُبطلت.
+    await prisma.$transaction(async (tx) => {
+      await tx.inspectionRequest.update({
+        where: { id },
+        data: {
+          // (٢) فتح القفل تلقائيًا بلا لمس حرّاس IN-13
+          approvalStatus: "PENDING_APPROVAL",
+          // (٣) حقول إعادة القياس
+          remeasureRequestedAt: new Date(),
+          remeasureRequestedById: auth.userId,
+          remeasureReason: reason,
+          /**
+           * (٤) **مسح الحكم وتوابعه.** `matchResult` بُني على مقاسات ستتغيّر —
+           * إبقاؤه يعني حكمًا يشير إلى أرقام لم تعد قائمة، وهو أسوأ من غيابه.
+           * القيمة القديمة تُسجَّل في ActivityLog أدناه فلا تضيع.
+           */
+          matchResult: null,
+          matchReason: null,
+          matchDeclaredById: null,
+          matchDeclaredAt: null,
+          // (٥) التزامًا بالقاعدة النافذة: `completedAt` مليان ⟺ الحالة `DONE`
+          status: "SCHEDULED",
+          completedAt: null,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: auth.userId,
+          action: "INSPECTION_REMEASURE_REQUESTED",
+          entity: "InspectionRequest",
+          entityId: id,
+          details: JSON.stringify({
+            reason,
+            // الحكم المُبطَل يُحفَظ بقيمته القديمة — الأثر لا يفقد ما مسحه الإجراء
+            clearedMatchResult: inspection.matchResult,
+            clearedMatchReason: inspection.matchReason,
+            approvalStatus: { from: "APPROVED", to: "PENDING_APPROVAL" },
+          }),
+        },
+      });
+    });
+
+    // (٦) الإخطارات — خارج المعاملة (D-39: نظام الإشعارات بالع، ولا يُبطل عملًا وقع)
+    try {
+      if (inspection.assigneeId) {
+        await sendNotification({
+          userId: inspection.assigneeId,
+          title: "notifications.remeasureRequestedTitle",
+          body: `مطلوب إعادة رفع مقاسات معاينة العميل ${inspection.customer.name} — ${reason}`,
+          type: "REMEASURE_REQUESTED",
+          entityId: id,
+          entityType: "InspectionRequest",
+        });
+      }
+      if (inspection.customer.ownerId) {
+        await sendNotification({
+          userId: inspection.customer.ownerId,
+          title: "notifications.remeasureRequestedTitle",
+          body: `أُعيد فتح معاينة العميل ${inspection.customer.name} لإعادة رفع المقاسات`,
+          type: "REMEASURE_REQUESTED",
+          entityId: id,
+          entityType: "InspectionRequest",
+        });
+      }
+      /**
+       * 🔴 الحدّ 3: **المكتب الفني كان قد أُخطر بمقاسات معتمدة وقد يكون سعّر عليها.**
+       * إغفال إخطاره بإبطالها = IN-37 بالعكس: بيانات تغيّرت ولا أحد يعلم.
+       * الوجهة **الطلب** لا المعاينة (D-IN-13/IN-47: صفحة المعاينة حارسها لا يشمله
+       * فيُحرق الإشعار على redirect صامت).
+       */
+      const requestForNotice = await prisma.quotationRequest.findFirst({
+        where: { inspectionRequestId: id },
+        select: { id: true },
+      });
+      await notifyRole("TECHNICAL_OFFICE", {
+        title: "notifications.measurementsInvalidatedTitle",
+        body: `أُبطلت مقاسات العميل ${inspection.customer.name} — أُعيدت المعاينة لرفع مقاسات جديدة`,
+        type: "MEASUREMENTS_INVALIDATED",
+        entityId: requestForNotice?.id ?? id,
+        entityType: requestForNotice ? "QuotationRequest" : "InspectionRequest",
+      });
+    } catch {
+      // notification failure must not block the operation
+    }
+
+    // الحالة عادت `SCHEDULED` ⇒ المعاينة نشطة من جديد ⇒ يُعاد اشتقاق مرحلة العميل
+    try {
+      await recomputeAfterInspection(id, inspection.customerId, auth.userId);
+    } catch (error) {
+      console.error("[requestRemeasure/recomputeAfterInspection]", error);
+    }
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[requestRemeasure]", error);
     return { error: "errors.serverError" as const };
   }
 }
