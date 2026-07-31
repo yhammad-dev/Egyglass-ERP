@@ -6,6 +6,12 @@ import {
   recomputeQuotationRequestStatus,
   recomputeCustomerStage,
 } from "@/lib/services/status-derivation";
+// SCR-INS-I (C2-fix): تصنيف الحالات من ملف الأوراق — يقطع الدورة مع status-derivation
+import {
+  NEVER_OVERDUE_STATUSES,
+  TERMINAL_INSPECTION_STATUSES,
+  isTerminalInspectionStatus,
+} from "@/lib/services/inspection-status";
 
 // D-31 (BL-91): خطأ مُوجَّه حين لا يكون الطلب المختار مؤهَّلًا للربط
 export class InspectionError extends Error {
@@ -94,8 +100,13 @@ const OUTSIDE_CAIRO_DAYS = 4;
  * 🔴 **SCR-INS-D (موجة C2) — `POSTPONED` لا تتأخر.** التأجيل مصدره **العميل**
  * (الحقيقة 1 من نصّ حسن)، فاحتسابه تأخيرًا يُحمِّل القسمَ قرارَ عميلٍ لا يملكه —
  * ومؤشر SLA المبني على ذلك يقيس شيئًا غير الأداء. الاستثناء صار قيمتين لا واحدة.
+ *
+ * 🔴 **SCR-INS-I (موجة C2-fix) — `CANCELLED` لا تتأخر.** الإلغاء قرار العميل
+ * (D-IN-20: خروج من الصفقة)، ومعاينة لن تُنفَّذ لا معنى لقياس تأخيرها.
+ *
+ * التصنيف نفسه انتقل إلى `services/inspection-status.ts` — ملف أوراق بلا تبعيات،
+ * لأن وضعه هنا كان يُنتج استيرادًا دائريًا مع `status-derivation.ts`.
  */
-const NEVER_OVERDUE_STATUSES: readonly string[] = ["DONE", "POSTPONED"];
 
 export function deriveEffectiveStatus<T extends string>(
   dueDate: Date | null,
@@ -223,7 +234,9 @@ export async function getPendingInspectionsCount(): Promise<number | null> {
   return prisma.inspectionRequest.count({
     where: {
       ...buildInspectionScope(auth.userId, auth.role),
-      status: { not: "DONE" },
+      // SCR-INS-I (C2-fix): الملغاة **ليست معلّقة** — عدّ يشملها يبالغ في حمل القسم
+      // بمعاينات لن تُنفَّذ. `POSTPONED` تبقى معدودة عمدًا (تُستأنف، ليست نهائية).
+      status: { notIn: [...TERMINAL_INSPECTION_STATUSES] },
     },
   });
 }
@@ -525,7 +538,17 @@ export async function scheduleInspection(
     },
   });
   if (!current) throw new InspectionError("errors.notFound");
-  if (current.status === "DONE")
+  /**
+   * 🔴 SCR-INS-I (C2-fix) — **الحارس الأخطر في هذه الموجة، ولم يُذكر في التكليف.**
+   *
+   * كان الشرط `=== "DONE"` وحده، فمعاينة `CANCELLED` تمرّ ⇒ **تُعاد جدولتها فتُبعث
+   * صامتةً**: يعود `status` إلى `SCHEDULED`، ويُخطَر مندوب بموقع أُلغي أصلًا،
+   * ويعود العميل المرفوض إلى مرحلة «معاينة» عبر إعادة الاشتقاق. أي أن التتالي كله
+   * كان قابلًا للنقض بضغطة واحدة على زرّ قائم.
+   *
+   * `POSTPONED` **تمرّ عمدًا** — التأجيل توقّف يُستأنف، وحجب جدولتها = صفّ محبوس.
+   */
+  if (isTerminalInspectionStatus(current.status))
     throw new InspectionError("errors.inspectionNotSchedulable");
   if (current.approvalStatus === "APPROVED")
     throw new InspectionError("errors.inspectionApprovedNoChange");

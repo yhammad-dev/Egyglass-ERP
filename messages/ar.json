@@ -190,6 +190,7 @@
     "leadReturnedTitle": "أُرجع عرض السعر إليك للتصحيح",
     "siteReadinessRequiredTitle": "جاهزية الموقع غير مؤكَّدة",
     "inspectionDeviationTitle": "انحراف على مسار معاينة",
+    "inspectionCancelledTitle": "أُلغيت معاينة — رفض العميل",
     "remeasureRequestedTitle": "مطلوب إعادة رفع المقاسات",
     "measurementsInvalidatedTitle": "أُبطلت مقاسات معتمدة — أعيدت المعاينة"
   },
@@ -745,6 +746,7 @@
     "siteReadinessUnknown": "لم يُحدَّد",
     "siteReadinessUpdated": "تم تحديث جاهزية الموقع",
     "status_POSTPONED": "مؤجَّلة",
+    "status_CANCELLED": "ملغاة",
     "siteReadinessNeverAsked": "لم يُسأل العميل بعد",
     "returnReason_MEASUREMENTS_INCOMPLETE": "مقاسات ناقصة",
     "returnReason_MEASUREMENTS_UNCLEAR": "مقاسات غير واضحة",

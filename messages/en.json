@@ -191,6 +191,7 @@
     "leadReturnedTitle": "A quotation was returned to you for correction",
     "siteReadinessRequiredTitle": "Site readiness not confirmed",
     "inspectionDeviationTitle": "Inspection path deviation",
+    "inspectionCancelledTitle": "Inspection cancelled — customer rejected",
     "remeasureRequestedTitle": "Remeasurement required",
     "measurementsInvalidatedTitle": "Approved measurements invalidated — inspection reopened"
   },
@@ -746,6 +747,7 @@
     "siteReadinessUnknown": "Not Determined",
     "siteReadinessUpdated": "Site readiness updated",
     "status_POSTPONED": "Postponed",
+    "status_CANCELLED": "Cancelled",
     "siteReadinessNeverAsked": "Customer not asked yet",
     "returnReason_MEASUREMENTS_INCOMPLETE": "Incomplete measurements",
     "returnReason_MEASUREMENTS_UNCLEAR": "Unclear measurements",

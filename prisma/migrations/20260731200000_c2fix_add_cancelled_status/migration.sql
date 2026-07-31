@@ -1,0 +1,1 @@
+ALTER TYPE "InspectionStatus" ADD VALUE 'CANCELLED';

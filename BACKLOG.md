@@ -949,7 +949,13 @@ enum QtyRule {
 - **Migration safety:** 3 أعمدة nullable + FK. قابل للتراجع بالكامل.
   اسم مقترح: `scr_ins_h_remeasure`.
 
-| **BL-171** | 🟡 **الرفض والإلغاء لا حالة لهما في `InspectionStatus`** (رُصد أثناء تنفيذ SCR-INS-D).
+| **BL-171** | ✅ **مُغلق (موجة C2-fix، 2026-07-31).** أُضيفت قيمة `CANCELLED` واحدة
+تكفي للحالتين (رفض · إلغاء) — التفرقة محفوظة في `deviationReason`. والإغلاق يقع
+**تتاليًا** من `changeCustomerStage` عند `REJECTED` (D-IN-20: القفل مسؤولية المبيعات).
+`CANCELLED` نهائية مثل `DONE`: لا تُعدّ معلّقة · لا تُبقي العميل في «معاينة» · لا تُجدوَل ·
+لا تتأخر. التصنيف في مصدر واحد `services/inspection-status.ts` يستهلكه سبعة قرّاء.
+🔴 **يبقى مفتوحًا [[BL-172]]** (بعث المعاينة الملغاة عبر مسارات الكتابة). **النصّ الأصلي:**
+| ~~BL-171 (الوصف الأصلي)~~ | 🟡 **الرفض والإلغاء لا حالة لهما في `InspectionStatus`** (رُصد أثناء تنفيذ SCR-INS-D).
 `recordDeviation` يحوّل الحالة إلى `POSTPONED` لثلاثة أسباب فقط (`CUSTOMER_POSTPONED` ·
 `UNSUITABLE_TIME` · `NO_STAFF_AVAILABLE`). أما **`CUSTOMER_REJECTED` و`CUSTOMER_CANCELLED`
 فلا تُلمس لهما الحالة** — لأن `InspectionStatus` لا يحوي `REJECTED`/`CANCELLED`، وإضافتهما
