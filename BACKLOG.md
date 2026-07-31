@@ -818,6 +818,174 @@ enum QtyRule {
    **بعد أن يكون المكتب الفني قد تصرّف على النتيجة**.
 
 ---
+
+## موجة IN-C2 — مسارات الانحراف (4 تغييرات schema) · 🟢 مواصفات مكتملة — بانتظار تطبيق يوسف
+
+> **L-02 [HARD]:** لم أعدّل `schema.prisma` ولم أُنشئ migration ولم أشغّل أي `prisma migrate`.
+> المقاطع الجاهزة للّصق والـSQL كاملًا في تقرير الجلسة (نفس سابقة SCR-019/020 وموجة C1).
+>
+> **الموضوع الواحد:** ماذا يحدث حين **لا** تمشي المعاينة في مسارها المستقيم.
+> **المصدر:** إجابة حسن على Q5 حرفيًا + قرارات يوسف D-IN-17/18/19.
+>
+> **واقع البيانات (SELECT حيّ، 2026-07-31):** 27 معاينة — 12 `REQUESTED` · 8 `SCHEDULED` ·
+> 7 `DONE` · صفر `OVERDUE` مخزَّنة. `siteReadiness`: 3 `true` · 1 `false` · **23 `NULL`**.
+> بُعد الاعتماد: 21 `DRAFT` · 4 `APPROVED` · 2 `PENDING_APPROVAL`.
+
+### 🔴 ثلاث حقائق من نصّ حسن — لا تُخلَط
+
+| # | الحقيقة | الأثر التصميمي |
+|---|---|---|
+| 1 | التأجيل/الرفض/الإلغاء **مصدرها العميل** لا القسم | يلزم تمييز «من طلب» — وإلا حمّلت مؤشراتُ الأداء القسمَ قرارَ العميل |
+| 2 | تنتهي بـ«حالة للمتابعة مع **الجودة**» | وموديول الجودة **غير موجود** ⇒ D-IN-3: حقل جاهز للربط، معطَّل |
+| 3 | «لإعادة رفع المقاسات» سبب **مشروع** لإعادة الجدولة | **هذا مخرج IN-04** — الطريق المسدود بعد الاعتماد |
+
+---
+
+### SCR-INS-D — حالة «مؤجّلة» ومصدر قرار الانحراف
+
+- **الموديل:** `InspectionRequest`.
+- **قيمة جديدة على enum قائم:** `InspectionStatus` (اليوم 4 قيم، `schema.prisma:731-736`)
+  تصير **5** بإضافة `POSTPONED`.
+- **enums جديدة:**
+  ```
+  InspectionDeviationReason { CUSTOMER_POSTPONED · CUSTOMER_REJECTED · CUSTOMER_CANCELLED
+                              UNSUITABLE_TIME · NO_STAFF_AVAILABLE · REMEASURE_REQUIRED · OTHER }
+  DeviationSource          { CUSTOMER · INTERNAL }
+  ```
+  ✅ **الأسماء الأربعة حرة** — مُتحقَّق: صفر `enum SiteReadiness|DeviationSource|InspectionDeviationReason|InspectionReturnReason` في الschema.
+- **⚠️ تضارب `POSTPONED` — مُتحقَّق ومُحتوى:** الاسم مستعمل بمعنى آخر (تأجيل العميل
+  **قرارَ الشراء** لا المعاينة) في `REJECT_REASONS`
+  (`customers/[id]/stage-change-dialog.tsx:40`). **لكنه ثابت عميل لا enum قاعدة بيانات**
+  ⇒ صفر تضارب على مستوى Postgres. البادئة `CUSTOMER_` تمنع الالتباس الدلالي، والقيمة
+  المضافة لـ`InspectionStatus` اسمها `POSTPONED` في نطاق enum مختلف تمامًا.
+- **الأعمدة الستة (كلها nullable — لا `@default` يكذب على التاريخ):**
+  | العمود | النوع | ملاحظة |
+  |---|---|---|
+  | `deviationReason` | `InspectionDeviationReason?` | السبب المقنَّن |
+  | `deviationNote` | `String?` | نصّ حرّ **بجوار** المقنَّن لا بدلًا منه |
+  | `deviationRequestedBy` | `DeviationSource?` | تنفيذ الحقيقة 1 |
+  | `deviationAt` | `DateTime?` | متى |
+  | `deviationById` | `String?` | **من سجّلها لا من طلبها** — علاقة `User`, `SetNull` |
+  | `qualityFollowUp` | `Boolean?` | D-IN-3 — **جاهز للربط، معطَّل** |
+- **⚠️ `qualityFollowUp`: `Boolean?` بلا `@default(false)`.** التكليف يقترح
+  `Boolean? @default(false)` وهو **تناقض داخلي**: nullable + default يجعل `null` غير
+  قابل للحدوث عمليًا فيضيع تمييز «لم يُقرَّر» عن «قُرِّر: لا». وقاعدة الموجة نصّها
+  «كل الأعمدة الجديدة nullable بلا استثناء — لا `@default` يكذب على الصفوف التاريخية».
+  ⇒ **`Boolean?` بلا default**، و`null` = لم يُقرَّر بعد. **قرار يوسف مطلوب إن أراد غير ذلك.**
+- **قواعد الطبقة (المرحلة 2):** (١) `OTHER` تستلزم `deviationNote` (علّة IN-23) ·
+  (٢) `CUSTOMER_*` **تفرض** `deviationRequestedBy = CUSTOMER` خادميًا لا تُترك للمستخدم ·
+  (٣) إشعار المبيعات **إلزامي** لمالك العميل بـfallback لـ`SALES_MANAGER` (نمط B2) ·
+  (٤) `ActivityLog` بالسبب والمصدر · (٥) `qualityFollowUp` **يُكتب ولا يُقرأ** حتى يوجد
+  الموديول — يُوثَّق في الكود كي لا يُقرأ كعمود منسيّ.
+
+#### 🔴 جرد قرّاء `InspectionStatus` — 9 مواضع تحتاج قرارًا صريحًا
+
+| # | الموضع | القرار |
+|---|---|---|
+| 1 | `deriveEffectiveStatus` (`services/inspections.ts:84`) | **`POSTPONED` لا تتأخر.** الشرط اليوم `status !== "DONE"` ⇒ المؤجَّلة ستُحتسب `OVERDUE` وتُحمَّل على القسم قرارَ العميل (خرق الحقيقة 1). يصير الاستثناء قيمتين |
+| 2 | `statusEnum` (`inspections/actions.ts:704`) | **`POSTPONED` لا تُضاف.** لها إجراؤها الخاص الذي يفرض السبب — نفس درس IN-07 حرفيًا |
+| 3 | زر الجدولة (`inspections-client.tsx:257`) | الشرط `status === "DONE" \|\| approvalStatus === "APPROVED"` ⇒ **المؤجَّلة تبقى قابلة للجدولة تلقائيًا** ✅ لا تعديل — وهو المطلوب (منع الصف المحبوس) |
+| 4 | `STATUSES` فلتر القائمة (`inspections-client.tsx:54`) | تُضاف `POSTPONED` وإلا صارت صفوف غير قابلة للفلترة |
+| 5 | شارة الحالة + `InspectionStatus` type (`inspection-detail-client.tsx:41,47`) | يُضاف للنوع، و**لا** يُضاف لـ`STATUS_OPTIONS` (مرآة القرار 2) |
+| 6 | `getPendingInspectionsCount` (`services/inspections.ts:211`) | `status: { not: "DONE" }` ⇒ المؤجَّلة **تُحتسب معلّقة**. متسق مع D-IN-19 (تظهر عاديًا) ✅ لا تعديل |
+| 7 | `inspectionActive` (`status-derivation.ts:178`) | 🔴 **الأخطر.** نفس الشرط ⇒ المؤجَّلة **نشطة** ⇒ العميل يبقى `INSPECTION`. **القرار: نعم، هذا صحيح** (لم تنتهِ) ✅ لا تعديل — لكن يجب تأكيده بالقراءة لا افتراضه |
+| 8 | داشبورد المبيعات (`sales-dashboard.ts:101`) | نفس الشرط ✅ لا تعديل |
+| 9 | `getSelectableRequests` (`inspections/actions.ts:217`) | يقرأ `QuotationRequest.status` **لا** حالة المعاينة — **خارج النطاق** (تنبيه: الاسم يُضلِّل في البحث) |
+| — | i18n | `inspections.status_POSTPONED` في `ar` و`en` معًا |
+
+**الخلاصة: 4 مواضع تُعدَّل (1·2·4·5) · 4 صحيحة بلا تعديل (3·6·7·8) · 1 خارج النطاق (9).**
+
+- **Migration safety:** إضافة قيمة enum + 6 أعمدة nullable + FK. ⚠️ **إضافة قيمة لـenum
+  قائم في Postgres غير قابلة للتراجع مباشرةً** (`ALTER TYPE … DROP VALUE` غير مدعوم) —
+  التراجع يستلزم إعادة بناء النوع. الأعمدة تتراجع بـ`DROP` نظيف.
+  اسم مقترح: `scr_ins_d_postponed_deviation`.
+
+---
+
+### SCR-INS-E — أسباب الإرجاع مقنَّنة (يُنفّذ IN-23 · D-IN-17)
+
+- **الموديل:** `InspectionRequest`. **عمود واحد + enum واحد.**
+- `returnReasonCode InspectionReturnReason?` **بجوار** `returnReason String?` القائم —
+  **لا يُحذف النصّي ولا تُهاجَر بياناته** (نصّ التكليف).
+  ```
+  InspectionReturnReason { MEASUREMENTS_INCOMPLETE · MEASUREMENTS_UNCLEAR
+                           PHOTOS_MISSING · WRONG_LOCATION · OTHER }
+  ```
+- القيم **معتمدة (D-IN-17)** — نُفِّذت كما هي بلا إعادة عرض.
+- **الحقل النصّي يبقى إلزاميًا عند الإرجاع** (`returnInspectionSchema` →
+  `errors.returnReasonRequired`، مُتحقَّق ميدانيًا: «مع كتابة السبب إجباري»).
+- **Blast radius — صفر كسر:** عمود مضاف nullable + enum جديد. القارئ الوحيد
+  (`returnReason` في شاشة التفاصيل) يبقى يعمل بلا تعديل حرف.
+- **Migration safety:** إضافة enum + عمود nullable. قابل للتراجع بالكامل.
+  اسم مقترح: `scr_ins_e_return_reason_code`.
+
+---
+
+### SCR-INS-H — مسار إعادة القياس (يفتح IN-04 **جزئيًا**)
+
+- **الطريق المسدود:** معاينة `APPROVED` لا تُعدَّل مقاساتها (IN-13) ولا تُربَط بمعاينة
+  ثانية — `quotation_requests.inspectionRequestId String? @unique`
+  (**`schema.prisma:1103`**؛ التكليف ذكر 1088 — انزياح مرجع، الصحيح 1103).
+- **الأعمدة الثلاثة (nullable):** `remeasureRequestedAt DateTime?` ·
+  `remeasureRequestedById String?` (`User`, `SetNull`) · `remeasureReason String?`.
+- **الآلية — إجراء واحد `requestRemeasure` في معاملة واحدة:** يتحقق أن
+  `approvalStatus = APPROVED` → يعيدها `PENDING_APPROVAL` (**فيُفتح القفل تلقائيًا بلا لمس
+  حرّاس IN-13**) → يكتب الحقول الثلاثة → **يمسح `matchResult`/`matchReason`/
+  `matchDeclaredById`/`matchDeclaredAt`** مع تسجيل القيمة القديمة في `ActivityLog` →
+  `completedAt = null` و`status = SCHEDULED` (التزامًا بقاعدة **`completedAt` مليان ⟺ `DONE`**)
+  → يُخطر المندوب والمبيعات **والمكتب الفني**.
+- **🔴 الحدود الأربعة:** (١) **لا تُلمس `@unique`** — إعادة القياس **دورة داخل المعاينة**
+  لا معاينة ثانية · (٢) الصلاحية `INSPECTION_MANAGER` + `ADMIN` فقط · (٣) **إخطار المكتب
+  الفني بإبطال المقاسات إلزامي** — كان قد أُخطر بها وقد يكون سعّر عليها، وإغفاله = IN-37
+  بالعكس · (٤) **D-IN-18: تُمنع بوجود عقد.**
+- **سلسلة فحص العقد — مُتحقَّقة على القاعدة:** `InspectionRequest` ←
+  `quotation_requests.inspectionRequestId` ← `.quotationId` ← `contracts.quotationId`
+  (**`@unique`, `schema.prisma:952`**). يُرفض بمفتاح صريح `errors.remeasureBlockedByContract`
+  **لا برسالة عامة** — المستخدم يجب أن يعرف أن المانع هو العقد لا عطل.
+- **⚠️ واقع البيانات يقول إن الحارس لن يُختبَر اليوم:** المعاينات الأربع `APPROVED`
+  **صفر منها له عقد**، والعقدان القائمان على معاينتين `DRAFT` (لا تصلان شرط `APPROVED`
+  أصلًا). ⇒ الحارس صحيح لكن **غير قابل للإثبات ميدانيًا على البيانات الحالية** — يلزم
+  تكوين حالة اختبار، ولا يُدَّعى أنه مُثبَت بلا ذلك.
+- **Migration safety:** 3 أعمدة nullable + FK. قابل للتراجع بالكامل.
+  اسم مقترح: `scr_ins_h_remeasure`.
+
+| **BL-170** | 🔴 **اختلاف المقاسات المكتشَف بعد التعاقد بلا مسار.**
+إعادة القياس ممنوعة بقرار **D-IN-18** (قبل التعاقد فقط)، **ولا بديل مبني**. أي أن الحالة
+الأصلية التي رصدها **IN-04** — اختلاف يُكتشف **بعد** التعاقد — **تبقى بلا مخرج في النظام**.
+هذا **اختيار واعٍ لا سهو**: ما بعد التعاقد يمسّ **قيمة العقد**، وهو قرار تجاري لا تشغيلي
+(ومتسق مع L-08: العقد الموقّع سند لا يُعدَّل، والتغيير = ملحق + عرض جديد).
+**يُحسم مع حسن وعمرو معًا.** الحالة: مفتوح — **IN-04 مُغلق نصفه فقط**.
+---
+
+### BL-160 — جاهزية الموقع ثلاثية القيم (**يُغلق البند**)
+
+- **المشكلة:** `siteReadiness Boolean?` (`schema.prisma:259`) لا تفرّق بين «سُئل العميل
+  فقال لست متأكدًا» و«لم يُسأل أحد» — الاثنان `null`. ولذلك اضطرت B2 لحدّ زمني **صلب**
+  (`SITE_READINESS_GATE_FROM = 2026-07-30`, `services/inspections.ts`) للتمييز بالتاريخ.
+- **الحل:** `enum SiteReadiness { READY · NOT_READY · UNCONFIRMED }` وتحويل العمود.
+- **الترحيل:** `true → READY` · `false → NOT_READY` · `null` **تبقى `null`** (لم يُسأل).
+- **المكسب:** الحدّ الزمني الصلب **يسقط** — البوابة تفحص `UNCONFIRMED` صراحةً بدل
+  تخمينها من `createdAt`، ويسقط معه العرَض المسجَّل في تحديث B3 (لافتة تعد بحجب لا يقع).
+- **⚠️ أخطر ما في الموجة — تغيير نوع عمود قائم.** يلزم `USING` صريح. **الأثر على
+  البيانات: 4 صفوف تتحوّل (3 `true` + 1 `false`) و23 تبقى `NULL`.**
+- **🔴 جرد قرّاء `siteReadiness` — 7 مواضع:**
+  | # | الموضع | التغيير |
+  |---|---|---|
+  | 1 | `createSchema` (`actions.ts:49`) | يستقبل الثلاثية **سلفًا** كنصّ ✅ يصير enum مباشرةً |
+  | 2 | `toSiteReadiness` (`actions.ts`) | 🗑️ **تُحذف** — كانت جسر الثلاثية↔البوليان، وتسقط الحاجة إليها |
+  | 3 | `siteReadinessSchema` (`actions.ts:788`) | `z.boolean().nullable()` ← enum nullable |
+  | 4 | `updateSiteReadiness` details (`actions.ts:848-852`) | ثلاثية `true/false/null` ← 4 حالات مع `UNCONFIRMED` |
+  | 5 | بوابة الجدولة (`services/inspections.ts`) | `=== null && createdAt >= GATE` ← `=== "UNCONFIRMED"`؛ **`SITE_READINESS_GATE_FROM` يُحذف** |
+  | 6 | لافتتا حوار الجدولة (`inspections-client.tsx:472,481`) | `=== false` ← `=== "NOT_READY"` · `=== null` ← `=== "UNCONFIRMED"` |
+  | 7 | أزرار التفاصيل + DTO (`inspection-detail-client.tsx`, `actions.ts:435`) | `boolean \| null` ← نوع الenum؛ والحوار (`request-inspection-dialog.tsx:34`) يستعمل نفس القيم الثلاث **سلفًا** ✅ |
+- **⚠️ `null` تبقى قيمة رابعة ضمنية بعد التحويل** (23 صفًّا) — «لم يُسأل». هذا مقصود
+  (لا اختراع قيمة للتاريخ)، لكن **الطبقة يجب أن تعرضها بنصّها** لا كـ`UNCONFIRMED`،
+  وإلا ادّعينا سؤالًا لم يقع. الفرق بينهما هو **جوهر البند**.
+- **Migration safety:** تحويل نوع بـ`USING` + `DROP DEFAULT` أولًا. **قابل للتراجع**
+  بتحويل عكسي (`READY→true` · `NOT_READY→false` · `UNCONFIRMED→null`) **مع فقد التمييز**
+  الذي أُنشئ البند لأجله. اسم مقترح: `bl160_site_readiness_enum`.
+
+---
 # 🟠 مسارات عمل ناقصة
 
 | # | البند | المصدر |
