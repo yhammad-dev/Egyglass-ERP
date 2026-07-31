@@ -762,6 +762,7 @@
     "submittedAt": "Submitted at",
     "completedAt": "Completed at",
     "notScheduledYet": "Not scheduled yet",
+    "notRecordedLegacy": "Not recorded — predates the system update",
     "activity": {
       "title": "Activity log",
       "action_MATCH_RESULT_DECLARED": "Match result declared",

@@ -15,6 +15,8 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
+// C1-fix: المصدر الوحيد لتنسيق التواريخ — يمنع اختلاف اليوم بين الخادم والمتصفح
+import { formatBusinessDate } from "@/lib/format/dates";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -199,9 +201,10 @@ export function InspectionsClient({
         // SCR-INS-B2: `null` = لم تُجدوَل. بلا هذا الفرع كان `new Date(null)` يطبع
         // **«1970-01-01»** — رقم يبدو بيانات وهو عطل.
         cell: (info) => {
-          const v = info.getValue();
+          // C1-fix: المُنسِّق المشترك (UTC) — لا `toLocaleDateString` بمنطقة البيئة
+          const v = formatBusinessDate(info.getValue());
           return v ? (
-            <span dir="ltr">{new Date(v).toLocaleDateString("en-CA")}</span>
+            <span dir="ltr">{v}</span>
           ) : (
             <span className="text-muted-foreground">
               {t("inspections.notScheduledYet")}
@@ -224,10 +227,10 @@ export function InspectionsClient({
       columnHelper.accessor("scheduledAt", {
         header: t("inspections.scheduledAt"),
         cell: (info) => {
-          const v = info.getValue();
-          return v ? (
-            <span dir="ltr">{new Date(v).toLocaleDateString("en-CA")}</span>
-          ) : "—";
+          // C1-fix: `scheduledAt` من نفس صنف `dueDate` (يوم مخزَّن UTC) — نفس المُنسِّق.
+          // تركه كان سيُنتج تعارضًا جديدًا بين عمودين متجاورين.
+          const v = formatBusinessDate(info.getValue());
+          return v ? <span dir="ltr">{v}</span> : "—";
         },
       }),
       columnHelper.accessor("assigneeName", {

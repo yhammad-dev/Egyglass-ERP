@@ -29,6 +29,12 @@ import {
 } from "../actions";
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
+// C1-fix: المصدر الوحيد لتنسيق التواريخ — يوم عمل (UTC) ولحظة حقيقية (القاهرة)
+import {
+  formatBusinessDate,
+  formatInstantDate,
+  formatInstantDateTime,
+} from "@/lib/format/dates";
 
 // OVERDUE تبقى في نوع **العرض**: صفوف قديمة كُتبت يدويًا قبل IN-07 يجب أن تُعرَض
 // مترجمةً لا كقيمة خام.
@@ -380,11 +386,27 @@ export function InspectionDetailClient({
 
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  const dateFormat = new Intl.DateTimeFormat("ar-EG", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  /**
+   * C1-fix: `Intl.DateTimeFormat("ar-EG", …)` المحلي **حُذف**. كان يستعمل المنطقة
+   * الزمنية للبيئة، فأظهر نفس `dueDate` بيوم مختلف عن القائمة (تفصيل الجذر في
+   * `lib/format/dates.ts`). التنسيق كله عبر المصدر الواحد الآن.
+   *
+   * 🔴 **ملاحظة مطلوبة لأي قارئ:** الطوابع التشغيلية **لا** تُنسَّق كأيام العمل —
+   * هي لحظات حقيقية، وتنسيقها بـUTC كان سيُظهر حدثًا وقع 01:00 بالقاهرة على أنه
+   * اليوم السابق. دالتان لا واحدة، والتمييز مقصود.
+   *
+   * SCR-INS-B (موجة C1): الطابع الفارغ له **معنيان مختلفان**، والتمييز بينهما
+   * **مشتقّ من البيانات نفسها لا من تاريخ صلب في الكود** (تجنّبًا لتكرار علّة
+   * BL-160): إن كانت الواقعة قد حدثت فعلًا (مُسنَدة/مُقدَّمة/منتهية) والطابع فارغ ⇒
+   * صفّ أقدم من الهجرة ⇒ «غير مسجَّل». وإلا فاللحظة لم تقع بعد ⇒ «—».
+   */
+  function renderTimestamp(value: string | null, factHappened: boolean) {
+    const formatted = formatInstantDate(value);
+    if (formatted) return formatted;
+    return factHappened
+      ? t("inspections.notRecordedLegacy")
+      : t("inspections.dash");
+  }
 
   async function handleAddMeasurement() {
     setMeasurementError(null);
@@ -562,17 +584,14 @@ export function InspectionDetailClient({
           <p className="text-muted-foreground">{t("inspections.dueDate")}</p>
           {/* SCR-INS-B2: `null` = لم تُجدوَل ⇒ نصّ صريح لا تاريخ 1970 ولا فراغ صامت */}
           <p dir={inspection.dueDate ? "ltr" : undefined}>
-            {inspection.dueDate
-              ? dateFormat.format(new Date(inspection.dueDate))
-              : t("inspections.notScheduledYet")}
+            {formatBusinessDate(inspection.dueDate) ??
+              t("inspections.notScheduledYet")}
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.scheduledAt")}</p>
           <p dir="ltr">
-            {inspection.scheduledAt
-              ? dateFormat.format(new Date(inspection.scheduledAt))
-              : t("inspections.dash")}
+            {formatBusinessDate(inspection.scheduledAt) ?? t("inspections.dash")}
           </p>
         </div>
         <div>
@@ -580,29 +599,32 @@ export function InspectionDetailClient({
           <p>{inspection.assignee?.name ?? t("inspections.dash")}</p>
         </div>
         {/* SCR-INS-B (IN-33): الطوابع التشغيلية — أساس K2/K3 لاحقًا.
-            `null` يُعرض بـ«—» صريحة: اللحظة لم تقع بعد، لا أن العرض معطوب. */}
+            الفراغ يُقرأ بمعنييه: «لم تقع بعد» (—) أو «غير مسجَّل» لصفّ أقدم من
+            الهجرة — الفراغ الصامت الواحد كان يُقرأ كعطل عرض (BL-81 يمنع الملء). */}
         <div>
           <p className="text-muted-foreground">{t("inspections.assignedAt")}</p>
           <p dir="ltr">
-            {inspection.assignedAt
-              ? dateFormat.format(new Date(inspection.assignedAt))
-              : t("inspections.dash")}
+            {renderTimestamp(inspection.assignedAt, inspection.assignee !== null)}
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.submittedAt")}</p>
           <p dir="ltr">
-            {inspection.submittedAt
-              ? dateFormat.format(new Date(inspection.submittedAt))
-              : t("inspections.dash")}
+            {renderTimestamp(
+              inspection.submittedAt,
+              // التقديم وقع فعلًا إن غادرت المعاينة `DRAFT` في بُعد الاعتماد
+              inspection.approvalStatus !== "DRAFT"
+            )}
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.completedAt")}</p>
           <p dir="ltr">
-            {inspection.completedAt
-              ? dateFormat.format(new Date(inspection.completedAt))
-              : t("inspections.dash")}
+            {renderTimestamp(
+              inspection.completedAt,
+              // القاعدة النافذة: `completedAt` مليان ⟺ `DONE` ⇒ فارغ مع DONE = صفّ قديم
+              inspection.status === "DONE"
+            )}
           </p>
         </div>
       </div>
@@ -640,7 +662,7 @@ export function InspectionDetailClient({
                   <>
                     {" — "}
                     <span dir="ltr">
-                      {dateFormat.format(new Date(inspection.matchDeclaredAt))}
+                      {formatInstantDate(inspection.matchDeclaredAt)}
                     </span>
                   </>
                 )}
@@ -1200,7 +1222,8 @@ export function InspectionDetailClient({
                         : event.action}
                     </span>
                     <span className="text-xs text-muted-foreground" dir="ltr">
-                      {new Date(event.createdAt).toLocaleString("ar-EG")}
+                      {/* C1-fix: لحظة حقيقية بتوقيت القاهرة المثبَّت — لا منطقة البيئة */}
+                      {formatInstantDateTime(event.createdAt)}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
