@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+// SCR-INS-I (C2-fix): المصدر الوحيد للحالات النهائية — لا نسخة محلية من الشرط
+import { TERMINAL_INSPECTION_STATUSES } from "@/lib/services/inspection-status";
 
 /**
  * SF-07 (Wave C) — طبقة تجميع داشبورد المبيعات (قراءة فقط، بلا mutation ⇒ بلا ActivityLog).
@@ -98,7 +100,13 @@ export async function getSalesDashboard(): Promise<SalesDashboardData | null> {
         where: { isReferralTag: true, deletedAt: null, ...scopedByCustomer },
       }),
       prisma.inspectionRequest.count({
-        where: { deletedAt: null, status: { not: "DONE" }, ...scopedByCustomer },
+        // SCR-INS-I (C2-fix): نفس قاعدة عدّاد المعاينات — نسختان من الشرط كانتا
+        // ستُنتجان **رقمين متناقضين على شاشتين** لنفس الحقيقة (علّة IN-12).
+        where: {
+          deletedAt: null,
+          status: { notIn: [...TERMINAL_INSPECTION_STATUSES] },
+          ...scopedByCustomer,
+        },
       }),
     ]);
 

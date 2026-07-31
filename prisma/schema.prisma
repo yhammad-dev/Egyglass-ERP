@@ -775,6 +775,7 @@ enum InspectionStatus {
   SCHEDULED
   DONE
   POSTPONED
+  CANCELLED
   OVERDUE
 }
 

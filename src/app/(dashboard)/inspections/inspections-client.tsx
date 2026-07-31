@@ -45,6 +45,8 @@ import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field-error";
 import { INSPECTION_STATUS_COLORS } from "@/lib/status-colors";
 import type { InspectionRow, UserOption } from "@/lib/services/inspections";
+// SCR-INS-I (C2-fix): تصنيف الحالات — نفس المصدر الذي يقرؤه الحارس الخادمي
+import { isTerminalInspectionStatus } from "@/lib/services/inspection-status";
 import { scheduleInspectionAction } from "./actions";
 
 const columnHelper = createColumnHelper<InspectionRow>();
@@ -58,6 +60,8 @@ const STATUSES = [
   "SCHEDULED",
   "POSTPONED",
   "DONE",
+  // SCR-INS-I (C2-fix): وإلا صارت الملغاة غير قابلة للفلترة — تختفي من الشاشة عمليًا
+  "CANCELLED",
   "OVERDUE",
 ] as const;
 
@@ -262,7 +266,13 @@ export function InspectionsClient({
                 // APPROVED ويسمح بالباقي) فالناقص كان الواجهة وحدها.
                 // `DONE` مستبعد (معاينة منتهية) و`APPROVED` كذلك: الحارس يرفضه،
                 // فإظهار الزر كان سيُنتج نداءً فاشلًا (نمط IN-13: الواجهة تعكس الحارس).
-                if (row.status === "DONE" || row.approvalStatus === "APPROVED")
+                // SCR-INS-I (C2-fix): `CANCELLED` تنضمّ لـ`DONE` — مرآة حارس
+                // `scheduleInspection` الذي صار يرفض الحالتين. زر يظهر ثم يفشل هو
+                // ما تمنعه STD-15، والأسوأ هنا أن نجاحه كان **يبعث معاينة ملغاة**.
+                if (
+                  isTerminalInspectionStatus(row.status) ||
+                  row.approvalStatus === "APPROVED"
+                )
                   return null;
                 // تمييز بصري صريح بين أول إسناد وإعادة إسناد — ليسا الفعل نفسه
                 const isReassign = row.assigneeId !== null;

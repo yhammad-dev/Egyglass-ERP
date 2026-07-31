@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+// SCR-INS-I (C2-fix): المصدر الوحيد للحالات النهائية — لا نسخة محلية من الشرط
+import {
+  TERMINAL_INSPECTION_STATUSES,
+  isTerminalInspectionStatus,
+} from "@/lib/services/inspection-status";
 
 /**
  * دفعة هـ · Phase 4 — الحالة المشتقّة (Single Source of Truth للحالة).
@@ -115,9 +120,16 @@ export async function recomputeQuotationRequestStatus(
       })) !== null
     : false;
 
-  // معاينة نشطة = مربوطة ولم تُنجَز (status != DONE)
+  /**
+   * معاينة نشطة = مربوطة ولم تخرج من دورة العمل.
+   *
+   * 🔴 SCR-INS-I (C2-fix): الشرط كان `!== "DONE"` وحده ⇒ معاينة ألغاها العميل تبقى
+   * «نشطة» فيبقى الطلب `ON_HOLD` **للأبد** — وهو جوهر العيب الذي تغلقه هذه الموجة.
+   * `POSTPONED` تبقى نشطة عمدًا: التأجيل توقّف يُستأنف لا خروج من الصفقة.
+   */
   const inspectionActive =
-    !!req.inspectionRequest && req.inspectionRequest.status !== "DONE";
+    !!req.inspectionRequest &&
+    !isTerminalInspectionStatus(req.inspectionRequest.status);
 
   // وصلت مقاسات؟ 1ب (BL-81): المصدر الوحيد = صفوف `InspectionMeasurement`.
   // (المسار النصي القديم ActivityLog/MEASUREMENTS_RECORDED حُذف — لم يعد مصدر حقيقة.)
@@ -175,7 +187,13 @@ export async function recomputeCustomerStage(
     await Promise.all([
       tx.contract.findFirst({ where: { customerId }, select: { id: true } }),
       tx.inspectionRequest.findFirst({
-        where: { customerId, deletedAt: null, status: { not: "DONE" } },
+        // SCR-INS-I (C2-fix): نفس قاعدة النشاط أعلاه — بدونها يبقى العميل المرفوض
+        // في مرحلة «معاينة» بعد إغلاق معايناته تتاليًا.
+        where: {
+          customerId,
+          deletedAt: null,
+          status: { notIn: [...TERMINAL_INSPECTION_STATUSES] },
+        },
         select: { id: true },
       }),
       tx.quotation.findFirst({ where: { customerId }, select: { id: true } }),

@@ -41,11 +41,13 @@ import {
 // OVERDUE تبقى في نوع **العرض**: صفوف قديمة كُتبت يدويًا قبل IN-07 يجب أن تُعرَض
 // مترجمةً لا كقيمة خام.
 // SCR-INS-D (C2): `POSTPONED` قيمة عرض — تُكتب بإجراء `recordDeviation` وحده
+// SCR-INS-I (C2-fix): `CANCELLED` قيمة **عرض** — تُكتب بالتتالي من رفض العميل وحده
 type InspectionStatus =
   | "REQUESTED"
   | "SCHEDULED"
   | "POSTPONED"
   | "DONE"
+  | "CANCELLED"
   | "OVERDUE";
 
 /** ✅ BL-160 (C2): ثلاثي صريح. `null` = لم يُسأل أصلًا (صفّ تاريخي) — قيمة رابعة. */

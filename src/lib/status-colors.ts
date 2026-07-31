@@ -12,7 +12,13 @@ export const PIPELINE_STAGE_COLORS: Record<string, string> = {
 export const INSPECTION_STATUS_COLORS: Record<string, string> = {
   REQUESTED: "bg-blue-100 text-blue-700 border-blue-200",
   SCHEDULED: "bg-amber-100 text-amber-700 border-amber-200",
+  // SCR-INS-D (C2): `POSTPONED` أُضيفت للenum ولم تُضَف هنا — كانت تسقط على fallback
+  // رمادي فتظهر شارة بلا هوية. عيب من موجة C2 يُصلَح مع `CANCELLED` في نفس المرور.
+  POSTPONED: "bg-orange-100 text-orange-700 border-orange-200",
   DONE:      "bg-green-100 text-green-700 border-green-200",
+  // SCR-INS-I (C2-fix): الملغاة **رمادية عمدًا** — نهائية لكنها ليست إنجازًا (لا خضراء)
+  // ولا خطأً يستدعي تدخّلًا (لا حمراء). خروج من الصفقة، والحياد يعكسه.
+  CANCELLED: "bg-gray-200 text-gray-600 border-gray-300",
   OVERDUE:   "bg-red-100 text-red-700 border-red-200",
 };
 
