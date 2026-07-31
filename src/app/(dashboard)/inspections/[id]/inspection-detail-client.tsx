@@ -26,6 +26,8 @@ import {
   approveInspection,
   returnInspection,
   declareMatchResult,
+  recordDeviation,
+  requestRemeasure,
 } from "../actions";
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
@@ -38,7 +40,38 @@ import {
 
 // OVERDUE تبقى في نوع **العرض**: صفوف قديمة كُتبت يدويًا قبل IN-07 يجب أن تُعرَض
 // مترجمةً لا كقيمة خام.
-type InspectionStatus = "REQUESTED" | "SCHEDULED" | "DONE" | "OVERDUE";
+// SCR-INS-D (C2): `POSTPONED` قيمة عرض — تُكتب بإجراء `recordDeviation` وحده
+type InspectionStatus =
+  | "REQUESTED"
+  | "SCHEDULED"
+  | "POSTPONED"
+  | "DONE"
+  | "OVERDUE";
+
+/** ✅ BL-160 (C2): ثلاثي صريح. `null` = لم يُسأل أصلًا (صفّ تاريخي) — قيمة رابعة. */
+type SiteReadinessValue = "READY" | "NOT_READY" | "UNCONFIRMED";
+
+/** SCR-INS-D: الأسباب السبعة — مرآة `DEVIATION_REASONS` في `../actions.ts` (STD-15) */
+const DEVIATION_REASONS = [
+  "CUSTOMER_POSTPONED",
+  "CUSTOMER_REJECTED",
+  "CUSTOMER_CANCELLED",
+  "UNSUITABLE_TIME",
+  "NO_STAFF_AVAILABLE",
+  "REMEASURE_REQUIRED",
+  "OTHER",
+] as const;
+type DeviationReason = (typeof DEVIATION_REASONS)[number];
+
+/** SCR-INS-E: أسباب الإرجاع المقنَّنة — مرآة `RETURN_REASON_CODES` (D-IN-17) */
+const RETURN_REASON_CODES = [
+  "MEASUREMENTS_INCOMPLETE",
+  "MEASUREMENTS_UNCLEAR",
+  "PHOTOS_MISSING",
+  "WRONG_LOCATION",
+  "OTHER",
+] as const;
+type ReturnReasonCode = (typeof RETURN_REASON_CODES)[number];
 
 // IN-07: القيم **القابلة للكتابة** — بلا OVERDUE. التأخير مشتقّ من dueDate لا
 // يُختار من قائمة. مرآة لـ`statusEnum` في `../actions.ts`؛ الحارس النافذ هناك.
@@ -104,6 +137,9 @@ const KNOWN_ACTIVITY_ACTIONS = new Set([
   // SCR-INS-A (موجة C1)
   "MATCH_RESULT_DECLARED",
   "MATCH_RESULT_CORRECTED",
+  // SCR-INS-D/H (موجة C2)
+  "INSPECTION_DEVIATION_RECORDED",
+  "INSPECTION_REMEASURE_REQUESTED",
 ]);
 
 /**
@@ -178,7 +214,19 @@ type InspectionDetail = {
    */
   effectiveStatus: InspectionStatus;
   type: string;
-  siteReadiness: boolean | null;
+  siteReadiness: SiteReadinessValue | null;
+  // SCR-INS-D (C2): الانحراف — `null` في الكل = مسار مستقيم لم ينحرف
+  deviationReason: DeviationReason | null;
+  deviationNote: string | null;
+  deviationRequestedBy: "CUSTOMER" | "INTERNAL" | null;
+  deviationAt: string | null;
+  deviationByName: string | null;
+  // SCR-INS-E: التصنيف بجوار `returnReason` النصّي القائم
+  returnReasonCode: ReturnReasonCode | null;
+  // SCR-INS-H: أثر إعادة القياس — يبقى ظاهرًا بعد إعادة الفتح فيُعرف سببها
+  remeasureRequestedAt: string | null;
+  remeasureReason: string | null;
+  remeasureRequestedByName: string | null;
   /** SCR-INS-B (IN-33): الطوابع التشغيلية — `null` = لم تقع اللحظة بعد */
   assignedAt: string | null;
   submittedAt: string | null;
@@ -243,7 +291,7 @@ export function InspectionDetailClient({
   const t = useTranslations();
   const router = useRouter();
   const [inspection, setInspection] = useState(initialInspection);
-  const [siteReadiness, setSiteReadiness] = useState<boolean | null>(
+  const [siteReadiness, setSiteReadiness] = useState<SiteReadinessValue | null>(
     initialInspection.siteReadiness ?? null
   );
   const [updatingSiteReadiness, setUpdatingSiteReadiness] = useState(false);
@@ -267,7 +315,7 @@ export function InspectionDetailClient({
   const canEditSiteReadiness =
     inspection.canEditSiteReadiness && !approvalLocked;
 
-  async function handleSiteReadiness(value: boolean | null) {
+  async function handleSiteReadiness(value: SiteReadinessValue | null) {
     setUpdatingSiteReadiness(true);
     const result = await updateSiteReadiness({ id: inspection.id, siteReadiness: value });
     setUpdatingSiteReadiness(false);
@@ -277,6 +325,57 @@ export function InspectionDetailClient({
     }
     setSiteReadiness(value);
     toast.success(t("inspections.siteReadinessUpdated"));
+  }
+
+  // ── SCR-INS-D (C2): تسجيل الانحراف ──
+  const [deviationInput, setDeviationInput] = useState<DeviationReason | "">(
+    initialInspection.deviationReason ?? ""
+  );
+  const [deviationNoteInput, setDeviationNoteInput] = useState(
+    initialInspection.deviationNote ?? ""
+  );
+  const [recordingDeviation, setRecordingDeviation] = useState(false);
+  const [deviationError, setDeviationError] = useState<string | null>(null);
+
+  async function handleRecordDeviation() {
+    if (!deviationInput) return;
+    setDeviationError(null);
+    setRecordingDeviation(true);
+    const res = await recordDeviation({
+      id: inspection.id,
+      reason: deviationInput,
+      note: deviationNoteInput.trim() || undefined,
+    });
+    setRecordingDeviation(false);
+    if ("error" in res) {
+      setDeviationError(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    // الحالة قد تصير `POSTPONED` والمصدر يُفرض خادميًا — يُعاد الجلب بدل تخمينهما
+    router.refresh();
+    toast.success(t("inspections.deviation.recorded"));
+  }
+
+  // ── SCR-INS-H (C2): إعادة القياس ──
+  const [remeasureInput, setRemeasureInput] = useState("");
+  const [requestingRemeasure, setRequestingRemeasure] = useState(false);
+  const [remeasureError, setRemeasureError] = useState<string | null>(null);
+
+  async function handleRequestRemeasure() {
+    setRemeasureError(null);
+    setRequestingRemeasure(true);
+    const res = await requestRemeasure({
+      id: inspection.id,
+      reason: remeasureInput.trim(),
+    });
+    setRequestingRemeasure(false);
+    if ("error" in res) {
+      setRemeasureError(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    // الإجراء يقلب أربعة حقول (القفل · الحكم · الحالة · الطابع) — `refresh` لا مرآة
+    router.refresh();
+    toast.success(t("inspections.remeasure.requested"));
   }
 
   // ── SCR-INS-A (IN-03): إعلان نتيجة المطابقة ──
@@ -314,6 +413,8 @@ export function InspectionDetailClient({
   const [returning, setReturning] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
   const [returnReasonInput, setReturnReasonInput] = useState("");
+  // SCR-INS-E (D-IN-17): التصنيف **بجوار** النصّ لا بدلًا منه — النصّ يبقى إلزاميًا
+  const [returnCodeInput, setReturnCodeInput] = useState<ReturnReasonCode | "">("");
 
   async function handleSubmitForApproval() {
     setSubmitting(true);
@@ -351,7 +452,11 @@ export function InspectionDetailClient({
 
   async function handleReturn() {
     setReturning(true);
-    const res = await returnInspection({ id: inspection.id, reason: returnReasonInput });
+    const res = await returnInspection({
+      id: inspection.id,
+      reason: returnReasonInput,
+      reasonCode: returnCodeInput || undefined,
+    });
     setReturning(false);
     if ("error" in res) {
       toast.error(t(res.error ?? "errors.updateFailed"));
@@ -837,6 +942,32 @@ export function InspectionDetailClient({
             </div>
             {showReturn && (
               <div className="space-y-2">
+                {/* SCR-INS-E (IN-23 · D-IN-17): تصنيف مقنَّن **بجوار** النصّ.
+                    النصّ يبقى إلزاميًا (الزر معطَّل بدونه) لأن التصنيف يُقاس والنصّ
+                    يشرح — نفس علّة SF-18 في المبيعات وبنفس علاجها. */}
+                <Select
+                  value={returnCodeInput}
+                  onValueChange={(v) =>
+                    setReturnCodeInput((v as ReturnReasonCode) ?? "")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t("inspections.approval.selectReasonCode")}
+                    >
+                      {returnCodeInput
+                        ? t(`inspections.returnReason_${returnCodeInput}`)
+                        : undefined}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_REASON_CODES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {t(`inspections.returnReason_${c}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Textarea
                   value={returnReasonInput}
                   onChange={(e) => setReturnReasonInput(e.target.value)}
@@ -891,25 +1022,37 @@ export function InspectionDetailClient({
 
       <div className="space-y-2 max-w-xs">
         <Label>{t("inspections.siteReadiness")}</Label>
+        {/* ✅ BL-160 (C2): أربعة أزرار لا ثلاثة. «العميل لم يؤكّد» صارت قيمة صريحة
+            (`UNCONFIRMED`، تحجب الجدولة) منفصلة عن «لم يُسأل» (`null`، لا تحجب) —
+            وهما ما كان العمود البولياني يطويهما في `null` واحدة فاستلزم حدًّا زمنيًا. */}
         {canEditSiteReadiness ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant={siteReadiness === true ? "default" : "outline"}
+              variant={siteReadiness === "READY" ? "default" : "outline"}
               size="sm"
               disabled={updatingSiteReadiness}
-              onClick={() => handleSiteReadiness(true)}
+              onClick={() => handleSiteReadiness("READY")}
             >
               ✅ {t("inspections.siteReady")}
             </Button>
             <Button
               type="button"
-              variant={siteReadiness === false ? "default" : "outline"}
+              variant={siteReadiness === "NOT_READY" ? "default" : "outline"}
               size="sm"
               disabled={updatingSiteReadiness}
-              onClick={() => handleSiteReadiness(false)}
+              onClick={() => handleSiteReadiness("NOT_READY")}
             >
               ❌ {t("inspections.siteNotReady")}
+            </Button>
+            <Button
+              type="button"
+              variant={siteReadiness === "UNCONFIRMED" ? "default" : "outline"}
+              size="sm"
+              disabled={updatingSiteReadiness}
+              onClick={() => handleSiteReadiness("UNCONFIRMED")}
+            >
+              ❓ {t("inspections.siteReadiness_UNCONFIRMED")}
             </Button>
             <Button
               type="button"
@@ -918,19 +1061,156 @@ export function InspectionDetailClient({
               disabled={updatingSiteReadiness}
               onClick={() => handleSiteReadiness(null)}
             >
-              — {t("inspections.siteReadinessUnknown")}
+              — {t("inspections.siteReadinessNeverAsked")}
             </Button>
           </div>
         ) : (
           <p className="text-sm">
-            {siteReadiness === true
-              ? t("inspections.siteReady")
-              : siteReadiness === false
-              ? t("inspections.siteNotReady")
-              : t("inspections.siteReadinessUnknown")}
+            {siteReadiness === null
+              ? t("inspections.siteReadinessNeverAsked")
+              : t(`inspections.siteReadiness_${siteReadiness}`)}
           </p>
         )}
       </div>
+
+      {/* ── SCR-INS-D (C2): انحراف المعاينة ──
+          🔴 **الحقيقة 1 من نصّ حسن:** التأجيل والرفض والإلغاء **مصدرها العميل**.
+          `deviationRequestedBy` يُفرض خادميًا للأسباب `CUSTOMER_*` ولا يُترك للاختيار —
+          وبدونه تُحمَّل مؤشرات أداء القسم قراراتِ عملاء لا يملكها. */}
+      <div className="max-w-xl space-y-3 rounded-md border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label>{t("inspections.deviation.title")}</Label>
+          {inspection.deviationReason ? (
+            <Badge variant="secondary">
+              {t(`inspections.deviation.reason_${inspection.deviationReason}`)}
+            </Badge>
+          ) : (
+            <Badge variant="outline">{t("inspections.deviation.none")}</Badge>
+          )}
+        </div>
+
+        {inspection.deviationReason && (
+          <div className="space-y-1 text-sm">
+            {inspection.deviationRequestedBy && (
+              <p>
+                <span className="text-muted-foreground">
+                  {t("inspections.deviation.source")}:{" "}
+                </span>
+                {t(`inspections.deviation.source_${inspection.deviationRequestedBy}`)}
+              </p>
+            )}
+            {inspection.deviationNote && (
+              <p className="whitespace-pre-wrap">{inspection.deviationNote}</p>
+            )}
+            {inspection.deviationByName && (
+              <p className="text-xs text-muted-foreground">
+                {t("inspections.deviation.recordedBy")} {inspection.deviationByName}
+                {inspection.deviationAt && (
+                  <>
+                    {" — "}
+                    <span dir="ltr">{formatInstantDate(inspection.deviationAt)}</span>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
+        {canManage && !approvalLocked && (
+          <div className="space-y-2">
+            <Select
+              value={deviationInput}
+              onValueChange={(v) => setDeviationInput((v as DeviationReason) ?? "")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("inspections.deviation.selectReason")}>
+                  {deviationInput
+                    ? t(`inspections.deviation.reason_${deviationInput}`)
+                    : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {DEVIATION_REASONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {t(`inspections.deviation.reason_${r}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* القاعدة 1: `OTHER` تستلزم ملاحظة — الإلزام النافذ server-side */}
+            <Textarea
+              value={deviationNoteInput}
+              onChange={(e) => setDeviationNoteInput(e.target.value)}
+              placeholder={
+                deviationInput === "OTHER"
+                  ? t("inspections.deviation.noteRequired")
+                  : t("inspections.deviation.notePlaceholder")
+              }
+              rows={2}
+            />
+            {deviationError && <p className="text-sm text-red-500">{deviationError}</p>}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={
+                recordingDeviation ||
+                !deviationInput ||
+                (deviationInput === "OTHER" && deviationNoteInput.trim().length === 0)
+              }
+              onClick={handleRecordDeviation}
+            >
+              {recordingDeviation
+                ? t("app.loading")
+                : t("inspections.deviation.record")}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── SCR-INS-H (C2): إعادة القياس — مخرج IN-04 قبل التعاقد ──
+          🔴 فتح مُقنَّن لا إلغاء للقفل: الإجراء يعيد `approvalStatus` إلى
+          `PENDING_APPROVAL` فينفتح القفل تلقائيًا، وحرّاس IN-13 لم تُمَس.
+          ⚠️ D-IN-18: يُرفض بوجود عقد — بمفتاح صريح لا برسالة عامة. */}
+      {canManage && approvalLocked && (
+        <div className="max-w-xl space-y-2 rounded-md border border-amber-300 bg-amber-50 p-4">
+          <Label>{t("inspections.remeasure.title")}</Label>
+          <p className="text-xs text-amber-700">{t("inspections.remeasure.hint")}</p>
+          <Textarea
+            value={remeasureInput}
+            onChange={(e) => setRemeasureInput(e.target.value)}
+            placeholder={t("inspections.remeasure.reasonPlaceholder")}
+            rows={2}
+          />
+          {remeasureError && <p className="text-sm text-red-500">{remeasureError}</p>}
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={requestingRemeasure || remeasureInput.trim().length === 0}
+            onClick={handleRequestRemeasure}
+          >
+            {requestingRemeasure ? t("app.loading") : t("inspections.remeasure.request")}
+          </Button>
+        </div>
+      )}
+
+      {/* أثر إعادة قياس سابقة — يبقى ظاهرًا بعد إعادة الفتح فيُعرف سببها */}
+      {inspection.remeasureRequestedAt && (
+        <div className="max-w-xl rounded-md border p-3 text-sm space-y-1">
+          <p className="font-medium">{t("inspections.remeasure.previous")}</p>
+          {inspection.remeasureReason && (
+            <p className="whitespace-pre-wrap">{inspection.remeasureReason}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {inspection.remeasureRequestedByName}
+            {" — "}
+            <span dir="ltr">
+              {formatInstantDate(inspection.remeasureRequestedAt)}
+            </span>
+          </p>
+        </div>
+      )}
 
       <div className="space-y-3 max-w-3xl border-t pt-6">
         <h2 className="font-semibold">{t("inspections.detail.measurements")}</h2>

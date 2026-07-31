@@ -69,6 +69,8 @@ model User {
   teamLead    User?   @relation("TecTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
   teamMembers User[]  @relation("TecTeamLead")
   inspectionsMatchDeclared InspectionRequest[] @relation("InspectionMatchDeclarer")
+  inspectionsDeviationBy InspectionRequest[] @relation("InspectionDeviationBy")
+  inspectionsRemeasureBy InspectionRequest[] @relation("InspectionRemeasureBy")
 }
 
 model Customer {
@@ -251,19 +253,30 @@ model InspectionRequest {
   matchDeclaredById     String?
   matchDeclaredAt       DateTime?
   matchDeclaredBy       User? @relation("InspectionMatchDeclarer", fields: [matchDeclaredById], references: [id], onDelete: SetNull)
+  deviationBy          User? @relation("InspectionDeviationBy", fields: [deviationById], references: [id], onDelete: SetNull)
+  remeasureRequestedBy User? @relation("InspectionRemeasureBy", fields: [remeasureRequestedById], references: [id], onDelete: SetNull)
   assigneeId       String?
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
   deletedAt        DateTime?
   type             InspectionType           @default(PRICING)
-  siteReadiness    Boolean? // null=لم يُحدَّد، true=جاهز، false=غير جاهز
+  siteReadiness    SiteReadiness? // null=لم يُسأل العميل أصلاً (صفوف ما قبل C2)
 
   // ── SCR-018: بوابة اعتماد المعاينة ──
   approvalStatus   InspectionApprovalStatus @default(DRAFT)
   approvedById     String?
   approvedAt       DateTime?
   returnReason     String?
-
+  deviationReason        InspectionDeviationReason?
+  deviationNote          String?
+  deviationRequestedBy   DeviationSource?
+  deviationAt            DateTime?
+  deviationById          String?
+  qualityFollowUp        Boolean?
+  returnReasonCode       InspectionReturnReason?
+  remeasureRequestedAt   DateTime?
+  remeasureRequestedById String?
+  remeasureReason        String?
   assignee         User?                    @relation("InspectionAssignee", fields: [assigneeId], references: [id])
   approvedBy       User?                    @relation("InspectionApprover", fields: [approvedById], references: [id])
   customer         Customer                 @relation(fields: [customerId], references: [id])
@@ -728,10 +741,40 @@ enum QuotationStatus {
   EXPIRED
 }
 
+enum SiteReadiness {
+  READY
+  NOT_READY
+  UNCONFIRMED
+}
+
+enum DeviationSource {
+  CUSTOMER
+  INTERNAL
+}
+
+enum InspectionDeviationReason {
+  CUSTOMER_POSTPONED
+  CUSTOMER_REJECTED
+  CUSTOMER_CANCELLED
+  UNSUITABLE_TIME
+  NO_STAFF_AVAILABLE
+  REMEASURE_REQUIRED
+  OTHER
+}
+
+enum InspectionReturnReason {
+  MEASUREMENTS_INCOMPLETE
+  MEASUREMENTS_UNCLEAR
+  PHOTOS_MISSING
+  WRONG_LOCATION
+  OTHER
+}
+
 enum InspectionStatus {
   REQUESTED
   SCHEDULED
   DONE
+  POSTPONED
   OVERDUE
 }
 
