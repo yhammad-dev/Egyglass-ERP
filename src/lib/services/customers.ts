@@ -258,7 +258,8 @@ export interface CustomerProfileData {
     location: string;
     address: string | null;
     scheduledAt: Date | null;
-    dueDate: Date;
+    /** SCR-INS-B2 (موجة C1): `null` = لم تُجدوَل بعد فلا مهلة تنفيذ */
+    dueDate: Date | null;
     createdAt: Date;
   }>;
   // SF-05 (الجزء 2): فواتير العميل — بيانات على مستوى الخدمة فقط. العرض في الواجهة قرار

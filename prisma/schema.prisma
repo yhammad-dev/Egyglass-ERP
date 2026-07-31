@@ -68,6 +68,7 @@ model User {
   teamLeadId  String?
   teamLead    User?   @relation("TecTeamLead", fields: [teamLeadId], references: [id], onDelete: SetNull)
   teamMembers User[]  @relation("TecTeamLead")
+  inspectionsMatchDeclared InspectionRequest[] @relation("InspectionMatchDeclarer")
 }
 
 model Customer {
@@ -241,7 +242,15 @@ model InspectionRequest {
   notes            String?
   status           InspectionStatus         @default(REQUESTED)
   scheduledAt      DateTime?
-  dueDate          DateTime
+  dueDate          DateTime?
+  assignedAt            DateTime?
+  submittedAt           DateTime?
+  completedAt           DateTime?
+  matchResult           InspectionMatchResult?
+  matchReason           String?
+  matchDeclaredById     String?
+  matchDeclaredAt       DateTime?
+  matchDeclaredBy       User? @relation("InspectionMatchDeclarer", fields: [matchDeclaredById], references: [id], onDelete: SetNull)
   assigneeId       String?
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
@@ -734,6 +743,12 @@ enum InspectionLocation {
 enum InspectionType {
   PRICING
   EXECUTION
+}
+
+enum InspectionMatchResult {
+  MATCHED
+  ACCEPTABLE_DEVIATION
+  REQUIRES_REPRICING
 }
 
 enum AttachmentParent {

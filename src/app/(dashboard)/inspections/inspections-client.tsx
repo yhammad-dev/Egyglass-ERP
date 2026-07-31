@@ -196,11 +196,30 @@ export function InspectionsClient({
       }),
       columnHelper.accessor("dueDate", {
         header: t("inspections.dueDate"),
-        cell: (info) => (
-          <span dir="ltr">
-            {new Date(info.getValue()).toLocaleDateString("en-CA")}
-          </span>
-        ),
+        // SCR-INS-B2: `null` = لم تُجدوَل. بلا هذا الفرع كان `new Date(null)` يطبع
+        // **«1970-01-01»** — رقم يبدو بيانات وهو عطل.
+        cell: (info) => {
+          const v = info.getValue();
+          return v ? (
+            <span dir="ltr">{new Date(v).toLocaleDateString("en-CA")}</span>
+          ) : (
+            <span className="text-muted-foreground">
+              {t("inspections.notScheduledYet")}
+            </span>
+          );
+        },
+      }),
+      // SCR-INS-A: عمود نتيجة المطابقة — المدير يرى الأحكام دفعةً لا صفًّا صفًّا
+      columnHelper.accessor("matchResult", {
+        header: t("inspections.match.title"),
+        cell: (info) => {
+          const v = info.getValue();
+          return v ? (
+            <span>{t(`inspections.match.result_${v}`)}</span>
+          ) : (
+            <span className="text-muted-foreground">{t("inspections.dash")}</span>
+          );
+        },
       }),
       columnHelper.accessor("scheduledAt", {
         header: t("inspections.scheduledAt"),

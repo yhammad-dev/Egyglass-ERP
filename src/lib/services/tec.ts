@@ -65,6 +65,15 @@ export type TecInspectionState =
       kind: "APPROVED";
       approvedAt: Date | null;
       measurements: TecMeasurementRow[];
+      /**
+       * SCR-INS-A (D-IN-9): حكم المطابقة — يظهر في الفرع `APPROVED` **وحده** لأن
+       * الإعلان لا يقع قبل الاعتماد أصلًا. `null` = مُعتمدة ولم يُعلَن الحكم بعد،
+       * وهي حالة قائمة لا عطل: المدير يعتمد ثم يُعلن في خطوة ثانية.
+       */
+      matchResult: string | null;
+      matchReason: string | null;
+      matchDeclaredByName: string | null;
+      matchDeclaredAt: Date | null;
     };
 
 export interface TecJobDetail extends TecJobRow {
@@ -268,6 +277,12 @@ export async function getTecJobDetail(
           approvalStatus: true,
           approvedAt: true,
           measurements: { orderBy: { createdAt: "asc" } },
+          // SCR-INS-A: حكم المطابقة — **المكتب الفني هو مستهلكه الحقيقي**، فهو من
+          // يقرأ «اختلاف يستوجب إعادة التسعير» ويتصرف. لا استعلام إضافي: نفس الـselect.
+          matchResult: true,
+          matchReason: true,
+          matchDeclaredAt: true,
+          matchDeclaredBy: { select: { name: true } },
         },
       },
       drawings: {
@@ -297,6 +312,11 @@ export async function getTecJobDetail(
       : {
           kind: "APPROVED",
           approvedAt: job.inspectionRequest.approvedAt,
+          // SCR-INS-A: الحكم يصل المكتب الفني مع المقاسات لا منفصلًا عنها
+          matchResult: job.inspectionRequest.matchResult,
+          matchReason: job.inspectionRequest.matchReason,
+          matchDeclaredByName: job.inspectionRequest.matchDeclaredBy?.name ?? null,
+          matchDeclaredAt: job.inspectionRequest.matchDeclaredAt,
           measurements: job.inspectionRequest.measurements.map((m) => ({
             id: m.id,
             description: m.description,
