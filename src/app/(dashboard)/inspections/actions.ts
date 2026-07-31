@@ -252,6 +252,8 @@ export async function getInspectionDetail(id: string) {
           },
         },
         assignee: { select: { id: true, name: true } },
+        // SCR-INS-A: اسم مُعلِن المطابقة — نفس نمط `approvedBy`، بلا استعلام ثانٍ
+        matchDeclaredBy: { select: { name: true } },
         // IN-39: سياق الطلب — كود/مسار/نوع/ملخّص. مُتحقَّق أن أي شاشة معاينة لا
         // تقرأ `summary` اليوم (IN-20) رغم وجوده. وهو أيضًا مصدر نطاق المكتب الفني.
         quotationRequest: {
@@ -432,7 +434,22 @@ export async function getInspectionDetail(id: string) {
       type: inspection.type,
       siteReadiness: inspection.siteReadiness ?? null,
       scheduledAt: inspection.scheduledAt ? inspection.scheduledAt.toISOString() : null,
-      dueDate: inspection.dueDate.toISOString(),
+      // SCR-INS-B2: `null` = لم تُجدوَل فلا مهلة. الاستدعاء المباشر كان سيرمي.
+      dueDate: inspection.dueDate ? inspection.dueDate.toISOString() : null,
+      // SCR-INS-B (IN-33): الطوابع التشغيلية الثلاثة — عرض فقط، `null` = لم يقع بعد
+      assignedAt: inspection.assignedAt ? inspection.assignedAt.toISOString() : null,
+      submittedAt: inspection.submittedAt ? inspection.submittedAt.toISOString() : null,
+      completedAt: inspection.completedAt ? inspection.completedAt.toISOString() : null,
+      /**
+       * SCR-INS-A (IN-03 · D-IN-8): حكم المطابقة. `null` = **لم يُعلَن بعد** — وهي
+       * حالة مختلفة تمامًا عن «مطابق»، والواجهة تفرّق بينهما بنصّها.
+       */
+      matchResult: inspection.matchResult,
+      matchReason: inspection.matchReason,
+      matchDeclaredByName: inspection.matchDeclaredBy?.name ?? null,
+      matchDeclaredAt: inspection.matchDeclaredAt
+        ? inspection.matchDeclaredAt.toISOString()
+        : null,
       assignee: inspection.assignee,
       attachments: attachments.map((a) => ({
         id: a.id,
@@ -712,9 +729,22 @@ export async function updateInspectionStatus(input: unknown) {
     if (inspection.approvalStatus === "APPROVED")
       return { error: "errors.inspectionApprovedNoChange" as const };
 
+    /**
+     * SCR-INS-B (IN-33) — **الكاتب الثاني لـ`completedAt`.**
+     *
+     * ⚠️ لا يظهر في أي grep على `"DONE"`: الحالة تصل **متغيّرًا** لا حرفًا.
+     *
+     * 🔴 القاعدة (قرار يوسف، موجة C1): **`completedAt` مليان ⟺ الحالة `DONE`** —
+     * ثنائية واحدة قابلة للفحص بسطر SQL. فالتراجع عن `DONE` **يفرّغها**، وإلا بقيت
+     * معاينة «غير منتهية» تحمل زمن إنهاء فتُلوَّث K2/K3 بصمت.
+     * تُكتب في **نفس الـupdate** الذي يكتب الحالة — لا تسلسل يدوي يُنسى.
+     */
     await prisma.inspectionRequest.update({
       where: { id: parsed.data.id },
-      data: { status: parsed.data.status },
+      data: {
+        status: parsed.data.status,
+        completedAt: parsed.data.status === "DONE" ? new Date() : null,
+      },
     });
 
     await prisma.activityLog.create({
@@ -882,7 +912,16 @@ export async function submitInspectionForApproval(input: unknown) {
 
     await prisma.inspectionRequest.update({
       where: { id: parsed.data.id },
-      data: { approvalStatus: "PENDING_APPROVAL" },
+      data: {
+        approvalStatus: "PENDING_APPROVAL",
+        /**
+         * SCR-INS-B (IN-33): لحظة التقديم — يفتح «زمن التنفيذ الميداني».
+         * 🔴 **يُدهس عند كل إعادة تقديم** بعد `RETURNED` — نفس دلالة
+         * `Quotation.submittedAt` حرفيًا (`lib/actions/lead-approval.ts:110`:
+         * «الدورة الجديدة تُقاس من تقديمها هي لا من الأول»). السابقة لا الاجتهاد.
+         */
+        submittedAt: new Date(),
+      },
     });
 
     await prisma.activityLog.create({
@@ -943,6 +982,14 @@ export async function approveInspection(input: unknown) {
         approvedById: auth.userId,
         approvedAt: new Date(),
         status: "DONE",
+        /**
+         * SCR-INS-B (IN-33) — **الكاتب الأول والأغلب لـ`completedAt`.**
+         * هذا المسار يكتب `DONE` منذ IN-50، وهو طريق أغلب المعاينات المنتهية
+         * (4 من 7 صفوف `DONE` معتمدة وقت الموجة). إغفاله كان سيُفرغ العمود
+         * للأغلبية بينما يبدو ممتلئًا للأقلية — أسوأ من فراغه كله.
+         * القاعدة محفوظة: `completedAt` مليان ⟺ `DONE`.
+         */
+        completedAt: new Date(),
       },
     });
 
@@ -1072,6 +1119,118 @@ export async function returnInspection(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[returnInspection]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ══ SCR-INS-A / IN-03 · D-IN-8 · D-IN-9: إعلان نتيجة المطابقة ═════════════════
+//
+// 🔴 **حقيقة تصميمية مُلزِمة لأي قارئ لاحق: النظام لا يقارن — النظام يسجّل حكم إنسان.**
+// لا يوجد في القاعدة «مقاس مفترض» تُقارَن به مقاسات المعاينة (المبيعات لا تُدخل أبعادًا
+// وقت الطلب — `summary` نصّ حر). المقارنة تحدث في رأس مدير المعاينات، وهذا الإجراء
+// يوثّق نتيجتها. **أي منطق مقارنة آلي هنا = اختراع بلا مرجع (STD-05).**
+//
+// ⚠️ التوجيه الشرطي على النتيجة (اختلاف ← إعادة تسعير · تطابق ← تعاقد) **غير مبني
+// عمدًا** — يمسّ ثلاثة أقسام ويحتاج قرارًا عن آلية إعادة التسعير. مسجَّل في BL-166.
+// اليوم: الحكم يُسجَّل ويُعرض، والمكتب الفني يقرأه ويتصرف يدويًا.
+
+const MATCH_RESULTS = [
+  "MATCHED",
+  "ACCEPTABLE_DEVIATION",
+  "REQUIRES_REPRICING",
+] as const;
+
+/**
+ * القيمتان اللتان **يلزمهما سبب** (D-IN-8): الاختلاف — مقبولًا كان أو موجبًا لإعادة
+ * التسعير — حكم يترتب عليه عمل، فلا يُسجَّل بلا تعليل. `MATCHED` لا يلزمها.
+ * مشتقّة من نفس المصفوفة أعلاه لا مكتوبة يدويًا — مصدر واحد.
+ */
+const MATCH_REASON_REQUIRED: readonly string[] = MATCH_RESULTS.filter(
+  (v) => v !== "MATCHED"
+);
+
+const declareMatchSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+  matchResult: z.enum(MATCH_RESULTS),
+  reason: z.string().trim().optional(),
+});
+
+export async function declareMatchResult(input: unknown) {
+  try {
+    // D-IN-1/D-IN-8: المدير هو صاحب الحكم (هو من يعتمد المعاينة أصلًا)
+    const auth = await requireRole(MANAGER_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = declareMatchSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { id, matchResult } = parsed.data;
+    const reason = parsed.data.reason?.trim() || null;
+
+    // السبب إلزامي في **طبقة التطبيق** لا في القاعدة (D-IN-8) — العمود يبقى nullable
+    // لأن `MATCHED` لا تلزمها، وقيد قاعدة بيانات مشروط بقيمة عمود آخر لا يُعبَّر عنه
+    // في Prisma بلا حيلة. الحارس النافذ هنا.
+    if (MATCH_REASON_REQUIRED.includes(matchResult) && !reason)
+      return { error: "errors.matchReasonRequired" as const };
+
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        approvalStatus: true,
+        matchResult: true,
+        matchReason: true,
+        customer: { select: { name: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    // 🔴 D-IN-9: الإعلان **بعد الاعتماد حصرًا.** قبل الاعتماد المقاسات غير نهائية
+    // (D-37) فالحكم عليها حكم على مسودّة — ولا معنى لتوثيقه.
+    if (inspection.approvalStatus !== "APPROVED")
+      return { error: "errors.matchRequiresApproval" as const };
+
+    /**
+     * 🔴 التصحيح **مسموح** (قرار يوسف، موجة C1) — لا «مرة واحدة».
+     * السبب: الإعلان **حكم بشري والبشر يخطئون**، وقفله كان سيُنتج **صفًّا محبوسًا**
+     * بإعلان خاطئ لا مخرج منه — سابقتا IN-07 و IN-48 حرفيًا.
+     * الضابط ليس المنع بل **الأثر**: نفس الأدوار تصحّح، والانتقال يُسجَّل من←إلى.
+     * ⚠️ قيد مستقبلي مسجَّل: عند بناء التوجيه الآلي (BL-166) يُعاد النظر في التصحيح
+     * بعد أن يكون المكتب الفني قد تصرّف على النتيجة.
+     */
+    const isCorrection = inspection.matchResult !== null;
+
+    await prisma.inspectionRequest.update({
+      where: { id },
+      data: {
+        matchResult,
+        matchReason: reason,
+        matchDeclaredById: auth.userId,
+        matchDeclaredAt: new Date(),
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: isCorrection ? "MATCH_RESULT_CORRECTED" : "MATCH_RESULT_DECLARED",
+        entity: "InspectionRequest",
+        entityId: id,
+        // التصحيح يحمل الانتقال من←إلى (لا القيمة الجديدة وحدها — درس IN-28)،
+        // والإعلان الأول يحمل القيمة والسبب.
+        details: JSON.stringify({
+          matchResult: isCorrection
+            ? { from: inspection.matchResult, to: matchResult }
+            : { to: matchResult },
+          reason: { from: isCorrection ? inspection.matchReason : undefined, to: reason },
+          customer: inspection.customer.name,
+        }),
+      },
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[declareMatchResult]", error);
     return { error: "errors.serverError" as const };
   }
 }

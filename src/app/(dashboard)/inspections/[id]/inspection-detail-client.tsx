@@ -25,6 +25,7 @@ import {
   submitInspectionForApproval,
   approveInspection,
   returnInspection,
+  declareMatchResult,
 } from "../actions";
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
@@ -55,6 +56,24 @@ const UNITS = ["SQM", "CBM"] as const;
 type MeasurementUnit = (typeof UNITS)[number];
 
 /**
+ * SCR-INS-A (D-IN-8): القيم الثلاث **بنصّ حسن حرفيًا** — لا رابعة ولا إعادة صياغة.
+ * مرآة لـ`MATCH_RESULTS` في `../actions.ts`؛ الحارس النافذ هناك (STD-15).
+ */
+const MATCH_RESULTS = [
+  "MATCHED",
+  "ACCEPTABLE_DEVIATION",
+  "REQUIRES_REPRICING",
+] as const;
+type MatchResult = (typeof MATCH_RESULTS)[number];
+
+/** تلوين الحكم: الاختلاف الموجب لإعادة التسعير يلفت لأنه يستدعي عملًا من قسم آخر. */
+const MATCH_BADGE: Record<MatchResult, "default" | "secondary" | "destructive"> = {
+  MATCHED: "default",
+  ACCEPTABLE_DEVIATION: "secondary",
+  REQUIRES_REPRICING: "destructive",
+};
+
+/**
  * IN-45 (موجة B3): الأفعال المعروفة التي تُكتب على `entity = "InspectionRequest"`
  * (مُتحقَّق بالجرد: `inspections/actions.ts` · `services/inspections.ts` ·
  * `services/inspection-measurements.ts`).
@@ -76,6 +95,9 @@ const KNOWN_ACTIVITY_ACTIONS = new Set([
   "INSPECTION_SUBMITTED_FOR_APPROVAL",
   "INSPECTION_APPROVED",
   "INSPECTION_RETURNED",
+  // SCR-INS-A (موجة C1)
+  "MATCH_RESULT_DECLARED",
+  "MATCH_RESULT_CORRECTED",
 ]);
 
 /**
@@ -151,8 +173,18 @@ type InspectionDetail = {
   effectiveStatus: InspectionStatus;
   type: string;
   siteReadiness: boolean | null;
+  /** SCR-INS-B (IN-33): الطوابع التشغيلية — `null` = لم تقع اللحظة بعد */
+  assignedAt: string | null;
+  submittedAt: string | null;
+  completedAt: string | null;
+  /** SCR-INS-A: `null` = **لم تُعلَن** — حالة مغايرة لـ«مطابق» */
+  matchResult: MatchResult | null;
+  matchReason: string | null;
+  matchDeclaredByName: string | null;
+  matchDeclaredAt: string | null;
   scheduledAt: string | null;
-  dueDate: string;
+  /** SCR-INS-B2: `null` = لم تُجدوَل بعد فلا مهلة تنفيذ */
+  dueDate: string | null;
   assignee: { id: string; name: string } | null;
   attachments: {
     id: string;
@@ -239,6 +271,35 @@ export function InspectionDetailClient({
     }
     setSiteReadiness(value);
     toast.success(t("inspections.siteReadinessUpdated"));
+  }
+
+  // ── SCR-INS-A (IN-03): إعلان نتيجة المطابقة ──
+  const [matchInput, setMatchInput] = useState<MatchResult | "">(
+    initialInspection.matchResult ?? ""
+  );
+  const [matchReasonInput, setMatchReasonInput] = useState(
+    initialInspection.matchReason ?? ""
+  );
+  const [declaringMatch, setDeclaringMatch] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+
+  async function handleDeclareMatch() {
+    if (!matchInput) return;
+    setMatchError(null);
+    setDeclaringMatch(true);
+    const res = await declareMatchResult({
+      id: inspection.id,
+      matchResult: matchInput,
+      reason: matchReasonInput.trim() || undefined,
+    });
+    setDeclaringMatch(false);
+    if ("error" in res) {
+      setMatchError(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    // الاسم والوقت يأتيان من الخادم — `refresh` بدل تلفيقهما محليًا (نفس نمط IN-17)
+    router.refresh();
+    toast.success(t("inspections.match.declared"));
   }
 
   // ── D-40/BL-109: بوابة اعتماد المعاينة ──
@@ -499,7 +560,12 @@ export function InspectionDetailClient({
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.dueDate")}</p>
-          <p dir="ltr">{dateFormat.format(new Date(inspection.dueDate))}</p>
+          {/* SCR-INS-B2: `null` = لم تُجدوَل ⇒ نصّ صريح لا تاريخ 1970 ولا فراغ صامت */}
+          <p dir={inspection.dueDate ? "ltr" : undefined}>
+            {inspection.dueDate
+              ? dateFormat.format(new Date(inspection.dueDate))
+              : t("inspections.notScheduledYet")}
+          </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.scheduledAt")}</p>
@@ -513,6 +579,139 @@ export function InspectionDetailClient({
           <p className="text-muted-foreground">{t("inspections.assignee")}</p>
           <p>{inspection.assignee?.name ?? t("inspections.dash")}</p>
         </div>
+        {/* SCR-INS-B (IN-33): الطوابع التشغيلية — أساس K2/K3 لاحقًا.
+            `null` يُعرض بـ«—» صريحة: اللحظة لم تقع بعد، لا أن العرض معطوب. */}
+        <div>
+          <p className="text-muted-foreground">{t("inspections.assignedAt")}</p>
+          <p dir="ltr">
+            {inspection.assignedAt
+              ? dateFormat.format(new Date(inspection.assignedAt))
+              : t("inspections.dash")}
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">{t("inspections.submittedAt")}</p>
+          <p dir="ltr">
+            {inspection.submittedAt
+              ? dateFormat.format(new Date(inspection.submittedAt))
+              : t("inspections.dash")}
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">{t("inspections.completedAt")}</p>
+          <p dir="ltr">
+            {inspection.completedAt
+              ? dateFormat.format(new Date(inspection.completedAt))
+              : t("inspections.dash")}
+          </p>
+        </div>
+      </div>
+
+      {/* ── SCR-INS-A (IN-03 · D-IN-8 · D-IN-9): نتيجة المطابقة ──
+          🔴 النظام لا يقارن — يسجّل حكم إنسان. لا يوجد «مقاس مفترض» في القاعدة،
+          فالمقارنة تحدث عند المدير وهذه اللوحة توثّق نتيجتها.
+          الإعلان بعد الاعتماد حصرًا (D-IN-9)، ولمديري المعاينات وADMIN (D-IN-1). */}
+      <div className="max-w-xl space-y-3 rounded-md border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Label>{t("inspections.match.title")}</Label>
+          {inspection.matchResult ? (
+            <Badge variant={MATCH_BADGE[inspection.matchResult]}>
+              {t(`inspections.match.result_${inspection.matchResult}`)}
+            </Badge>
+          ) : (
+            <Badge variant="outline">{t("inspections.match.notDeclared")}</Badge>
+          )}
+        </div>
+
+        {inspection.matchResult && (
+          <div className="space-y-1 text-sm">
+            {inspection.matchReason && (
+              <p className="whitespace-pre-wrap">
+                <span className="text-muted-foreground">
+                  {t("inspections.match.reason")}:{" "}
+                </span>
+                {inspection.matchReason}
+              </p>
+            )}
+            {inspection.matchDeclaredByName && (
+              <p className="text-xs text-muted-foreground">
+                {t("inspections.match.declaredBy")} {inspection.matchDeclaredByName}
+                {inspection.matchDeclaredAt && (
+                  <>
+                    {" — "}
+                    <span dir="ltr">
+                      {dateFormat.format(new Date(inspection.matchDeclaredAt))}
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* D-IN-9 mirror: قبل الاعتماد تُشرح البوابة ولا يُعرض فورم يعمل ثم يفشل */}
+        {canManage && !approvalLocked && (
+          <p className="text-xs text-amber-600">
+            {t("inspections.match.requiresApproval")}
+          </p>
+        )}
+
+        {canManage && approvalLocked && (
+          <div className="space-y-2">
+            <Select
+              value={matchInput}
+              onValueChange={(v) => setMatchInput((v as MatchResult) ?? "")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("inspections.match.selectResult")}>
+                  {matchInput
+                    ? t(`inspections.match.result_${matchInput}`)
+                    : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {MATCH_RESULTS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {t(`inspections.match.result_${r}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* D-IN-8: السبب إلزامي للاختلافين — الإلزام النافذ server-side */}
+            {matchInput && matchInput !== "MATCHED" && (
+              <div className="space-y-1">
+                <Label htmlFor="match-reason">{t("inspections.match.reason")}</Label>
+                <Textarea
+                  id="match-reason"
+                  value={matchReasonInput}
+                  onChange={(e) => setMatchReasonInput(e.target.value)}
+                  placeholder={t("inspections.match.reasonPlaceholder")}
+                  rows={2}
+                />
+              </div>
+            )}
+
+            {matchError && <p className="text-sm text-red-500">{matchError}</p>}
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={
+                declaringMatch ||
+                !matchInput ||
+                (matchInput !== "MATCHED" && matchReasonInput.trim().length === 0)
+              }
+              onClick={handleDeclareMatch}
+            >
+              {declaringMatch
+                ? t("app.loading")
+                : inspection.matchResult
+                  ? t("inspections.match.correct")
+                  : t("inspections.match.declare")}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── IN-39: سياق الطلب المرتبط ──

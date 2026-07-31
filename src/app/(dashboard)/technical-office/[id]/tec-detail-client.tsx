@@ -424,6 +424,66 @@ export function TecDetailClient({
             </p>
           )}
 
+          {/* ── SCR-INS-A (IN-03): حكم المطابقة كما أعلنه مدير المعاينات ──
+              🔴 **المكتب الفني هو المستهلك الحقيقي للحكم** — «اختلاف يستوجب إعادة
+              التسعير» يعني عملًا عليه هو. يُعرض فوق المقاسات لا تحتها: القرار يسبق
+              الأرقام التي بُني عليها.
+              ⚠️ التوجيه الآلي على هذه النتيجة **غير مبني** (BL-166) — القراءة هنا
+              والتصرف يدوي. لا تفترض أن النظام حرّك شيئًا بناءً عليها. */}
+          {initialJob.inspection.kind === "APPROVED" && (
+            <div className="rounded-md border p-3 space-y-1 mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium">
+                  {t("inspections.match.title")}
+                </span>
+                {initialJob.inspection.matchResult ? (
+                  <Badge
+                    variant={
+                      initialJob.inspection.matchResult === "REQUIRES_REPRICING"
+                        ? "destructive"
+                        : initialJob.inspection.matchResult === "ACCEPTABLE_DEVIATION"
+                          ? "secondary"
+                          : "default"
+                    }
+                  >
+                    {t(
+                      `inspections.match.result_${initialJob.inspection.matchResult}`
+                    )}
+                  </Badge>
+                ) : (
+                  /* معتمدة ولم يُعلَن الحكم بعد — حالة قائمة لا عطل عرض */
+                  <Badge variant="outline">
+                    {t("inspections.match.notDeclared")}
+                  </Badge>
+                )}
+              </div>
+              {initialJob.inspection.matchReason && (
+                <p className="text-sm whitespace-pre-wrap">
+                  <span className="text-muted-foreground">
+                    {t("inspections.match.reason")}:{" "}
+                  </span>
+                  {initialJob.inspection.matchReason}
+                </p>
+              )}
+              {initialJob.inspection.matchDeclaredByName && (
+                <p className="text-xs text-muted-foreground">
+                  {t("inspections.match.declaredBy")}{" "}
+                  {initialJob.inspection.matchDeclaredByName}
+                  {initialJob.inspection.matchDeclaredAt && (
+                    <>
+                      {" — "}
+                      <span dir="ltr">
+                        {dateFormat.format(
+                          new Date(initialJob.inspection.matchDeclaredAt)
+                        )}
+                      </span>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
+
           {initialJob.inspection.kind === "APPROVED" &&
             (initialJob.inspection.measurements.length === 0 ? (
               <p className="text-sm text-muted-foreground">

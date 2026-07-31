@@ -26,12 +26,16 @@ export interface InspectionRow {
   status: string;
   type: string;
   scheduledAt: Date | null;
-  dueDate: Date;
+  /**
+   * SCR-INS-B2 (موجة C1): **nullable الآن** — `null` = لم تُجدوَل بعد فلا مهلة تنفيذ.
+   * كان العمود يحمل دلالتين في واحدة: «مهلة جدولة» عند الإنشاء ثم «مهلة تنفيذ» بعدها.
+   */
+  dueDate: Date | null;
   assigneeId: string | null;
   assigneeName: string | null;
   createdAt: Date;
-  /** Fractional days until dueDate — negative means past due */
-  daysRemaining: number;
+  /** أيام كسرية حتى `dueDate` — سالب = فات الموعد. `null` = لا مهلة (غير مجدولة). */
+  daysRemaining: number | null;
   /** 'OVERDUE' when dueDate < now and status !== DONE; otherwise the DB status */
   effectiveStatus: string;
   /**
@@ -41,6 +45,8 @@ export interface InspectionRow {
   approvalStatus: string;
   /** IN-48: تحذير «الموقع غير جاهز» في نموذج الجدولة — المدير يستهلك لا يُدخل */
   siteReadiness: boolean | null;
+  /** SCR-INS-A: حكم المطابقة في عمود القائمة. `null` = لم يُعلَن بعد. */
+  matchResult: string | null;
 }
 
 export interface UserOption {
@@ -68,12 +74,28 @@ const OUTSIDE_CAIRO_DAYS = 4;
  * محظور (Definition of Done). بهذا الشكل يُحفظ اتحاد الـenum: الداخل
  * `InspectionStatus` يخرج `InspectionStatus` (و`OVERDUE` أحد قيمه أصلًا،
  * `prisma/schema.prisma:722-727`).
+ *
+ * 🔴 **SCR-INS-B2 — `null` لا يعني متأخرًا.** بعد أن صار `dueDate` nullable، `null`
+ * يعني «لم تُجدوَل بعد فلا مهلة»، والمعاينة بلا مهلة **لا يمكن أن تتجاوزها**.
+ * الفحص صريح (`dueDate !== null`) لا اتّكال على أن `null < Date` تعطي `false` صدفةً —
+ * السلوك الصامت الصحيح بالمصادفة هو أخطر من الخاطئ الظاهر. ترك هذا الفرع بلا معالجة
+ * كان سيُظهر **كل معاينة جديدة «متأخرة»** = عيب IN-09 عائدًا بالحرف.
  */
 export function deriveEffectiveStatus<T extends string>(
-  dueDate: Date,
+  dueDate: Date | null,
   status: T
 ): T | "OVERDUE" {
+  if (dueDate === null) return status;
   return dueDate < new Date() && status !== "DONE" ? "OVERDUE" : status;
+}
+
+/**
+ * SCR-INS-B2: الأيام المتبقية — `null` عند غياب المهلة.
+ * الطرح من `null` كان يُنتج **`NaN` صامتًا** يتسرّب للواجهة كرقم بلا معنى.
+ */
+function computeDaysRemaining(dueDate: Date | null): number | null {
+  if (dueDate === null) return null;
+  return (dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
 }
 
 /**
@@ -206,9 +228,9 @@ export async function getInspections(
     },
   });
 
-  const now = new Date();
   return inspections.map((ins) => {
-    const daysRemaining = (ins.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    // SCR-INS-B2: الحساب مشترك ويحتمل null — لا طرح مباشر (NaN صامت)
+    const daysRemaining = computeDaysRemaining(ins.dueDate);
     // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
     const effectiveStatus = deriveEffectiveStatus(ins.dueDate, ins.status);
     return {
@@ -230,6 +252,7 @@ export async function getInspections(
       effectiveStatus,
       approvalStatus: ins.approvalStatus,
       siteReadiness: ins.siteReadiness,
+      matchResult: ins.matchResult,
     };
   });
 }
@@ -326,14 +349,16 @@ export async function createInspection(
     throw new InspectionError("errors.requestNotSelectable");
   }
 
-  // 🔴 IN-09 — قيد schema مُبلَّغ به لا مُتجاوَز: `dueDate DateTime` **غير قابل
-  // للـnull** (`prisma/schema.prisma:244`)، والنهج الأنظف في التكليف (null قبل
-  // الجدولة) يستلزم migration ⇒ L-02 يمنعني. فالقيمة هنا تبقى محسوبة من لحظة
-  // الطلب، لكنها **لم تعد مهلة التنفيذ**: مهلة التنفيذ تُكتب عند الجدولة
-  // (`scheduleInspection`). هذه القيمة تعمل عمليًا كساعة **مهلة الجدولة**
-  // (D-IN-6: يوم واحد من وصول الطلب) حتى تستبدلها مهلة التنفيذ.
-  // العمودان مدموجان في عمود واحد = دين مُصرَّح به، وحلّه SCR في تقرير الموجة.
-  const dueDate = computeDueDate(input.location, new Date());
+  // ✅ SCR-INS-B2 (موجة C1) — **الدَّين المُصرَّح به أُغلق.** كان `dueDate` غير قابل
+  // للـnull فاضطرّ IN-09 لكتابة قيمة هنا **قبل أن يكون للمهلة أي معنى** (المعاينة لم
+  // تُجدوَل بعد)، فحمل العمود دلالتين: «مهلة جدولة» ثم «مهلة تنفيذ». الآن العمود
+  // nullable ⇒ **لا تُكتب مهلة عند الإنشاء**؛ مهلة التنفيذ تُولد عند الجدولة وحدها
+  // (`scheduleInspection`). دلالة واحدة لعمود واحد.
+  //
+  // ⚠️ **أثر معلن (BL-167):** الإشارة الجانبية التي كانت تنتجها القيمة القديمة —
+  // معاينة غير مجدولة تصير `OVERDUE` بعد يومين فتلفت المدير — **سقطت**، لأن
+  // `null` لا يتأخر. «مهلة الجدولة» (D-IN-6) تحتاج بيتها الخاص لا عمودًا مستعارًا،
+  // وهي بند مسجَّل (SCR-INS-C في موجة C3).
 
   // D-31 (BL-91): الإنشاء + السجل + الربط في transaction واحدة — لا معاينة يتيمة
   // حتى لو سبق ربطٌ آخر (updateMany الشرطي يُرجِع 0 → rollback كامل للمعاينة).
@@ -346,7 +371,7 @@ export async function createInspection(
         phone: input.phone,
         type: input.type as any,
         notes: input.notes || null,
-        dueDate,
+        // SCR-INS-B2: بلا `dueDate` — تُترك null حتى الجدولة
         // IN-48: تُكتب من حوار المبيعات. `undefined` ⇒ Prisma يتركها null (لم يُؤكَّد).
         siteReadiness: input.siteReadiness ?? null,
       },
@@ -420,8 +445,8 @@ export async function createInspection(
   await recomputeQuotationRequestStatus(request.id, actorId);
   await recomputeCustomerStage(inspection.customerId, actorId);
 
-  const now = new Date();
-  const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  // SCR-INS-B2: الحساب مشترك ويحتمل null (هنا `dueDate = null` دائمًا بعد C1)
+  const daysRemaining = computeDaysRemaining(inspection.dueDate);
   // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
   const effectiveStatus = deriveEffectiveStatus(inspection.dueDate, inspection.status);
 
@@ -444,6 +469,7 @@ export async function createInspection(
     effectiveStatus,
     approvalStatus: inspection.approvalStatus,
     siteReadiness: inspection.siteReadiness,
+    matchResult: inspection.matchResult,
   };
 }
 
@@ -565,6 +591,17 @@ export async function scheduleInspection(
       scheduledAt,
       assigneeId,
       dueDate,
+      /**
+       * SCR-INS-B (IN-33): لحظة الإسناد — يفتح «زمن التوزيع» وحمل العمل.
+       *
+       * 🔴 **يُدهس عند كل إسناد، لا يُكتب مرة واحدة** — ودلالته محسومة بسابقة
+       * المشروع لا باجتهاد: `Quotation.submittedAt` يُعاد ضبطه عند كل تقديم بتعليق
+       * صريح (`lib/actions/lead-approval.ts:110`: «الدورة الجديدة تُقاس من تقديمها
+       * هي لا من الأول»). ومتسق داخليًا مع `dueDate` أعلاه الذي يُعاد حسابه مع كل
+       * جدولة (IN-09) — الطابعان يصفان **الدورة الجارية** لا أول دورة.
+       * الأثر الكامل للانتقالات محفوظ في ActivityLog أدناه (IN-28 يكتب from/to).
+       */
+      assignedAt: new Date(),
     },
     include: {
       customer: { select: { name: true } },
@@ -593,7 +630,12 @@ export async function scheduleInspection(
         // أخويه. تسجيل القيمة الجديدة وحدها كان يفقد **الحقل الوحيد الحامل لـSLA**:
         // إعادة جدولة تمدّ المهلة بلا سقف، والقيمة المُستبدَلة غير قابلة للاستخراج
         // من الأثر (سجل الإنشاء لا يحمل dueDate أصلًا) ⇒ تمديد غير قابل للتدقيق.
-        dueDate: { from: current.dueDate.toISOString(), to: dueDate.toISOString() },
+        // SCR-INS-B2: `from` صار يحتمل null (معاينة تُجدوَل لأول مرة) — `?.` لا
+        // استدعاء مباشر، وإلا رمى `.toISOString()` على null وأسقط الجدولة كلها.
+        dueDate: {
+          from: current.dueDate?.toISOString() ?? null,
+          to: dueDate.toISOString(),
+        },
       }),
     },
   });
@@ -611,8 +653,8 @@ export async function scheduleInspection(
     // notification failure must not block the operation
   }
 
-  const now = new Date();
-  const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  // SCR-INS-B2: الحساب مشترك ويحتمل null (هنا مضمون غير-null بعد الجدولة)
+  const daysRemaining = computeDaysRemaining(inspection.dueDate);
   // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
   const effectiveStatus = deriveEffectiveStatus(inspection.dueDate, inspection.status);
 
@@ -635,5 +677,6 @@ export async function scheduleInspection(
     effectiveStatus,
     approvalStatus: inspection.approvalStatus,
     siteReadiness: inspection.siteReadiness,
+    matchResult: inspection.matchResult,
   };
 }
