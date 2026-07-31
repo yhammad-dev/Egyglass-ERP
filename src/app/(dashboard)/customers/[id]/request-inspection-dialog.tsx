@@ -249,9 +249,15 @@ export function RequestInspectionDialog({
                 ))}
               </SelectContent>
             </Select>
+            {/* 🔴 موجة B3: هذا السياق **ليس** سياق رسالة المدير. المفتاح المشترك
+                `siteReadinessBlocksScheduling` صار يقول «تم إخطار المبيعات تلقائيًا»
+                — وهو صحيح على شاشة الجدولة (الإشعار يُرسَل وقت المحاولة المحجوبة)
+                و**كاذب هنا**: المعاينة لم تُنشأ بعد فلا إشعار، والمخاطَب هو المبيعات
+                نفسها. فُصل المفتاح: هنا تحذير استباقي دقيق يذكر مسار التصحيح القائم
+                فعلًا (المبيعات تعدّل الجاهزية من شاشة المعاينة — IN-48). */}
             {siteReadiness === "UNCONFIRMED" && (
               <p className="text-xs text-amber-600">
-                {t("inspections.siteReadinessBlocksScheduling")}
+                {t("inspections.siteReadinessUnconfirmedHint")}
               </p>
             )}
           </div>

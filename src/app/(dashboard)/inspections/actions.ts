@@ -6,11 +6,13 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
+import { uploadDirFor, uploadUrl, UPLOAD_IMAGE_EXT } from "@/lib/storage/paths";
 import type { AttachmentCategory, Prisma } from "@prisma/client";
 import {
   createInspection,
   scheduleInspection,
+  // IN-17: اشتقاق التأخير من مصدره الوحيد — لا شرط محلي في هذه الشاشة
+  deriveEffectiveStatus,
   InspectionError,
 } from "@/lib/services/inspections";
 import {
@@ -88,6 +90,25 @@ const DETAIL_READ_ROLES = [
 // العميل باختيار QuotationRequest صريح). الجدولة/التعيين تبقى للمدير (MANAGER_ROLES).
 const CREATE_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 
+/**
+ * 🔴 IN-45/IN-06 (موجة B3): أفعال الأثر التي تحمل **قيم المقاسات** داخل `details`،
+ * فتخضع لنفس حجب `measurementsVisible` — وإلا صار سجل الأحداث بابًا خلفيًا يسلّم
+ * المكتب الفني الأرقام التي مُنع منها في باب المقاسات.
+ *
+ * ⚠️ **القائمة مشتقّة من مصدرين معًا، وأيٌّ منهما وحده كان سيُنتج تسريبًا:**
+ *   (١) جرد الكود — كتّاب `MEASUREMENT_ADDED`/`MEASUREMENT_DELETED` القائمون.
+ *   (٢) **جرد القاعدة** — `MEASUREMENTS_RECORDED` (المسار النصي القديم): **كاتبه
+ *       حُذف في SCR-018 فلا يظهر في أي grep**، لكن صفوفه باقية وتحمل
+ *       `{"width":…,"height":…}` حرفيًا (مُتحقَّق: 6 صفوف في القاعدة).
+ *
+ * 🔴 أي فعل جديد يُدرِج مقاسًا في `details` يُضاف هنا — وإلا تسرّب صامتًا.
+ */
+const MEASUREMENT_BEARING_ACTIONS = [
+  "MEASUREMENT_ADDED", // بيان · عرض · ارتفاع · وحدة · كمية
+  "MEASUREMENT_DELETED", // البيان
+  "MEASUREMENTS_RECORDED", // تاريخي (قبل SCR-018) — عرض/ارتفاع/ملاحظات
+];
+
 // BL-105: تضييق الملكية على **الكتابة** لا القراءة وحدها (STD-15: الترشيح ليس حارسًا).
 // INSPECTION_REP يسجّل على المعاينات المسندة إليه فقط — نفس تضييق getInspectionDetail.
 // ADMIN/INSPECTION_MANAGER بلا تضييق (المدير يغطّي ويصحّح ميدانيًا).
@@ -99,6 +120,10 @@ function canWriteOnInspection(
   return role !== "INSPECTION_REP" || assigneeId === userId;
 }
 
+// IN-10 (موجة B3): `assigneeId` هنا فحص **شكل** فقط. أهلية المُسنَد إليه (موجود ·
+// نشط · غير محذوف · دوره ضمن `ASSIGNABLE_ROLES`) تحتاج قاعدة البيانات، فحارسها
+// النافذ داخل `scheduleInspection` (`assertAssignable`) ويرفع `errors.invalidAssignee`.
+// لا تُكرَّر قائمة الأدوار هنا — مصدر واحد في `services/inspections.ts`.
 const scheduleSchema = z.object({
   id: z.string().min(1, "errors.required"),
   scheduledAt: z.string().min(1, "errors.required"),
@@ -286,13 +311,65 @@ export async function getInspectionDetail(id: string) {
       !isTecReader || inspection.approvalStatus === "APPROVED";
 
     // 1ب: المقاسات من الجدول المهيكل — لا ActivityLog
-    const [attachments, measurements] = await Promise.all([
+    const [attachments, measurements, activity] = await Promise.all([
       prisma.attachment.findMany({
         where: { parent: "INSPECTION", parentId: id },
         orderBy: { createdAt: "desc" },
       }),
       // لا تُقرأ من القاعدة أصلًا لمن لا يراها — الحجب عند المصدر لا عند العرض
       measurementsVisible ? listMeasurements(id) : Promise.resolve([]),
+      /**
+       * ── IN-45 (موجة B3): سجل الأحداث — أول **قراءة** لـActivityLog في الموديول ──
+       *
+       * كان القسم كله كتابةً بلا قارئ (مُتحقَّق: صفر قراءة في مجلد المعاينات)، وهو
+       * يكتب اليوم أحد عشر انتقالًا (إنشاء · جدولة · إعادة جدولة · تغيير حالة ·
+       * جاهزية موقع · مرفق · مقاس مضاف/محذوف · تقديم · اعتماد · إرجاع) **لا يراها
+       * أحد** — «تم الحفظ» ثم صمت.
+       *
+       * 🔴 **بلا حارس جديد:** تُقرأ هنا داخل `getInspectionDetail` **بعد** أن مرّت
+       * كل فحوص النطاق أعلاه، فترث `DETAIL_READ_ROLES` ونطاق كل دور حرفيًا. قراءتها
+       * في دالة مستقلة كانت ستستلزم تكرار تلك الفحوص = مصدر تصريح ثانٍ.
+       *
+       * 🔴 **BL-81 — أثر لا مصدر حقيقة:** يُعرَض ولا يُشتق منه منطق ولا حالة. لا
+       * شيء في هذا الملف ولا في الواجهة يقرأ `activity` ليقرّر شيئًا.
+       *
+       * 🔴 **قرار IN-25 صريح — السجلات المكتوبة على `entity = "QuotationRequest"`
+       * (اشتقاق الحالة) مُستثناة عمدًا.** السبب حدّ الكيان لا الكسل: تلك أحداث
+       * **الطلب** ولها شاشته، وضمّها هنا كان (١) ينسب حدث الطلب للمعاينة، و(٢)
+       * يفتح سؤال نطاق ثانيًا — مَن يرى المعاينة لا يرى الطلب بالضرورة والعكس —
+       * وهو توسيع تصريح يمنعه نصّ البند. يُعاد النظر إن طُلب سجل موحّد عابر للكيانات.
+       */
+      prisma.activityLog.findMany({
+        where: {
+          entity: "InspectionRequest",
+          entityId: id,
+          /**
+           * 🔴 **حجب IN-06 يسري على الأثر أيضًا** (رُصد أثناء بناء IN-45 نفسه).
+           *
+           * `MEASUREMENT_ADDED` يكتب في `details` **المقاس كاملًا** (بيان · عرض ·
+           * ارتفاع · وحدة · كمية — `inspection-measurements.ts`)، و`MEASUREMENT_DELETED`
+           * يكتب البيان. فسجل أحداث بلا ترشيح كان **يسلّم المكتب الفني نفس الأرقام
+           * التي حجبها `measurementsVisible` أعلاه** — باب خلفي لقاعدة قائمة، ومن
+           * نفس فئة عيب IN-49/IN-06 الذي أُغلق بالضبط (يُقرأ من باب ما مُنع منه
+           * في الباب الآخر).
+           *
+           * الحجب **عند المصدر لا عند العرض**، تطابقًا مع سطر المقاسات أعلاه: لا
+           * تُقرأ من القاعدة أصلًا لمن لا يراها. والشاشة تشرح السبب في جدول المقاسات
+           * («لم تُعتمد بعد») فلا يقرأ المستخدم النقص كعطل.
+           */
+          ...(measurementsVisible
+            ? {}
+            : { action: { notIn: MEASUREMENT_BEARING_ACTIONS } }),
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          action: true,
+          details: true,
+          createdAt: true,
+          user: { select: { name: true } },
+        },
+      }),
     ]);
 
     return {
@@ -345,6 +422,13 @@ export async function getInspectionDetail(id: string) {
       phone: inspection.phone,
       notes: inspection.notes,
       status: inspection.status,
+      /**
+       * IN-17 (موجة B3): الحالة المعروضة بعد اشتقاق التأخير — **عرض فقط**.
+       * `status` الخام يبقى مُعادًا كما هو لأن قائمة تغيير الحالة تكتبه، و`OVERDUE`
+       * قيمة غير قابلة للكتابة (IN-07). كانت هذه الشاشة تعرض الخام وحده بينما
+       * القائمة تشتقّ ⇒ نفس المعاينة «متأخرة» هناك و«مجدولة» هنا.
+       */
+      effectiveStatus: deriveEffectiveStatus(inspection.dueDate, inspection.status),
       type: inspection.type,
       siteReadiness: inspection.siteReadiness ?? null,
       scheduledAt: inspection.scheduledAt ? inspection.scheduledAt.toISOString() : null,
@@ -360,6 +444,15 @@ export async function getInspectionDetail(id: string) {
       measurements,
       approvalStatus: inspection.approvalStatus,
       returnReason: inspection.returnReason,
+      // IN-45: الأثر الزمني — أحدث أولًا. `details` يُسلَّم **خامًا** كما كُتب
+      // (JSON أحيانًا ونصًّا عربيًا حرًّا أحيانًا) والواجهة تعرضه بلا افتراض شكل.
+      activity: activity.map((a) => ({
+        id: a.id,
+        action: a.action,
+        details: a.details,
+        actorName: a.user.name,
+        createdAt: a.createdAt.toISOString(),
+      })),
     };
   } catch (error) {
     console.error("[getInspectionDetail]", error);
@@ -451,12 +544,11 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
 
 // أمان الرفع: allowlist صريح يستبعد image/svg+xml (ناقل XSS عند العرض المضمّن).
 // النوع والامتداد يُشتقّان من البايتات المُحقَّقة سيرفر-سايد لا من ادعاء العميل.
-const IMAGE_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
+//
+// IN-40 (موجة B3): القائمة انتقلت إلى `lib/storage/paths.ts` بلا تغيير قيمة واحدة —
+// لأن **خريطة التقديم تُشتق منها**. بقاؤها محليةً هنا هو ما جعل البابين ينحرفان
+// (الرفع يقبل webp/gif والتقديم يجهلهما). الاسم المحلي يبقى كما هو لتقليل الضجيج.
+const IMAGE_EXT = UPLOAD_IMAGE_EXT;
 
 // اشتقاق النوع من البصمة السحرية للبايتات (magic bytes) — لا ثقة بـ mimeType العميل
 function sniffImageMime(buf: Buffer): string | null {

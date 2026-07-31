@@ -52,6 +52,31 @@ const INSIDE_CAIRO_DAYS = 2;
 const OUTSIDE_CAIRO_DAYS = 4;
 
 /**
+ * IN-17 (موجة B3) — **المصدر الوحيد** لاشتقاق حالة التأخير.
+ *
+ * العيب: الشرط كان منسوخًا **ثلاث مرات داخل هذا الملف وحده** (`getInspections` ·
+ * `createInspection` · `scheduleInspection`)، و**غائبًا تمامًا** عن شاشة التفاصيل
+ * وملف العميل ⇒ نفس المعاينة تظهر «متأخرة» في القائمة و«مجدولة» في تفاصيلها.
+ * نسختان من قاعدة = انحراف مؤجَّل (علّة IN-12 بالحرف).
+ *
+ * 🔴 **عرضٌ فقط — لا تُكتب في القاعدة أبدًا** (IN-07): `OVERDUE` محذوفة من القيم
+ * المقبولة من العميل، وكتابتها تُنتج صفًّا محبوسًا يختفي عنه زر الجدولة. الحقيقة
+ * المخزَّنة تبقى `status`، والتأخير يُحسب عند كل قراءة من `dueDate`.
+ *
+ * التوقيع **مُعمَّم** (`T extends string`) لا `string` خامًا: التوسيع إلى `string`
+ * كان يُسقط نوع `InspectionStatus` عند حدّ الـDTO فيلزم `as` لإسكات المترجم — وهو
+ * محظور (Definition of Done). بهذا الشكل يُحفظ اتحاد الـenum: الداخل
+ * `InspectionStatus` يخرج `InspectionStatus` (و`OVERDUE` أحد قيمه أصلًا،
+ * `prisma/schema.prisma:722-727`).
+ */
+export function deriveEffectiveStatus<T extends string>(
+  dueDate: Date,
+  status: T
+): T | "OVERDUE" {
+  return dueDate < new Date() && status !== "DONE" ? "OVERDUE" : status;
+}
+
+/**
  * IN-48 — حدّ الصفوف القديمة لبوابة جاهزية الموقع.
  *
  * كل معاينة قائمة قبل هذه الموجة `siteReadiness = null` لأن الحقل لم يكن يُكتب من
@@ -184,7 +209,8 @@ export async function getInspections(
   const now = new Date();
   return inspections.map((ins) => {
     const daysRemaining = (ins.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    const effectiveStatus = ins.dueDate < now && ins.status !== "DONE" ? "OVERDUE" : ins.status;
+    // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
+    const effectiveStatus = deriveEffectiveStatus(ins.dueDate, ins.status);
     return {
       id: ins.id,
       customerId: ins.customerId,
@@ -215,8 +241,11 @@ export async function getInspections(
  *
  * ⚠️ حدّ صريح: `ADMIN` **مستبعد** — دور إداري لا تنفيذي (افتراض التنفيذ المعلَن في
  * التكليف). إن كان الواقع التشغيلي غير ذلك فالتصحيح سطر واحد هنا.
- * وهذه **واجهة عرض لا حارس**: الخادم لا يزال لا يتحقق من دور المُسنَد إليه
- * (`scheduleSchema` يقبل أي نص) — الحارس الخادمي بند منفصل لم يُطلب هنا.
+ *
+ * 🔴 **الشق الخادمي أُغلق في موجة B3** (`assertAssignable` أدناه): كانت هذه الدالة
+ * ترشيح **عرض** وحده و`scheduleSchema` يقبل `z.string().min(1)` — أي نص يمرّ، فنداء
+ * مباشر يُسند معاينة لمحاسب أو لمستخدم معطَّل أو لمعرّف غير موجود. نفس فئة عيب IN-11
+ * حرفيًا (فلترة واجهة بلا حارس خادمي — STD-15). القائمتان تقرآن **نفس الثابت** أدناه.
  */
 // `as const` لا `string[]`: يجعل القيم حروفًا يطابقها Prisma بنوع `Role` مباشرةً،
 // فيسقط الحاجة إلى `as never` الذي كان يُسكِت المترجم (محظور — Definition of Done).
@@ -233,6 +262,32 @@ export async function getAssignableUsers(): Promise<UserOption[]> {
     orderBy: { name: "asc" },
   });
   return users;
+}
+
+/**
+ * IN-10 (الشق الخادمي، موجة B3): الحارس النافذ على **من يُسنَد إليه**.
+ *
+ * الفحص يحتاج قاعدة بيانات (وجود · نشط · غير محذوف · دوره ضمن القائمة البيضاء)،
+ * فلا يصلح في `scheduleSchema` — الـzod يتحقق من الشكل لا من الحقيقة.
+ *
+ * 🔴 **مصدر واحد للأدوار:** يقرأ `ASSIGNABLE_ROLES` نفسها التي تبني قائمة العرض في
+ * `getAssignableUsers` — ولا يكرّرها نصًّا. تكرارها كان سيُعيد إنتاج علّة IN-12
+ * بالحرف: مصدرا حقيقة ينحرفان، فتعرض الواجهة دورًا يرفضه الخادم أو العكس.
+ *
+ * الشروط الثلاثة مطابقة لشروط `getAssignableUsers` عمدًا — ما يظهر في القائمة هو
+ * بالضبط ما يقبله الحارس، لا أوسع ولا أضيق.
+ */
+async function assertAssignable(assigneeId: string): Promise<void> {
+  const assignee = await prisma.user.findFirst({
+    where: {
+      id: assigneeId,
+      isActive: true,
+      deletedAt: null,
+      role: { in: [...ASSIGNABLE_ROLES] },
+    },
+    select: { id: true },
+  });
+  if (!assignee) throw new InspectionError("errors.invalidAssignee");
 }
 
 export interface CreateInspectionInput {
@@ -367,8 +422,8 @@ export async function createInspection(
 
   const now = new Date();
   const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  const effectiveStatus =
-    inspection.dueDate < now && inspection.status !== "DONE" ? "OVERDUE" : inspection.status;
+  // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
+  const effectiveStatus = deriveEffectiveStatus(inspection.dueDate, inspection.status);
 
   return {
     id: inspection.id,
@@ -433,6 +488,14 @@ export async function scheduleInspection(
     throw new InspectionError("errors.inspectionNotSchedulable");
   if (current.approvalStatus === "APPROVED")
     throw new InspectionError("errors.inspectionApprovedNoChange");
+
+  // ── IN-10 (الشق الخادمي، موجة B3): أهلية المُسنَد إليه ───────────────────────
+  // 🔴 **موضعه في الترتيب مقصود** — الحُرّاس أعلاه (`DONE` · `APPROVED`) تخصّ **حالة
+  // السجل**: صف منتهٍ أو معتمَد لا يُجدوَل أصلًا، فلا معنى للتحقق من مُدخل لن يُكتب.
+  // وهذا الحارس يسبق بوابة جاهزية الموقع أدناه عن قصد: تلك البوابة لها **أثر جانبي**
+  // (إشعار لمالك العميل)، ونداء مشوَّه المُدخلات يجب ألا يُنتج إشعارًا في جرس المبيعات.
+  // أي: حالة السجل أولًا → صحة المُدخل ثانيًا → بوابة العمل ذات الأثر ثالثًا.
+  await assertAssignable(assigneeId);
 
   // ── IN-48 (D-IN-15): بوابة جاهزية الموقع ────────────────────────────────────
   // `null` = لم يؤكّد العميل ⇒ لا جدولة. `false` = غير جاهز ⇒ الجدولة مسموحة
@@ -550,8 +613,8 @@ export async function scheduleInspection(
 
   const now = new Date();
   const daysRemaining = (inspection.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  const effectiveStatus =
-    inspection.dueDate < now && inspection.status !== "DONE" ? "OVERDUE" : inspection.status;
+  // IN-17: الدالة المشتركة — لا نسخة محلية من الشرط
+  const effectiveStatus = deriveEffectiveStatus(inspection.dueDate, inspection.status);
 
   return {
     id: inspection.id,

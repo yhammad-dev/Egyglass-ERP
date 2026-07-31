@@ -742,6 +742,22 @@
     "siteNotReady": "Site Not Ready",
     "siteReadinessUnknown": "Not Determined",
     "siteReadinessUpdated": "Site readiness updated",
+    "activity": {
+      "title": "Activity log",
+      "empty": "No events recorded for this inspection",
+      "by": "by",
+      "action_INSPECTION_CREATED": "Inspection request created",
+      "action_INSPECTION_SCHEDULED": "Inspection scheduled and assigned",
+      "action_INSPECTION_RESCHEDULED": "Rescheduled or reassigned",
+      "action_UPDATE_STATUS": "Inspection status changed",
+      "action_SITE_READINESS_UPDATED": "Site readiness updated",
+      "action_ATTACHMENT_ADDED": "Attachment added",
+      "action_MEASUREMENT_ADDED": "Measurement added",
+      "action_MEASUREMENT_DELETED": "Measurement deleted",
+      "action_INSPECTION_SUBMITTED_FOR_APPROVAL": "Submitted for approval",
+      "action_INSPECTION_APPROVED": "Approved by the manager",
+      "action_INSPECTION_RETURNED": "Returned for correction"
+    },
     "approval": {
       "title": "Inspection approval",
       "status_DRAFT": "Draft",
@@ -764,7 +780,8 @@
     "siteReadiness_READY": "Site is ready",
     "siteReadiness_NOT_READY": "Site is not ready",
     "siteReadiness_UNCONFIRMED": "Customer has not confirmed",
-    "siteReadinessBlocksScheduling": "Without customer confirmation the inspection cannot be scheduled — confirm readiness first",
+    "siteReadinessBlocksScheduling": "The customer has not confirmed the site is ready for the visit — the responsible sales rep has been notified automatically.",
+    "siteReadinessUnconfirmedHint": "Without the customer's confirmation the inspection manager cannot schedule the visit — you can confirm readiness later from the inspection screen",
     "siteNotReadyWarning": "Note: sales recorded the site as not ready. Scheduling is allowed at your discretion."
   },
   "users": {
@@ -917,6 +934,8 @@
     "invalidFileContent": "File content does not match the selected type — upload a valid file of the correct type",
     "inspectionApprovedLocked": "Inspection is approved — measurements cannot be edited or deleted after approval",
     "inspectionNotSchedulable": "The inspection is done — it cannot be scheduled or reassigned",
+    "invalidAssignee": "This user cannot be assigned the inspection — only active inspection reps and managers are assignable",
+    "measurementPrecision": "Maximum three decimal places",
     "inspectionApprovedNoChange": "Inspection is approved — its schedule, assignee, and status cannot be changed after approval",
     "inspectionNotSubmittable": "The inspection cannot be submitted in its current state",
     "inspectionNoMeasurements": "Cannot submit an inspection with no measurements — add at least one",

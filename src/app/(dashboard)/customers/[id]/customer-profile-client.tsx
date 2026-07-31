@@ -417,11 +417,11 @@ export function CustomerProfileClient({
                             href={`/inspections/${ins.id}`}
                             className="text-sm font-medium text-primary hover:underline"
                           >
-                            {t(`inspections.status_${ins.status}`)}
+                            {t(`inspections.status_${ins.effectiveStatus}`)}
                           </Link>
                         ) : (
                           <p className="text-sm font-medium">
-                            {t(`inspections.status_${ins.status}`)}
+                            {t(`inspections.status_${ins.effectiveStatus}`)}
                           </p>
                         )}
                         <p className="text-xs text-gray-500">
