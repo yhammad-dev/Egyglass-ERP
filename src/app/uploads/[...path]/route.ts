@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join, resolve, sep } from "path";
 import { auth } from "@/lib/auth";
-import { UPLOADS_ROOT } from "@/lib/storage/paths";
+import { UPLOADS_ROOT, SERVE_CONTENT_TYPE } from "@/lib/storage/paths";
 
 /**
  * TO-07 — تحصين خدمة الملفات المرفوعة.
@@ -70,15 +70,14 @@ export async function GET(
 
     // بلا تغيير (TO-A): Content-Type يُشتق من الامتداد الخاضع للسيرفر، لا من
     // mimeType القادم من العميل — وهو ما يمنع XSS المخزَّن عبر نوع محتوى مزيّف.
+    //
+    // IN-40 (موجة B3): الخريطة كانت مكتوبة هنا يدويًا و**تجهل `webp`/`gif`** رغم
+    // قبولهما صراحةً عند الرفع ⇒ يسقطان على octet-stream فينزّلهما المتصفح بدل
+    // عرضهما. صارت مشتقّة من allowlist الرفع في `lib/storage/paths.ts` — قائمة واحدة
+    // لبابين. المجهول يبقى octet-stream (تنزيل) كما كان — وهو الصحيح لـ`dwg`.
     const ext = segments[segments.length - 1].split(".").pop();
     const contentType =
-      ext === "png"
-        ? "image/png"
-        : ext === "jpg" || ext === "jpeg"
-          ? "image/jpeg"
-          : ext === "pdf"
-            ? "application/pdf"
-            : "application/octet-stream";
+      (ext ? SERVE_CONTENT_TYPE[ext] : undefined) ?? "application/octet-stream";
 
     return new NextResponse(file, {
       headers: { "Content-Type": contentType },

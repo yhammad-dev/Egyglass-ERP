@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Customer } from "@prisma/client";
+// IN-17: اشتقاق التأخير من مصدره الوحيد — لا نسخة رابعة من الشرط هنا
+import { deriveEffectiveStatus } from "@/lib/services/inspections";
 
 export interface CustomerRow {
   id: string;
@@ -246,6 +248,12 @@ export interface CustomerProfileData {
   inspections: Array<{
     id: string;
     status: string;
+    /**
+     * IN-17 (موجة B3): الحالة المعروضة بعد اشتقاق التأخير. كان هذا الملف يعرض
+     * `status` **الخام** بينما قائمة المعاينات تشتقّ ⇒ نفس المعاينة «متأخرة» هناك
+     * و«مجدولة» هنا. المصدر واحد الآن: `deriveEffectiveStatus`.
+     */
+    effectiveStatus: string;
     type: string;
     location: string;
     address: string | null;
@@ -392,6 +400,8 @@ export async function getCustomerById(
     inspections: customer.inspections.map((ins) => ({
       id: ins.id,
       status: ins.status,
+      // IN-17: نفس الدالة التي تستعملها القائمة وشاشة التفاصيل — لا شرط رابع
+      effectiveStatus: deriveEffectiveStatus(ins.dueDate, ins.status),
       type: ins.type,
       location: ins.location,
       address: ins.address,

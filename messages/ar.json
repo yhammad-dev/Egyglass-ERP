@@ -741,6 +741,22 @@
     "siteNotReady": "الموقع غير جاهز",
     "siteReadinessUnknown": "لم يُحدَّد",
     "siteReadinessUpdated": "تم تحديث جاهزية الموقع",
+    "activity": {
+      "title": "سجل الأحداث",
+      "empty": "لا أحداث مسجَّلة على هذه المعاينة",
+      "by": "بواسطة",
+      "action_INSPECTION_CREATED": "أُنشئ طلب المعاينة",
+      "action_INSPECTION_SCHEDULED": "جُدولت المعاينة وأُسندت",
+      "action_INSPECTION_RESCHEDULED": "أُعيدت الجدولة أو الإسناد",
+      "action_UPDATE_STATUS": "تغيّرت حالة المعاينة",
+      "action_SITE_READINESS_UPDATED": "حُدِّثت جاهزية الموقع",
+      "action_ATTACHMENT_ADDED": "أُضيف مرفق",
+      "action_MEASUREMENT_ADDED": "أُضيف مقاس",
+      "action_MEASUREMENT_DELETED": "حُذف مقاس",
+      "action_INSPECTION_SUBMITTED_FOR_APPROVAL": "قُدّمت المعاينة للاعتماد",
+      "action_INSPECTION_APPROVED": "اعتمد المدير المعاينة",
+      "action_INSPECTION_RETURNED": "أُرجعت المعاينة للتصحيح"
+    },
     "approval": {
       "title": "اعتماد المعاينة",
       "status_DRAFT": "مسودّة",
@@ -763,7 +779,8 @@
     "siteReadiness_READY": "الموقع جاهز",
     "siteReadiness_NOT_READY": "الموقع غير جاهز",
     "siteReadiness_UNCONFIRMED": "لم يؤكّد العميل",
-    "siteReadinessBlocksScheduling": "بلا تأكيد من العميل لا يمكن جدولة المعاينة — أكّد الجاهزية ثم عدّلها من الأدمن إن لزم",
+    "siteReadinessBlocksScheduling": "العميل لم يؤكد جاهزية الموقع للزيارة والمعاينة — تم إخطار المبيعات المسؤول تلقائيًا.",
+    "siteReadinessUnconfirmedHint": "بلا تأكيد العميل لن يستطيع مدير المعاينات جدولة الزيارة — يمكنك تأكيد الجاهزية لاحقًا من شاشة المعاينة",
     "siteNotReadyWarning": "تنبيه: المبيعات سجّلت أن الموقع غير جاهز. الجدولة مسموحة بقرارك."
   },
   "users": {
@@ -916,6 +933,8 @@
     "invalidFileContent": "محتوى الملف لا يطابق النوع المحدَّد — ارفع ملفًا سليمًا من النوع الصحيح",
     "inspectionApprovedLocked": "المعاينة معتمَدة — لا يمكن تعديل أو حذف المقاسات بعد الاعتماد",
     "inspectionNotSchedulable": "المعاينة منتهية — لا يمكن جدولتها أو إسنادها من جديد",
+    "invalidAssignee": "لا يمكن إسناد المعاينة لهذا المستخدم — الإسناد لمندوبي ومديري المعاينات النشطين فقط",
+    "measurementPrecision": "الحد الأقصى ثلاث خانات عشرية",
     "inspectionApprovedNoChange": "المعاينة معتمَدة — لا يمكن تغيير جدولتها أو مندوبها أو حالتها بعد الاعتماد",
     "inspectionNotSubmittable": "لا يمكن تقديم المعاينة في حالتها الحالية",
     "inspectionNoMeasurements": "لا يمكن تقديم معاينة بلا مقاسات — أضِف مقاسًا واحدًا على الأقل",

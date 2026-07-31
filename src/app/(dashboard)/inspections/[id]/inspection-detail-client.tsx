@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,86 @@ const APPROVAL_BADGE: Record<
 const UNITS = ["SQM", "CBM"] as const;
 type MeasurementUnit = (typeof UNITS)[number];
 
+/**
+ * IN-45 (موجة B3): الأفعال المعروفة التي تُكتب على `entity = "InspectionRequest"`
+ * (مُتحقَّق بالجرد: `inspections/actions.ts` · `services/inspections.ts` ·
+ * `services/inspection-measurements.ts`).
+ *
+ * 🔴 لماذا قائمة صريحة لا `t()` مباشرة على `action`: `action` عمود **نص حر** في
+ * `ActivityLog`، فأي قيمة قديمة أو مكتوبة من مسار آخر كانت ستنتج مفتاح ترجمة غير
+ * موجود — وهو ضجيج في الكونسول ونصّ مفتاح خام أمام المستخدم. المجهول يُعرَض بكوده
+ * الخام (قيمة بيانات لا نصّ واجهة) ولا يُسقِط الصف أبدًا.
+ */
+const KNOWN_ACTIVITY_ACTIONS = new Set([
+  "INSPECTION_CREATED",
+  "INSPECTION_SCHEDULED",
+  "INSPECTION_RESCHEDULED",
+  "UPDATE_STATUS",
+  "SITE_READINESS_UPDATED",
+  "ATTACHMENT_ADDED",
+  "MEASUREMENT_ADDED",
+  "MEASUREMENT_DELETED",
+  "INSPECTION_SUBMITTED_FOR_APPROVAL",
+  "INSPECTION_APPROVED",
+  "INSPECTION_RETURNED",
+]);
+
+/**
+ * IN-22 (موجة B3): فحص الدقة على **النص المُدخَل** لا على `Number` — لأن
+ * `Number("1.0001")` يفقد التمييز بين «أربع خانات» و«ثلاث»، و`% 0.001` على العائم
+ * يُنتج نتائج كاذبة (خطأ التمثيل الثنائي). مرآة دقيقة لـ`multipleOf(0.001)` الخادمي.
+ */
+function hasAtMostThreeDecimals(raw: string): boolean {
+  const decimals = raw.trim().split(".")[1];
+  return decimals === undefined || decimals.length <= 3;
+}
+
+/**
+ * IN-22: كبح تدرّج الحقل الرقمي **بلا حذفه**.
+ *
+ * `type="number" step="0.001"` يجعل كل نقرة سهم أو خطوة عجلة = **مليمتر واحد** —
+ * أي أن الأداة تُغري بحركة لا تُنتج شيئًا مفيدًا، وتُغيّر مقاسًا مسجَّلًا بالخطأ عند
+ * تمرير الصفحة والمؤشر فوق الحقل. الحقل يبقى رقميًا (لوحة أرقام على الموبايل
+ * وتحقق المتصفح) — الممنوع هو التدرّج وحده.
+ */
+const numberInputGuards = {
+  onWheel: (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur(),
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+  },
+};
+
+/**
+ * IN-45: عرض `details` **بلا افتراض شكل**. العمود يحمل أحيانًا JSON مهيكلًا
+ * (`{assigneeId:{from,to}, …}` من الجدولة) وأحيانًا نصًّا عربيًا حرًّا
+ * (`"الموقع جاهز"`)، وأحيانًا `null`.
+ *
+ * 🔴 القاعدة الحاكمة: **لا يُسقَط الصف مهما كان المحتوى.** فشل التحليل يعني عرض
+ * النص كما هو، لا اختفاء حدث من سجل تدقيقي — سجل ينقص صفًّا أسوأ من سجل قبيح.
+ */
+function formatActivityDetails(raw: string | null): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  // نصّ حر: لا يبدأ بقوس JSON ⇒ يُعرض حرفيًا بلا محاولة تحليل
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return [trimmed];
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed === null || typeof parsed !== "object") return [trimmed];
+    return Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
+      // شكل الانتقال `{from, to}` هو الأشيع (جدولة/إعادة جدولة) — يُقرأ كسهم
+      if (value !== null && typeof value === "object" && "to" in value) {
+        const pair = value as { from?: unknown; to?: unknown };
+        return `${key}: ${String(pair.from ?? "—")} ← ${String(pair.to ?? "—")}`;
+      }
+      return `${key}: ${value === null ? "—" : String(value)}`;
+    });
+  } catch {
+    // JSON مكسور أو نصّ يبدأ بقوس مصادفةً — يُعرض خامًا ولا يختفي
+    return [trimmed];
+  }
+}
+
 type InspectionDetail = {
   id: string;
   customer: { id: string; name: string; phone: string };
@@ -60,7 +141,14 @@ type InspectionDetail = {
   address: string;
   phone: string;
   notes: string | null;
+  /** الحالة **المخزَّنة** — تكتبها قائمة تغيير الحالة (بلا OVERDUE، IN-07) */
   status: InspectionStatus;
+  /**
+   * IN-17 (موجة B3): الحالة **المعروضة** بعد اشتقاق التأخير في الخادم. كانت هذه
+   * الشاشة تعرض الخام وحده بينما القائمة تشتقّ ⇒ نفس المعاينة «متأخرة» في القائمة
+   * و«مجدولة» في تفاصيلها. الشارة تقرأ هذه، وقائمة الكتابة تقرأ `status`.
+   */
+  effectiveStatus: InspectionStatus;
   type: string;
   siteReadiness: boolean | null;
   scheduledAt: string | null;
@@ -76,6 +164,14 @@ type InspectionDetail = {
   measurements: MeasurementRow[];
   approvalStatus: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "RETURNED";
   returnReason: string | null;
+  /** IN-45: أثر المعاينة الزمني — أحدث أولًا. عرض فقط، لا يُشتق منه منطق (BL-81). */
+  activity: {
+    id: string;
+    action: string;
+    details: string | null;
+    actorName: string;
+    createdAt: string;
+  }[];
   /**
    * IN-49: صلاحية الكتابة **من الخادم** (مشتقّة من ALLOWED_ROLES نفسها التي تحرس
    * الأكشنات) لا من `currentRole` في العميل. المبيعات والمكتب الفني يقرأان فقط،
@@ -107,6 +203,7 @@ export function InspectionDetailClient({
   currentRole?: string;
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const [inspection, setInspection] = useState(initialInspection);
   const [siteReadiness, setSiteReadiness] = useState<boolean | null>(
     initialInspection.siteReadiness ?? null
@@ -178,6 +275,9 @@ export function InspectionDetailClient({
       ...prev,
       approvalStatus: "APPROVED",
       status: "DONE",
+      // IN-17: `DONE` لا تكون متأخرة أبدًا بنصّ القاعدة (`status !== "DONE"`)،
+      // فالمرآة المحلية هنا مطابقة للاشتقاق الخادمي يقينًا لا تخمينًا.
+      effectiveStatus: "DONE",
     }));
     toast.success(t("inspections.approval.approved"));
   }
@@ -244,6 +344,15 @@ export function InspectionDetailClient({
       quantity <= 0
     ) {
       setMeasurementError(t("errors.invalidInput"));
+      return;
+    }
+    // IN-22 (موجة B3): الدقة تُرفض برسالتها الخاصة لا بـ«بيانات غير صالحة» العامة.
+    // 🔴 القيد نفسه لم يُمَس: `multipleOf(0.001)` في `addMeasurementSchema` هو
+    // القاعدة الصحيحة (العمود Decimal(12,3) — أي دقة أعلى تُقرَّب بصمت وتغذّي
+    // المطابقة الثلاثية). المُصلَح هو **الرسالة**: المندوب كان يُرفض بلا معرفة السبب
+    // فيظن العطل في الرقم نفسه. الفحص هنا يسبق النداء فيصل السبب فورًا.
+    if (!hasAtMostThreeDecimals(widthInput) || !hasAtMostThreeDecimals(heightInput)) {
+      setMeasurementError(t("errors.measurementPrecision"));
       return;
     }
 
@@ -354,6 +463,9 @@ export function InspectionDetailClient({
     }
 
     setInspection((prev) => ({ ...prev, status }));
+    // IN-17: الحالة المشتقّة تُعاد من الخادم لا تُحسب هنا — نسخة ثانية من الشرط في
+    // العميل هي بالضبط ما يمنعه هذا البند. `refresh` يُعيد جلب الـDTO فتتسق الشارة.
+    router.refresh();
     toast.success(t("inspections.detail.statusUpdated"));
   }
 
@@ -367,7 +479,11 @@ export function InspectionDetailClient({
           </p>
           <p className="text-sm">{inspection.address}</p>
         </div>
-        <Badge variant="outline">{t(`inspections.status_${inspection.status}`)}</Badge>
+        {/* IN-17: الشارة تعرض الحالة **المشتقّة** (المصدر الواحد في الخادم)، بينما
+            قائمة تغيير الحالة أدناه تظل على `status` المخزَّن — `OVERDUE` لا تُكتب. */}
+        <Badge variant="outline">
+          {t(`inspections.status_${inspection.effectiveStatus}`)}
+        </Badge>
       </div>
 
       <div className="grid grid-cols-2 gap-4 max-w-xl text-sm">
@@ -686,24 +802,30 @@ export function InspectionDetailClient({
           </div>
           <div className="space-y-1">
             <Label htmlFor="width">{t("inspections.detail.width")}</Label>
+            {/* IN-22: لوحة أرقام عشرية على اللمس + كبح التدرّج (السهم/العجلة) */}
             <Input
               id="width"
               type="number"
+              inputMode="decimal"
               dir="ltr"
               step="0.001"
               value={widthInput}
               onChange={(e) => setWidthInput(e.target.value)}
+              {...numberInputGuards}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="height">{t("inspections.detail.height")}</Label>
+            {/* IN-22: لوحة أرقام عشرية على اللمس + كبح التدرّج (السهم/العجلة) */}
             <Input
               id="height"
               type="number"
+              inputMode="decimal"
               dir="ltr"
               step="0.001"
               value={heightInput}
               onChange={(e) => setHeightInput(e.target.value)}
+              {...numberInputGuards}
             />
           </div>
           <div className="space-y-1">
@@ -846,6 +968,61 @@ export function InspectionDetailClient({
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* ── IN-45 (موجة B3): سجل الأحداث ──
+          القسم كان يكتب أحد عشر انتقالًا ولا يقرؤها أحد: «تم الحفظ» ثم صمت.
+          🔴 **قراءة فقط** — لا زر ولا إجراء، ولنفس أدوار `DETAIL_READ_ROLES`
+          ونطاقها (وُرِثا من `getInspectionDetail`، بلا حارس جديد).
+          🔴 **BL-81** — أثر يُعرَض لا مصدر حقيقة: لا شيء يُشتق منه.
+          🔴 **IN-25** — سجلات `entity = "QuotationRequest"` مُستثناة عمدًا (السبب
+             موثَّق عند الاستعلام في `actions.ts`: حدّ الكيان + منع توسيع النطاق). */}
+      <div className="space-y-3 max-w-3xl border-t pt-6">
+        <h2 className="font-semibold">{t("inspections.activity.title")}</h2>
+        {inspection.activity.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("inspections.activity.empty")}
+          </p>
+        ) : (
+          <ol className="space-y-3">
+            {inspection.activity.map((event) => {
+              const lines = formatActivityDetails(event.details);
+              return (
+                <li
+                  key={event.id}
+                  className="rounded-md border p-3 text-sm space-y-1"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {/* المجهول يُعرض بكوده الخام — قيمة بيانات لا نصّ واجهة */}
+                      {KNOWN_ACTIVITY_ACTIONS.has(event.action)
+                        ? t(`inspections.activity.action_${event.action}`)
+                        : event.action}
+                    </span>
+                    <span className="text-xs text-muted-foreground" dir="ltr">
+                      {new Date(event.createdAt).toLocaleString("ar-EG")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("inspections.activity.by")} {event.actorName}
+                  </p>
+                  {lines.length > 0 && (
+                    <div className="space-y-0.5">
+                      {lines.map((line, i) => (
+                        <p
+                          key={i}
+                          className="text-xs text-muted-foreground break-words whitespace-pre-wrap"
+                        >
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         )}
       </div>
     </div>
