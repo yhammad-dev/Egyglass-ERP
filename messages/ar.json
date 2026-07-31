@@ -761,6 +761,7 @@
     "submittedAt": "تاريخ التقديم",
     "completedAt": "تاريخ الإنهاء",
     "notScheduledYet": "لم تُجدوَل بعد",
+    "notRecordedLegacy": "غير مسجَّل — قبل تحديث النظام",
     "activity": {
       "title": "سجل الأحداث",
       "action_MATCH_RESULT_DECLARED": "أُعلنت نتيجة المطابقة",

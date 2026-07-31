@@ -283,6 +283,15 @@ export async function getTecJobDetail(
           matchReason: true,
           matchDeclaredAt: true,
           matchDeclaredBy: { select: { name: true } },
+          /**
+           * 🔴 C1-fix (البند 2): **الحقل الحيّ لمسؤول المعاينة.**
+           * كانت الشاشة تقرأ `QuotationRequest.inspectionOwnerId` وهو **عمود ميت
+           * بصفر كاتب في المستودع كله** (مُتحقَّق بالبحث؛ وفي القاعدة صفّ واحد من 27
+           * يحمل قيمة — بقايا بذرة). فالنتيجة «—» دائمًا بينما شاشة المعاينة تعرض
+           * المُسنَد إليه الحقيقي من `InspectionRequest.assigneeId`.
+           * مصدر واحد الآن: الشاشتان تقرآن نفس الحقل الذي تكتبه `scheduleInspection`.
+           */
+          assignee: { select: { name: true } },
         },
       },
       drawings: {
@@ -350,7 +359,14 @@ export async function getTecJobDetail(
     engineerName: job.engineer?.name ?? null,
     engineerId: job.engineer?.id ?? null,
     salesOwnerName: job.salesOwner?.name ?? null,
-    inspectionOwnerName: job.inspectionOwner?.name ?? null,
+    /**
+     * 🔴 C1-fix (البند 2): المصدر صار **المُسنَد إليه الفعلي** على المعاينة.
+     * `job.inspectionOwner` (عمود `QuotationRequest.inspectionOwnerId`) **ميت** —
+     * صفر كاتب في الكود. يبقى fallback للصفّ الوحيد الذي يحمل قيمة تاريخية، فلا
+     * تُفقَد بيانات قائمة؛ ويُقترح حذف العمود في SCR منفصل (BL-169).
+     */
+    inspectionOwnerName:
+      job.inspectionRequest?.assignee?.name ?? job.inspectionOwner?.name ?? null,
     inspectionRequestId: job.inspectionRequestId,
     drawingsCount: job._count.drawings,
     createdAt: job.createdAt,

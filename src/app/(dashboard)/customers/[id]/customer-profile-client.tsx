@@ -23,6 +23,8 @@ import { RequestInspectionDialog } from "./request-inspection-dialog";
 import { RequestQuotationDialog } from "./request-quotation-dialog";
 import { PostInstallTab } from "./_components/post-install-tab";
 import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
+// C1-fix: المصدر الوحيد لتنسيق أيام العمل — يمنع اختلاف اليوم بين الشاشات
+import { formatBusinessDate } from "@/lib/format/dates";
 import type { PostInstallReviewRow } from "@/lib/actions/post-install";
 
 type TabId = "interactions" | "quotations" | "inspections" | "postInstall";
@@ -436,7 +438,9 @@ export function CustomerProfileClient({
                       </div>
                       <p className="text-xs text-gray-500">
                         {ins.scheduledAt
-                          ? new Date(ins.scheduledAt).toLocaleDateString("ar-EG")
+                          ? /* C1-fix: نفس المُنسِّق المشترك (يوم عمل بـUTC) — كان
+                               يعرض يومًا مختلفًا عن قائمة المعاينات لنفس الصف */
+                            formatBusinessDate(ins.scheduledAt)
                           : "—"}
                       </p>
                     </div>
