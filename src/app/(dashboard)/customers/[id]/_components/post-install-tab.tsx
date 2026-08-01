@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+// D-IN-26: المصدر الوحيد لتنسيق الوقت — مثبَّت على توقيت القاهرة
+import { formatInstantDate } from "@/lib/format/dates";
 import {
   Select,
   SelectContent,
@@ -208,7 +210,7 @@ export function PostInstallTab({
                   <StarRating value={review.rating} />
                   <p className="text-xs text-gray-500">
                     {t("postInstall.createdBy")} {review.createdByName} —{" "}
-                    {new Date(review.createdAt).toLocaleDateString("ar-EG")}
+                    {formatInstantDate(review.createdAt)}
                   </p>
                 </div>
                 <Badge variant={STATUS_VARIANT[review.status as PostInstallStatus]}>

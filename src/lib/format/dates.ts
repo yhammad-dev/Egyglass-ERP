@@ -142,7 +142,18 @@ function cairoOffsetMinutes(instant: Date): number {
  * ينزاح يومان في السنة ساعةً كاملة.
  */
 export function endOfCairoDay(instant: Date): Date {
-  const key = cairoDateKey(instant);
+  return endOfCairoDayForKey(cairoDateKey(instant));
+}
+
+/**
+ * نفس الختم لكن انطلاقًا من **مفتاح يوم صريح** (`YYYY-MM-DD`) لا من لحظة.
+ *
+ * 🔴 **لماذا يلزم منفصلًا (D-IN-26):** سكربت تصحيح الصفوف القائمة يعرف **اليوم
+ * المقصود** من التاريخ التقويمي UTC للقيمة القديمة — و`endOfCairoDay` على تلك
+ * القيمة كان **سيزيح يومًا**: `23:59:59.999Z` من يوم X هي `02:59` بالقاهرة من
+ * **X+1**، فيُختَم اليوم التالي. المفتاح الصريح يقطع هذا الالتباس.
+ */
+export function endOfCairoDayForKey(key: string): Date {
   const approx = new Date(`${key}T23:59:59.999Z`);
   const off1 = cairoOffsetMinutes(approx);
   const candidate = new Date(approx.getTime() - off1 * 60000);
@@ -160,13 +171,19 @@ export function parseCairoWallTime(value: string): Date | null {
   return new Date(asUtc.getTime() - cairoOffsetMinutes(asUtc) * 60000);
 }
 
-/** يوم عمل: `dueDate` · `scheduledAt`. مثبَّت على UTC (انظر الحالة ١ أعلاه). */
-const businessDateFormat = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  timeZone: "UTC",
-});
+/**
+ * ✅ **D-IN-26: `businessDateFormat` (المثبَّت على UTC) حُذف — وكذلك
+ * `formatBusinessDate`.**
+ *
+ * كانا يخدمان تصنيف «يوم عمل مخزَّن UTC» الذي أنشأه C1-fix حين كان `dueDate`
+ * و`scheduledAt` تاريخين مجرَّدين. بعد D-IN-24/25/26 صار **كل وقت في النظام لحظةً
+ * حقيقية بتوقيت القاهرة**، وسكربت التصحيح وحّد الصفوف القائمة (28/28، تباين صفر
+ * بين التقويمين) ⇒ لم يبقَ مستهلك واحد.
+ *
+ * 🔴 **حُذفا ولم يُتركا «احتياطًا»:** إبقاء مُنسِّق UTC بعد قرار «كل وقت بالقاهرة»
+ * يدعو لإعادة إدخال العيب — أول من يحتاج تنسيقًا سيجد اثنين ويختار أحدهما بلا سياق.
+ * دالة واحدة تعني قرارًا واحدًا.
+ */
 
 /** لحظة حقيقية — التاريخ وحده. */
 const instantDateFormat = new Intl.DateTimeFormat("en-CA", {
@@ -201,16 +218,6 @@ function toDate(value: Input): Date | null {
   const d = value instanceof Date ? value : new Date(value);
   // تاريخ غير صالح يُعامل كغياب — لا `Invalid Date` تتسرّب للشاشة
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-/**
- * يوم عمل (`dueDate` · `scheduledAt`) — **UTC**.
- * ⚠️ لا تستعملها للحظات الحقيقية: ستُظهر `completedAt` بيوم أسبق لكل حدث يقع
- * بين منتصف ليل القاهرة و03:00.
- */
-export function formatBusinessDate(value: Input): string | null {
-  const d = toDate(value);
-  return d ? businessDateFormat.format(d) : null;
 }
 
 /** لحظة حقيقية — التاريخ وحده، بتوقيت القاهرة. */

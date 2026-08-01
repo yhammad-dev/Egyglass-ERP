@@ -24,7 +24,7 @@ import { RequestQuotationDialog } from "./request-quotation-dialog";
 import { PostInstallTab } from "./_components/post-install-tab";
 import type { CustomerProfileData, SalesRepOption } from "@/lib/services/customers";
 // C1-fix: المصدر الوحيد لتنسيق أيام العمل — يمنع اختلاف اليوم بين الشاشات
-import { formatInstantDateTime } from "@/lib/format/dates";
+import { formatInstantDate, formatInstantDateTime } from "@/lib/format/dates";
 import type { PostInstallReviewRow } from "@/lib/actions/post-install";
 
 type TabId = "interactions" | "quotations" | "inspections" | "postInstall";
@@ -231,11 +231,11 @@ export function CustomerProfileClient({
           )}
           <DetailRow
             label={t("customers.createdAt")}
-            value={new Date(customer.createdAt).toLocaleDateString("ar-EG")}
+            value={formatInstantDate(customer.createdAt) ?? "—"}
           />
           <DetailRow
             label={t("customers.updatedAt")}
-            value={new Date(customer.updatedAt).toLocaleDateString("ar-EG")}
+            value={formatInstantDate(customer.updatedAt) ?? "—"}
           />
           {(customer.ownerName || customer.coveredByName) && (
             <DetailRow
@@ -348,7 +348,7 @@ export function CustomerProfileClient({
                         <p className="text-sm whitespace-pre-wrap">{interaction.note}</p>
                         <p className="text-xs text-gray-400 mt-1">
                           {interaction.userName && `${t("customers.by")} ${interaction.userName} — `}
-                          {new Date(interaction.createdAt).toLocaleString("ar-EG")}
+                          {formatInstantDateTime(interaction.createdAt)}
                         </p>
                       </div>
                     </div>
