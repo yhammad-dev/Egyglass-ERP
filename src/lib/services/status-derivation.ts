@@ -50,6 +50,8 @@ export interface StageFacts {
   installationCompleted: boolean; // اكتمل تركيب لعقد العميل (COMPLETED)
   hasContract: boolean;
   inspectionActive: boolean; // معاينة نشطة (لم تُنجَز) للعميل
+  // D-IN-27: معاينة `DONE` غير محذوفة. `CANCELLED` **لا تُحتسب** (انظر السلّم أدناه).
+  hasCompletedInspection: boolean;
   hasQuotation: boolean; // للعميل عرض سعر واحد على الأقل
 }
 
@@ -85,6 +87,36 @@ export function deriveCustomerStage(f: StageFacts): PipelineStage {
   if (f.installationCompleted) return "EXECUTION";
   if (f.hasContract) return "CONTRACT";
   if (f.inspectionActive) return "INSPECTION";
+  /**
+   * 🔴 **D-IN-27 — العميل الذي أتمّ معاينة لا يرتدّ إلى «جديد».**
+   *
+   * العيب (مُثبَت في التدقيق المستقل): `STAGE_DERIVED: INSPECTION → NEW` لحظة
+   * اعتماد المعاينة. السلّم لم يكن يسأل «هل تمّت معاينة؟» إطلاقًا — فما إن تسقط
+   * `inspectionActive` حتى تسقط الدرجة معها إلى القاع، فيظهر عميلٌ رُفعت مقاساته
+   * واعتُمدت **كأنه أُنشئ قبل دقيقة**. يُفرِّغ IN-37 من غرضه ويفسد مؤشر قمع المبيعات.
+   *
+   * **ولماذا `PRICED` لا قيمة enum جديدة:** قرار D-IN-27 — `PRICED` قائمة في
+   * `enum PipelineStage` فلا تلزم migration ولا SCR، وموضع العميل بعد المعاينة
+   * (مقاسات نهائية بانتظار المكتب الفني) أقرب إليها منه إلى `NEW`.
+   *
+   * ⚠️ **دَيْن معلن (BL-186):** نصّ العرض الفعلي `messages/ar.json:152` هو
+   * **«تم التسعير»** لا «جاهز للتسعير». فالعميل الذي أتمّ معاينةً بلا عرض سعر
+   * يُعرض الآن «تم التسعير» — أدقّ من «جديد» في الترتيب، وأكذب منه في النصّ.
+   * القيمة الواحدة تحمل معنيين (بعد المعاينة · بعد التسعير) ولا يصدق الوسم عليهما
+   * معًا. **الحسم لعمرو/يوسف** — وهو قرار وسم لا منطق: هذا السلّم لا يتغيّر بأيٍّ
+   * من الخيارين (إعادة وسم · قيمة enum جديدة بـSCR).
+   *
+   * 🔴 **ولماذا هنا تحديدًا — تحت `inspectionActive` وفوق `hasQuotation`:**
+   * عميل له معاينة تمّت **وأخرى نشطة** يبقى `INSPECTION` (الأحدث يحكم، لا التاريخ).
+   * لو رُفعت درجةً واحدة لابتلعت المعاينة الجارية وأخفت عملًا قائمًا.
+   *
+   * ⚠️ **`CANCELLED` مستثناة بنيويًا** — الواقعة تُقرأ بـ`status: "DONE"` حصرًا
+   * (`recomputeCustomerStage` أدناه)، لا بـ«ليست نشطة». الفرق ليس أسلوبيًا: لو
+   * قُرئت بالنفي لصار **رفض العميل يرفع مرحلته** — إذ التتالي يحوّل معايناته إلى
+   * `CANCELLED`. (وهي محميّة أصلًا بـ`HUMAN_OWNED_STAGES`، لكن حارسٌ واحد لا يكفي
+   * لقاعدة تُقرأ من خمسة مسارات.)
+   */
+  if (f.hasCompletedInspection) return "PRICED";
   if (f.hasQuotation) return "PRICED";
   return "NEW";
 }
@@ -183,8 +215,13 @@ export async function recomputeCustomerStage(
   // قرار بشري — لا اشتقاق يدهسه.
   if (isHumanOwnedStage(customer.stage)) return customer.stage;
 
-  const [contract, activeInspection, quotation, completedInstallation] =
-    await Promise.all([
+  const [
+    contract,
+    activeInspection,
+    completedInspection,
+    quotation,
+    completedInstallation,
+  ] = await Promise.all([
       tx.contract.findFirst({ where: { customerId }, select: { id: true } }),
       tx.inspectionRequest.findFirst({
         // SCR-INS-I (C2-fix): نفس قاعدة النشاط أعلاه — بدونها يبقى العميل المرفوض
@@ -194,6 +231,16 @@ export async function recomputeCustomerStage(
           deletedAt: null,
           status: { notIn: [...TERMINAL_INSPECTION_STATUSES] },
         },
+        select: { id: true },
+      }),
+      tx.inspectionRequest.findFirst({
+        /**
+         * D-IN-27 — «تمّت» = `DONE` **إيجابًا**، لا «ليست نشطة» سلبًا.
+         * `CANCELLED` نهائية أيضًا، فالقراءة بالنفي كانت ستحتسب معاينةً ألغاها
+         * العميل إنجازًا وترفع مرحلته عند رفضه. `deletedAt: null` يطابق حارس
+         * المعاينة النشطة أعلاه — نفس نطاق الرؤية لكلتا الواقعتين.
+         */
+        where: { customerId, deletedAt: null, status: "DONE" },
         select: { id: true },
       }),
       tx.quotation.findFirst({ where: { customerId }, select: { id: true } }),
@@ -211,6 +258,7 @@ export async function recomputeCustomerStage(
     installationCompleted: !!completedInstallation,
     hasContract: !!contract,
     inspectionActive: !!activeInspection,
+    hasCompletedInspection: !!completedInspection,
     hasQuotation: !!quotation,
   });
 
