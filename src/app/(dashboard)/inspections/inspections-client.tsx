@@ -16,7 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 // C1-fix: المصدر الوحيد لتنسيق التواريخ — يمنع اختلاف اليوم بين الخادم والمتصفح
-import { formatBusinessDate, formatInstantDateTime } from "@/lib/format/dates";
+import { formatInstantDate, formatInstantDateTime } from "@/lib/format/dates";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -228,8 +228,12 @@ export function InspectionsClient({
         // SCR-INS-B2: `null` = لم تُجدوَل. بلا هذا الفرع كان `new Date(null)` يطبع
         // **«1970-01-01»** — رقم يبدو بيانات وهو عطل.
         cell: (info) => {
-          // C1-fix: المُنسِّق المشترك (UTC) — لا `toLocaleDateString` بمنطقة البيئة
-          const v = formatBusinessDate(info.getValue());
+          // ✅ D-IN-26(ج): `dueDate` انتقل إلى التوقيت القاهري كبقية النظام.
+          // كان `formatBusinessDate` (UTC) — وهو ما صرّحتُ به استثناءً في D-IN-25،
+          // لأن الصفوف القديمة (`23:59:59Z` · `22:21Z`) كان يومها UTC يخالف يومها
+          // القاهري فتحويلها المبكر كان يعرضها **باليوم التالي**. بعد سكربت التصحيح
+          // (28/28، تباين صفر بين التقويمين) سقط الاستثناء.
+          const v = formatInstantDate(info.getValue());
           return v ? (
             <span dir="ltr">{v}</span>
           ) : (

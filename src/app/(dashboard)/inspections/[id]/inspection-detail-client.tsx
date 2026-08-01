@@ -33,7 +33,6 @@ import {
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
 // C1-fix: المصدر الوحيد لتنسيق التواريخ — يوم عمل (UTC) ولحظة حقيقية (القاهرة)
 import {
-  formatBusinessDate,
   formatInstantDate,
   formatInstantDateTime,
 } from "@/lib/format/dates";
@@ -699,10 +698,11 @@ export function InspectionDetailClient({
           <p className="text-muted-foreground">{t("inspections.dueDate")}</p>
           {/* SCR-INS-B2: `null` = لم تُجدوَل ⇒ نصّ صريح لا تاريخ 1970 ولا فراغ صامت */}
           {/* محاذاة: `dir` على الـspan لا البلوك. والشرط سقط — لم يعد لازمًا لأن
-              نصّ «لم تُجدوَل بعد» عربي خارج الـspan أصلًا. */}
+              نصّ «لم تُجدوَل بعد» عربي خارج الـspan أصلًا.
+              ✅ D-IN-26(ج): التوقيت القاهري — سقط استثناء UTC بعد تصحيح الصفوف. */}
           <p>
             {inspection.dueDate ? (
-              <span dir="ltr">{formatBusinessDate(inspection.dueDate)}</span>
+              <span dir="ltr">{formatInstantDate(inspection.dueDate)}</span>
             ) : (
               t("inspections.notScheduledYet")
             )}

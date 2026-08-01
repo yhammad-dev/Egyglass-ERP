@@ -25,6 +25,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { TecJobRow, EngineerOption } from "@/lib/services/tec";
 import { TEC_STATUS_COLORS } from "@/lib/status-colors";
+// D-IN-26: المصدر الوحيد لتنسيق الوقت — مثبَّت على توقيت القاهرة
+import { formatInstantDate } from "@/lib/format/dates";
 import { updateTecJobStatusAction, assignEngineerAction } from "./actions";
 
 type TecJobStatus = "NEW" | "IN_PROGRESS" | "ON_HOLD" | "DONE";
@@ -146,11 +148,11 @@ export function TecClient({
     toast.success(t("app.saved"));
   }
 
-  const dateFormat = new Intl.DateTimeFormat("ar-EG", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  /**
+   * D-IN-26: المُنسِّق المحلي **حُذف** — كان بلا `timeZone` فيُرسم بمنطقة البيئة
+   * (UTC على الخادم · القاهرة في المتصفح) ⇒ نفس عيب اختلاف اليوم الذي عالجه C1-fix.
+   * كل قيمة زمنية تمرّ الآن عبر `lib/format/dates.ts` المثبَّت على توقيت القاهرة.
+   */
 
   /**
    * TO-19: أداة الإسناد الوحيدة في الشاشة — تُستدعى من مكانين (المربع الأصفر والجدول).
@@ -458,7 +460,7 @@ export function TecClient({
                   </TableCell>
                   <TableCell dir="ltr">{job.drawingsCount}</TableCell>
                   <TableCell dir="ltr">
-                    {dateFormat.format(new Date(job.updatedAt))}
+                    {formatInstantDate(job.updatedAt)}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
