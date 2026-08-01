@@ -16,7 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 // C1-fix: المصدر الوحيد لتنسيق التواريخ — يمنع اختلاف اليوم بين الخادم والمتصفح
-import { formatBusinessDate } from "@/lib/format/dates";
+import { formatBusinessDate, formatInstantDateTime } from "@/lib/format/dates";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -135,6 +135,21 @@ export function InspectionsClient({
         prev.map((r) => (r.id === result.data.id ? result.data : r))
       );
       toast.success(t("inspections.scheduled"));
+      /**
+       * D-IN-24: **تحذير لا حجب.** الجدولة نجحت بالفعل (الصفّ محدَّث أعلاه)،
+       * والتعارض يُعرض بعدها كتنبيه منفصل — لأن المدير قد يعرف ما لا يعرفه النظام
+       * (موقعان متجاوران · زيارتان قصيرتان). التعريف المُنفَّذ: **نفس اليوم**
+       * بتوقيت القاهرة؛ النافذة الزمنية الدقيقة تحتاج مدة الزيارة وهي غير مخزَّنة.
+       */
+      const conflicts = result.data.scheduleConflicts ?? [];
+      if (conflicts.length > 0) {
+        toast.warning(
+          t("inspections.scheduleConflict", {
+            count: conflicts.length,
+            customers: conflicts.map((c) => c.customerName).join(" · "),
+          })
+        );
+      }
       setScheduleOpen(false);
     } finally {
       setScheduleSubmitting(false);
@@ -239,9 +254,10 @@ export function InspectionsClient({
       columnHelper.accessor("scheduledAt", {
         header: t("inspections.scheduledAt"),
         cell: (info) => {
-          // C1-fix: `scheduledAt` من نفس صنف `dueDate` (يوم مخزَّن UTC) — نفس المُنسِّق.
-          // تركه كان سيُنتج تعارضًا جديدًا بين عمودين متجاورين.
-          const v = formatBusinessDate(info.getValue());
+          // 🔴 D-IN-24: `scheduledAt` **غادر صنف «يوم العمل»** إلى صنف «لحظة»
+          // (صار يحمل وقتًا فعليًا) ⇒ يُعرض بتوقيت القاهرة لا UTC. إبقاؤه على
+          // `formatBusinessDate` كان سيُظهر موعد 01:00 قاهرة على أنه اليوم السابق.
+          const v = formatInstantDateTime(info.getValue());
           return v ? <span dir="ltr">{v}</span> : "—";
         },
       }),
@@ -511,9 +527,14 @@ export function InspectionsClient({
             )}
             <div className="space-y-1">
               <Label htmlFor="scheduledAt">{t("inspections.scheduledAt")}</Label>
+              {/* 🔴 D-IN-24 (IN-29): كان `type="date"` بلا وقت — و«جدول المندوب
+                  اليومي» الذي طلبه حسن غير قابل للتمثيل بتاريخ مجرَّد.
+                  ⚠️ القيمة تصل الخادم **بلا منطقة زمنية** (`2026-08-06T22:00`)
+                  وتُقرأ هناك كساعة **قاهرية** صراحةً (`parseCairoWallTime`) — لا
+                  بـ`new Date()` الذي كان سيفسّرها UTC فيزيح الموعد ثلاث ساعات. */}
               <Input
                 id="scheduledAt"
-                type="date"
+                type="datetime-local"
                 dir="ltr"
                 {...regSchedule("scheduledAt")}
               />

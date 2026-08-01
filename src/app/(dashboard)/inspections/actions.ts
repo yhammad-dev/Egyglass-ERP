@@ -17,6 +17,8 @@ import {
 } from "@/lib/services/inspections";
 // D-IN-22 (C2-fix-2): النهائيتان لا تُمسّان عند رفع التأجيل — نفس المصدر الوحيد
 import { isTerminalInspectionStatus } from "@/lib/services/inspection-status";
+// D-IN-24: قراءة ساعة الحائط القاهرية من `datetime-local` — لا `new Date()` الخام
+import { parseCairoWallTime } from "@/lib/format/dates";
 import {
   addMeasurement,
   deleteMeasurement,
@@ -149,10 +151,26 @@ export async function scheduleInspectionAction(data: unknown) {
     };
   }
 
+  /**
+   * 🔴 **D-IN-24 — أخطر سطر في هذا البند.**
+   *
+   * `<input type="datetime-local">` يُرسل ساعة حائط **بلا منطقة** (`2026-08-06T22:00`)،
+   * و`new Date(...)` كان يفسّرها بتوقيت **بيئة التشغيل** — والحاوية UTC (مُتحقَّق).
+   * ⇒ مدير يُدخل «الخميس 22:00» قاصدًا القاهرة كانت تُخزَّن `22:00Z` = **الجمعة
+   * 01:00 بالقاهرة**: الموعد ينزاح ثلاث ساعات ويقفز يومًا، **بصمت**.
+   * (مُثبَت بالتشغيل قبل التوصيل، لا استنتاجًا.)
+   *
+   * القيمة تُقرأ الآن كساعة قاهرية صريحة عبر المصدر الوحيد للمنطقة الزمنية.
+   * `null` = نصّ غير صالح ⇒ رفض مترجَم لا `Invalid Date` تتسرّب للقاعدة.
+   */
+  const scheduledAt = parseCairoWallTime(parsed.data.scheduledAt);
+  if (!scheduledAt)
+    return { success: false as const, error: "errors.invalidInput" };
+
   try {
     const inspection = await scheduleInspection(
       parsed.data.id,
-      new Date(parsed.data.scheduledAt),
+      scheduledAt,
       parsed.data.assigneeId,
       auth.userId
     );
