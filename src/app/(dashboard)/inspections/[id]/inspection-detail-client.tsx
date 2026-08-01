@@ -599,8 +599,18 @@ export function InspectionDetailClient({
       setAttachmentError(t("errors.required"));
       return;
     }
+    // ── BL-186: الرفض كان يُكتب ولا يُرى ────────────────────────────────────────
+    // مسار **النجاح** في هذه الدالة يُنهي بـ`toast.success`، بينما كل مسارات الرفض
+    // كانت تكتفي بفقرة `attachmentError` أسفل اللوحة (السطر ~1450) — وهي أسفل صفحة
+    // طويلة، غالبًا خارج المجال المرئي وقت الضغط، وبلا أي حركة تلفت النظر. النتيجة
+    // عمليًا: المستخدم يضغط «إضافة» فلا يحدث شيء ظاهر، فيعيد المحاولة بنفس الملف.
+    // العلاج توست **إضافةً إلى** الفقرة لا بدلًا منها (الفقرة تبقى للمرجعية بعد
+    // اختفاء التوست). الرفض نفسه — بصمة المحتوى السحرية على الخادم — لا يُمَس.
+    // ⚠️ هذا الفرع تحديدًا يقع طبيعيًا: `accept="image/*"` **لا يفلتر SVG** لأن نوعه
+    // `image/svg+xml`، فيمرّ من هنا ويُرفض على الخادم بالبصمة.
     if (!attachmentFile.type.startsWith("image/")) {
       setAttachmentError(t("errors.invalidFileType"));
+      toast.error(t("errors.invalidFileType"));
       return;
     }
 
@@ -620,8 +630,11 @@ export function InspectionDetailClient({
         base64,
       });
 
+      // BL-186: يغطّي كل رفض من الخادم لا نوع الملف وحده — الحجم، الملكية (BL-105)،
+      // القفل بعد الاعتماد (D-38). كلها كانت تصل وتُكتب بلا أثر مرئي.
       if ("error" in response) {
         setAttachmentError(t(response.error ?? "errors.invalidInput"));
+        toast.error(t(response.error ?? "errors.invalidInput"));
         return;
       }
 
@@ -633,7 +646,10 @@ export function InspectionDetailClient({
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
       toast.success(t("inspections.detail.attachmentAdded"));
     } catch {
+      // BL-186: آخر مخرج فشل في الدالة — تركه صامتًا يعني إصلاحًا نصفيًا
+      // (فشل قراءة الملف يبدو للمستخدم كضغطة بلا نتيجة، تمامًا كالرفض)
       setAttachmentError(t("errors.serverError"));
+      toast.error(t("errors.serverError"));
     } finally {
       setSavingAttachment(false);
     }

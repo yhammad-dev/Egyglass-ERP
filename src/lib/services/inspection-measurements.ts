@@ -122,8 +122,9 @@ export async function addMeasurement(
     // 🔴 داخل نفس المعاملة (الدالة تقبل tx) — المقاس والحالة يثبتان معًا أو لا يثبتان.
     // IN-37: صارت تحرّك **مرحلة العميل أيضًا** بنفس الاستدعاء. تسجيل مقاس لا يغيّر
     // بذاته أي واقعة من وقائع `deriveCustomerStage` (لا عقد ولا عرض ولا تركيب،
-    // و`inspectionActive` تتبع `status` لا المقاسات) ⇒ الاستدعاء هنا **مُصحِّح
-    // (idempotent) لا مُحرِّك**: يشفي مرحلة انحرفت سابقًا ولا يخترع انتقالًا.
+    // و`inspectionActive` — ومعها `hasCompletedInspection` بعد D-IN-27 — تتبعان
+    // `status` لا المقاسات) ⇒ الاستدعاء هنا **مُصحِّح (idempotent) لا مُحرِّك**:
+    // يشفي مرحلة انحرفت سابقًا ولا يخترع انتقالًا.
     // بلا try/catch عمدًا: داخل معاملة، والذرّية مقصودة (التعليق أعلاه).
     await recomputeAfterInspection(
       input.inspectionRequestId,
