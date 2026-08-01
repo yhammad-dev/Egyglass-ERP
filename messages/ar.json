@@ -149,7 +149,7 @@
   },
   "pipeline": {
     "NEW": "جديد",
-    "PRICED": "تم التسعير",
+    "PRICED": "مرحلة التسعير",
     "FOLLOW_UP": "متابعة",
     "INSPECTION": "معاينة",
     "CONTRACT": "تعاقد",

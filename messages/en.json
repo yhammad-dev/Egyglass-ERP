@@ -150,7 +150,7 @@
   },
   "pipeline": {
     "NEW": "New",
-    "PRICED": "Priced",
+    "PRICED": "Pricing Stage",
     "FOLLOW_UP": "Follow Up",
     "INSPECTION": "Inspection",
     "CONTRACT": "Contract",
