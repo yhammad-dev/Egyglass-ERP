@@ -12,6 +12,8 @@ import {
   TERMINAL_INSPECTION_STATUSES,
   isTerminalInspectionStatus,
 } from "@/lib/services/inspection-status";
+// SCR-INS-C (C3): نقطة القراءة الموحدة لإعدادات النظام — لا `findUnique` محلي (bdc873a)
+import { getSystemSettings } from "@/lib/config";
 
 // D-31 (BL-91): خطأ مُوجَّه حين لا يكون الطلب المختار مؤهَّلًا للربط
 export class InspectionError extends Error {
@@ -70,8 +72,19 @@ export interface UserOption {
   name: string;
 }
 
-const INSIDE_CAIRO_DAYS = 2;
-const OUTSIDE_CAIRO_DAYS = 4;
+/**
+ * ✅ SCR-INS-C (موجة C3) — **خرق L-15 مُغلق: المهلة صارت في الإعدادات.**
+ *
+ * كان الرقمان صلبين في الكود، فتعديل المهلة يستلزم كودًا ونشرًا — وعمرو لا يملكهما.
+ * الآن يُقرآن من `SystemSettings.inspectionSlaInsideDays/OutsideDays`.
+ *
+ * 🔴 **هذان يبقيان `fallback` لا أكثر** — يُستعملان **فقط** إن كان الـsingleton مفقودًا
+ * (قاعدة جديدة قبل البذر · فشل قراءة). البديل — رمي خطأ — كان سيمنع الجدولة كليًا
+ * بسبب إعداد، وهو أسوأ من مهلة افتراضية صحيحة. والقيمتان **مطابقتان للـdefault في
+ * الschema** فلا ينشأ سلوكان.
+ */
+const INSIDE_CAIRO_DAYS_FALLBACK = 2;
+const OUTSIDE_CAIRO_DAYS_FALLBACK = 4;
 
 /**
  * IN-17 (موجة B3) — **المصدر الوحيد** لاشتقاق حالة التأخير.
@@ -168,9 +181,20 @@ function addBusinessDays(start: Date, days: number): Date {
  *
  * ⚠️ فارق موثَّق في التكليف: النصّ يقول «يوم الجدولة + 3» والمثال يقول 02-08 (+2).
  * نُفِّذ **المثال** لأنه الأثر الملموس من حسن. يُراجَع إن كان النصّ هو المقصود.
+ *
+ * ✅ **SCR-INS-C (موجة C3): الدالة صارت `async`** لأن المهلة تُقرأ من الإعدادات.
+ * 🔴 **القراءة عند كل حساب لا في متغيّر وحدة** — `getSystemSettings()` بلا caching
+ * (كل الصفحات `force-dynamic`)، فتعديل عمرو ينفذ فورًا بلا إعادة تشغيل الحاوية.
+ * ⚠️ **البديل المرفوض:** تمرير المهلة كوسيطين من المستدعي — كان يوزّع قراءة الإعدادات
+ * على كل مستدعٍ مستقبلي فتنحرف النسخ (علّة IN-12). المستدعي واحد اليوم
+ * (`scheduleInspection`) وهو `async` أصلًا ⇒ الكلفة `await` واحد.
  */
-function computeDueDate(location: string, scheduledAt: Date): Date {
-  const days = location === "OUTSIDE_CAIRO" ? OUTSIDE_CAIRO_DAYS : INSIDE_CAIRO_DAYS;
+async function computeDueDate(location: string, scheduledAt: Date): Promise<Date> {
+  const settings = await getSystemSettings();
+  const days =
+    location === "OUTSIDE_CAIRO"
+      ? settings?.inspectionSlaOutsideDays ?? OUTSIDE_CAIRO_DAYS_FALLBACK
+      : settings?.inspectionSlaInsideDays ?? INSIDE_CAIRO_DAYS_FALLBACK;
   const cursor = new Date(scheduledAt);
   // 🔴 UTC حصرًا (تصحيح مراجعة): `scheduledAt` يأتي من <input type="date"> كنص
   // تاريخ مجرَّد، و`new Date("2026-07-31")` يُفسَّر **منتصف ليل UTC**. استخدام
@@ -620,7 +644,8 @@ export async function scheduleInspection(
   }
 
   // IN-09: مهلة التنفيذ تُحسب **الآن** من الموعد المُلتزَم به، لا من لحظة الطلب.
-  const dueDate = computeDueDate(current.location, scheduledAt);
+  // SCR-INS-C: `await` — المهلة تُقرأ من الإعدادات عند كل حساب
+  const dueDate = await computeDueDate(current.location, scheduledAt);
 
   const inspection = await prisma.inspectionRequest.update({
     where: { id },

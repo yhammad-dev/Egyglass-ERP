@@ -227,6 +227,27 @@ export function TecDetailClient({
   // PHASE 2 (BL-32): إصدار أمر التصنيع — بيت المدير التنفيذي (TEC_APPROVER/ADMIN).
   // الحارس النهائي server-side؛ هنا زر بسبب صريح لا صامت.
   const [issuingMfg, setIssuingMfg] = useState(false);
+
+  // ── SCR-INS-J (C3): تأكيد استلام المقاسات ──
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false);
+
+  async function handleConfirmReceipt() {
+    if (initialJob.inspection.kind !== "APPROVED") return;
+    setConfirmingReceipt(true);
+    // استيراد ديناميكي — نفس نمط `handleIssueMfg` أدناه: أكشن من موديول آخر
+    const { confirmTecReceipt } = await import("../../inspections/actions");
+    const res = await confirmTecReceipt({
+      id: initialJob.inspection.inspectionId,
+    });
+    setConfirmingReceipt(false);
+    if ("error" in res) {
+      toast.error(t(res.error ?? "errors.updateFailed"));
+      return;
+    }
+    // الاسم والوقت يأتيان من الخادم — `refresh` بدل تلفيقهما محليًا (نمط C1/C2)
+    router.refresh();
+    toast.success(t("tec.receipt.done"));
+  }
   const canIssueMfg = currentRole === "ADMIN" || currentRole === "TEC_APPROVER";
   const hasApprovedDrawing = drawings.some((d) => d.status === "TEC_APPROVED");
   let mfgDisabledReason: string | null = null;
@@ -480,6 +501,48 @@ export function TecDetailClient({
                     </>
                   )}
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* ── SCR-INS-J (C3 · D-IN-4 · Q6): تأكيد استلام المقاسات ──
+              الفجوة: الاعتماد يُخطر المكتب الفني (D-37) و**لا أحد يعرف هل وصلت ومتى
+              ولمن**. الزرّ هنا لا في شاشة المعاينة: هذه هي الشاشة التي يرى فيها
+              المكتب الفني المقاسات فعلًا، فالتأكيد إقرارٌ بما أمامه.
+              🔴 **للقياس والمساءلة لا بوابة** — لا شيء يُمنع بغياب التأكيد. */}
+          {initialJob.inspection.kind === "APPROVED" && (
+            <div className="rounded-md border p-3 mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm">
+                {initialJob.inspection.tecReceivedAt ? (
+                  <>
+                    ✅ {t("tec.receipt.confirmed")}
+                    {initialJob.inspection.tecReceivedByName && (
+                      <span className="text-muted-foreground">
+                        {" — "}
+                        {initialJob.inspection.tecReceivedByName}
+                        {" · "}
+                        <span dir="ltr">
+                          {dateFormat.format(
+                            new Date(initialJob.inspection.tecReceivedAt)
+                          )}
+                        </span>
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-amber-700">{t("tec.receipt.pending")}</span>
+                )}
+              </span>
+              {!initialJob.inspection.tecReceivedAt && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={confirmingReceipt}
+                  onClick={handleConfirmReceipt}
+                >
+                  {confirmingReceipt ? t("app.loading") : t("tec.receipt.confirm")}
+                </Button>
               )}
             </div>
           )}
