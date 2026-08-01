@@ -71,6 +71,7 @@ model User {
   inspectionsMatchDeclared InspectionRequest[] @relation("InspectionMatchDeclarer")
   inspectionsDeviationBy InspectionRequest[] @relation("InspectionDeviationBy")
   inspectionsRemeasureBy InspectionRequest[] @relation("InspectionRemeasureBy")
+  inspectionsTecReceived InspectionRequest[] @relation("InspectionTecReceiver")
 }
 
 model Customer {
@@ -254,7 +255,8 @@ model InspectionRequest {
   matchDeclaredAt       DateTime?
   matchDeclaredBy       User? @relation("InspectionMatchDeclarer", fields: [matchDeclaredById], references: [id], onDelete: SetNull)
   deviationBy          User? @relation("InspectionDeviationBy", fields: [deviationById], references: [id], onDelete: SetNull)
-  remeasureRequestedBy User? @relation("InspectionRemeasureBy", fields: [remeasureRequestedById], references: [id], onDelete: SetNull)
+ tecReceivedBy   User? @relation("InspectionTecReceiver", fields: [tecReceivedById], references: [id], onDelete: SetNull)
+ remeasureRequestedBy User? @relation("InspectionRemeasureBy", fields: [remeasureRequestedById], references: [id], onDelete: SetNull)
   assigneeId       String?
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
@@ -287,6 +289,8 @@ model InspectionRequest {
   @@index([customerId])
   @@index([status])
   @@index([dueDate])
+  tecReceivedById String?
+  tecReceivedAt   DateTime?
 }
 
 model Attachment {
@@ -556,6 +560,8 @@ model SystemSettings {
   warrantyProjectsOnQuotation Boolean  @default(true)
   warrantyProjectsOnContract  Boolean  @default(true)
   warrantySocialOnQuotation   Boolean  @default(true)
+  inspectionSlaInsideDays   Int @default(2)
+  inspectionSlaOutsideDays  Int @default(4)
 }
 
 model CashbackTier {

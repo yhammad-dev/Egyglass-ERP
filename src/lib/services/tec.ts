@@ -74,6 +74,14 @@ export type TecInspectionState =
       matchReason: string | null;
       matchDeclaredByName: string | null;
       matchDeclaredAt: Date | null;
+      /**
+       * SCR-INS-J (C3 · D-IN-4): تأكيد استلام المقاسات. `null` = لم يُؤكَّد بعد.
+       * يظهر في فرع `APPROVED` وحده لأن التأكيد لا يقع قبل الاعتماد (القيد 1).
+       */
+      tecReceivedAt: Date | null;
+      tecReceivedByName: string | null;
+      /** معرّف المعاينة — يحتاجه زرّ التأكيد لنداء الإجراء */
+      inspectionId: string;
     };
 
 export interface TecJobDetail extends TecJobRow {
@@ -274,6 +282,8 @@ export async function getTecJobDetail(
       // IN-06: ضلع المعاينة — صفوف مهيكلة عبر السلسلة inspectionRequestId
       inspectionRequest: {
         select: {
+          // SCR-INS-J (C3): معرّف المعاينة — زرّ تأكيد الاستلام يناديه
+          id: true,
           approvalStatus: true,
           approvedAt: true,
           measurements: { orderBy: { createdAt: "asc" } },
@@ -283,6 +293,10 @@ export async function getTecJobDetail(
           matchReason: true,
           matchDeclaredAt: true,
           matchDeclaredBy: { select: { name: true } },
+          // SCR-INS-J (C3): حالة الاستلام — الزرّ يعيش هنا لأن هذه هي الشاشة التي
+          // يرى فيها المكتب الفني المقاسات فعلًا. نفس الـselect، بلا استعلام ثانٍ.
+          tecReceivedAt: true,
+          tecReceivedBy: { select: { name: true } },
           /**
            * 🔴 C1-fix (البند 2): **الحقل الحيّ لمسؤول المعاينة.**
            * كانت الشاشة تقرأ `QuotationRequest.inspectionOwnerId` وهو **عمود ميت
@@ -326,6 +340,10 @@ export async function getTecJobDetail(
           matchReason: job.inspectionRequest.matchReason,
           matchDeclaredByName: job.inspectionRequest.matchDeclaredBy?.name ?? null,
           matchDeclaredAt: job.inspectionRequest.matchDeclaredAt,
+          // SCR-INS-J (C3): حالة الاستلام + معرّف المعاينة لزرّ التأكيد
+          tecReceivedAt: job.inspectionRequest.tecReceivedAt,
+          tecReceivedByName: job.inspectionRequest.tecReceivedBy?.name ?? null,
+          inspectionId: job.inspectionRequest.id,
           measurements: job.inspectionRequest.measurements.map((m) => ({
             id: m.id,
             description: m.description,

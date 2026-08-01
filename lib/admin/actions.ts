@@ -274,6 +274,9 @@ export async function getSystemConfig() {
       managerApprovalCeilingPct: s?.managerApprovalCeilingPct?.toNumber() ?? null,
       satisfactionSurveyDelayDays: s?.satisfactionSurveyDelayDays ?? 3,
       quotationValidDays: s?.quotationValidDays ?? 3,
+      // SCR-INS-C (C3): نفس fallback خدمة المعاينات (2/4) — قيمة واحدة في الطرفين
+      inspectionSlaInsideDays: s?.inspectionSlaInsideDays ?? 2,
+      inspectionSlaOutsideDays: s?.inspectionSlaOutsideDays ?? 4,
       vatPct: s?.vatPct.toNumber() ?? 14,
       cashbackActive: s?.cashbackActive ?? true,
       cashbackStartDate: s?.cashbackStartDate?.toISOString().slice(0, 10) ?? null,
@@ -353,6 +356,11 @@ const policySchema = z.object({
     .nullable(),
   satisfactionSurveyDelayDays: z.coerce.number().int().positive("errors.invalidInput"),
   quotationValidDays: z.coerce.number().int().positive("errors.invalidInput"),
+  // SCR-INS-C (C3): مهلة المعاينة — كانت صلبة في `services/inspections.ts` (خرق L-15).
+  // `positive` لا `nonnegative`: مهلة صفر يوم تعني استحقاقًا في نفس لحظة الجدولة ⇒
+  // كل معاينة تولد متأخرة — وهو عيب «يوم السماح الضائع» الذي عالجه IN-09 بالضبط.
+  inspectionSlaInsideDays: z.coerce.number().int().positive("errors.invalidInput"),
+  inspectionSlaOutsideDays: z.coerce.number().int().positive("errors.invalidInput"),
   vatPct: z.coerce.number().positive("errors.invalidInput").max(100, "errors.invalidInput"),
 });
 
@@ -369,7 +377,7 @@ export async function updatePolicySettings(input: unknown) {
       roleCheck.userId,
       "UPDATE_POLICY_SETTINGS",
       { ...parsed.data },
-      `تحديث السياسات — سقف المدير: ${old?.managerApprovalCeilingPct ?? "NULL"}→${parsed.data.managerApprovalCeilingPct ?? "NULL"} · استطلاع: ${old?.satisfactionSurveyDelayDays}→${parsed.data.satisfactionSurveyDelayDays} · صلاحية العرض: ${old?.quotationValidDays}→${parsed.data.quotationValidDays} · ضريبة: ${old?.vatPct}→${parsed.data.vatPct}`
+      `تحديث السياسات — سقف المدير: ${old?.managerApprovalCeilingPct ?? "NULL"}→${parsed.data.managerApprovalCeilingPct ?? "NULL"} · استطلاع: ${old?.satisfactionSurveyDelayDays}→${parsed.data.satisfactionSurveyDelayDays} · صلاحية العرض: ${old?.quotationValidDays}→${parsed.data.quotationValidDays} · ضريبة: ${old?.vatPct}→${parsed.data.vatPct} · مهلة معاينة داخل القاهرة: ${old?.inspectionSlaInsideDays}→${parsed.data.inspectionSlaInsideDays} · خارجها: ${old?.inspectionSlaOutsideDays}→${parsed.data.inspectionSlaOutsideDays}`
     );
     return { success: true as const };
   } catch (error) {

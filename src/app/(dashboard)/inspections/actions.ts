@@ -257,6 +257,8 @@ export async function getInspectionDetail(id: string) {
         // SCR-INS-D/H (C2): أسماء مسجّل الانحراف وطالب إعادة القياس — نفس النمط
         deviationBy: { select: { name: true } },
         remeasureRequestedBy: { select: { name: true } },
+        // SCR-INS-J (C3): مَن أكّد استلام المقاسات — نفس النمط، بلا استعلام ثانٍ
+        tecReceivedBy: { select: { name: true } },
         // IN-39: سياق الطلب — كود/مسار/نوع/ملخّص. مُتحقَّق أن أي شاشة معاينة لا
         // تقرأ `summary` اليوم (IN-20) رغم وجوده. وهو أيضًا مصدر نطاق المكتب الفني.
         quotationRequest: {
@@ -467,6 +469,11 @@ export async function getInspectionDetail(id: string) {
         : null,
       remeasureReason: inspection.remeasureReason,
       remeasureRequestedByName: inspection.remeasureRequestedBy?.name ?? null,
+      // SCR-INS-J (C3): `null` = لم يؤكّد المكتب الفني الاستلام بعد
+      tecReceivedAt: inspection.tecReceivedAt
+        ? inspection.tecReceivedAt.toISOString()
+        : null,
+      tecReceivedByName: inspection.tecReceivedBy?.name ?? null,
       assignee: inspection.assignee,
       attachments: attachments.map((a) => ({
         id: a.id,
@@ -1522,6 +1529,8 @@ export async function requestRemeasure(input: unknown) {
         customerId: true,
         matchResult: true,
         matchReason: true,
+        // SCR-INS-J: القيمة القديمة تُقرأ لتُسجَّل في الأثر قبل مسحها
+        tecReceivedAt: true,
         customer: { select: { name: true, ownerId: true } },
       },
     });
@@ -1569,6 +1578,14 @@ export async function requestRemeasure(input: unknown) {
           matchReason: null,
           matchDeclaredById: null,
           matchDeclaredAt: null,
+          /**
+           * 🔴 SCR-INS-J (C3، القيد 3): **تأكيد الاستلام يُبطل مع الحكم.**
+           * المكتب الفني أكّد استلام **مقاسات بعينها**، وهي تُبطَل الآن — فإبقاء
+           * «مستلَم» يعني إقرارًا بأرقام لم تعد قائمة، وهو أسوأ من غيابه. تُصفَّر
+           * الحقول ويُخطَر المكتب الفني أدناه (نفس منطق مسح `matchResult`).
+           */
+          tecReceivedById: null,
+          tecReceivedAt: null,
           // (٥) التزامًا بالقاعدة النافذة: `completedAt` مليان ⟺ الحالة `DONE`
           status: "SCHEDULED",
           completedAt: null,
@@ -1586,6 +1603,8 @@ export async function requestRemeasure(input: unknown) {
             // الحكم المُبطَل يُحفَظ بقيمته القديمة — الأثر لا يفقد ما مسحه الإجراء
             clearedMatchResult: inspection.matchResult,
             clearedMatchReason: inspection.matchReason,
+            // SCR-INS-J: الاستلام المُبطَل يُحفظ بقيمته القديمة — الأثر لا يفقد ما مُسح
+            clearedTecReceivedAt: inspection.tecReceivedAt?.toISOString() ?? null,
             approvalStatus: { from: "APPROVED", to: "PENDING_APPROVAL" },
           }),
         },
@@ -1626,7 +1645,11 @@ export async function requestRemeasure(input: unknown) {
       });
       await notifyRole("TECHNICAL_OFFICE", {
         title: "notifications.measurementsInvalidatedTitle",
-        body: `أُبطلت مقاسات العميل ${inspection.customer.name} — أُعيدت المعاينة لرفع مقاسات جديدة`,
+        // SCR-INS-J: الإخطار يذكر إبطال الاستلام صراحةً إن كان قد وقع — وإلا بدا
+        // اختفاء الحالة من الشاشة عطلًا لا نتيجةً لطلب إعادة القياس.
+        body: inspection.tecReceivedAt
+          ? `أُبطلت مقاسات العميل ${inspection.customer.name} — أُعيدت المعاينة لرفع مقاسات جديدة، وأُلغي تأكيد الاستلام السابق`
+          : `أُبطلت مقاسات العميل ${inspection.customer.name} — أُعيدت المعاينة لرفع مقاسات جديدة`,
         type: "MEASUREMENTS_INVALIDATED",
         entityId: requestForNotice?.id ?? id,
         entityType: requestForNotice ? "QuotationRequest" : "InspectionRequest",
@@ -1645,6 +1668,85 @@ export async function requestRemeasure(input: unknown) {
     return { success: true as const };
   } catch (error) {
     console.error("[requestRemeasure]", error);
+    return { error: "errors.serverError" as const };
+  }
+}
+
+// ══ SCR-INS-J (موجة C3): تأكيد استلام المكتب الفني — D-IN-4 الشق الثاني · Q6 ══════
+//
+// الفجوة: `approveInspection` يُخطر المكتب الفني بمقاسات معتمدة (D-37)، **ولا أحد
+// يعرف هل وصلت ومتى ولمن**. الإشعار يُرسَل ويُقرأ أو يُهمَل، والسلسلة تنقطع بلا أثر.
+//
+// 🔴 **الحقل للقياس والمساءلة أولًا — لا بوابة تمنع التسعير** (القيد 2 صراحةً):
+// بوابة كهذه لم تُطلب، وقد تُجمّد العمل إن نسي أحدهم الضغط. أي بوابة لاحقة قرار منفصل.
+
+/**
+ * أدوار المكتب الفني — **مقتطعة من `DETAIL_READ_ROLES` لا مكتوبة من جديد**.
+ * هي بالضبط الأدوار التي تفتح شاشة المعاينة وترى المقاسات بعد الاعتماد (IN-49/IN-06)،
+ * ⇒ مَن يرى المقاسات هو مَن يؤكّد استلامها. `ADMIN` يُضاف كصمّام تصحيح كالمعتاد.
+ */
+const TEC_RECEIPT_ROLES = ["TECHNICAL_OFFICE", "TEC_LEAD", "TEC_APPROVER", "ADMIN"];
+
+const tecReceiptSchema = z.object({
+  id: z.string().min(1, "errors.invalidInput"),
+});
+
+export async function confirmTecReceipt(input: unknown) {
+  try {
+    const auth = await requireRole(TEC_RECEIPT_ROLES);
+    if (!auth.authorized) return { error: "errors.notAuthorized" as const };
+
+    const parsed = tecReceiptSchema.safeParse(input);
+    if (!parsed.success) return { error: "errors.invalidInput" as const };
+
+    const { id } = parsed.data;
+
+    const inspection = await prisma.inspectionRequest.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        approvalStatus: true,
+        tecReceivedAt: true,
+        customer: { select: { name: true } },
+      },
+    });
+    if (!inspection) return { error: "errors.notFound" as const };
+
+    /**
+     * 🔴 القيد 1: **بعد الاعتماد حصرًا.** قبله المقاسات محجوبة عن المكتب الفني عند
+     * المصدر (IN-06/D-37 — `measurementsVisible` لا تُرجعها أصلًا)، فتأكيد استلام
+     * ما لم يُسلَّم إقرارٌ بلا محتوى.
+     */
+    if (inspection.approvalStatus !== "APPROVED")
+      return { error: "errors.tecReceiptRequiresApproved" as const };
+
+    /**
+     * **يُكتب مرة واحدة.** التأكيد واقعة لا حالة تُقلَب، وإعادة الضغط لا تعني شيئًا
+     * جديدًا — بل تُزيح الطابع الزمني فتُفسد قياس «كم استغرق الوصول».
+     * ⚠️ وهذا **ليس صفًّا محبوسًا** (سابقتا IN-07/IN-48): المخرج قائم ومقنَّن —
+     * `requestRemeasure` يُصفّر الحقلين حين تتغيّر المقاسات فعلًا.
+     */
+    if (inspection.tecReceivedAt !== null)
+      return { error: "errors.tecReceiptAlreadyConfirmed" as const };
+
+    await prisma.inspectionRequest.update({
+      where: { id },
+      data: { tecReceivedById: auth.userId, tecReceivedAt: new Date() },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.userId,
+        action: "TEC_RECEIPT_CONFIRMED",
+        entity: "InspectionRequest",
+        entityId: id,
+        details: JSON.stringify({ customer: inspection.customer.name }),
+      },
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    console.error("[confirmTecReceipt]", error);
     return { error: "errors.serverError" as const };
   }
 }

@@ -608,6 +608,9 @@
     "surveyDelayDaysHint": "Days after final installation before the survey is sent.",
     "quotationValidDays": "Quotation validity (days)",
     "quotationValidDaysHint": "Applied automatically to every new quotation.",
+    "inspectionSlaInsideDays": "Inspection deadline — inside Cairo (working days)",
+    "inspectionSlaOutsideDays": "Inspection deadline — outside Cairo (working days)",
+    "inspectionSlaDaysHint": "Working days from the day after the inspection appointment until the due date. Fridays are excluded. Applies to new scheduling only.",
     "vatPct": "VAT %",
     "vatPctHint": "Applied to net after discount on every new quotation.",
     "cashbackSection": "Cashback",
@@ -1000,6 +1003,8 @@
     "invalidFileContent": "File content does not match the selected type — upload a valid file of the correct type",
     "inspectionApprovedLocked": "Inspection is approved — measurements cannot be edited or deleted after approval",
     "inspectionNotSchedulable": "The inspection is done — it cannot be scheduled or reassigned",
+    "tecReceiptRequiresApproved": "Receipt cannot be confirmed before the inspection is approved — measurements are not final yet",
+    "tecReceiptAlreadyConfirmed": "Receipt is already confirmed — it is cleared automatically when a remeasurement is requested",
     "invalidAssignee": "This user cannot be assigned the inspection — only active inspection reps and managers are assignable",
     "matchReasonRequired": "A reason is required when declaring a deviation — no judgement is recorded without justification",
     "deviationNoteRequired": "Details are required with \"Other\" — a category without an explanation cannot be measured",
@@ -1470,7 +1475,13 @@
     "inspectionMeasurements": "Inspection measurements",
     "noLinkedInspection": "No inspection is linked to this request",
     "inspectionNotApproved": "The inspection manager has not approved it yet — measurements are not final and must not be priced",
-    "inspectionApprovedNoRows": "The inspection is approved but has no measurement rows"
+    "inspectionApprovedNoRows": "The inspection is approved but has no measurement rows",
+    "receipt": {
+      "confirm": "Confirm measurements received",
+      "confirmed": "Measurements received",
+      "pending": "Measurement receipt not confirmed yet",
+      "done": "Receipt confirmed"
+    }
   },
   "import": {
     "title": "Import Data",

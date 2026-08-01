@@ -23,6 +23,9 @@ export type SystemConfig = {
   managerApprovalCeilingPct: number | null;
   satisfactionSurveyDelayDays: number;
   quotationValidDays: number;
+  // SCR-INS-C (C3): مهلة تنفيذ المعاينة — كانت صلبة في الكود (خرق L-15)
+  inspectionSlaInsideDays: number;
+  inspectionSlaOutsideDays: number;
   vatPct: number;
   cashbackActive: boolean;
   cashbackStartDate: string | null;
@@ -54,6 +57,9 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
   const [mgrCeil, setMgrCeil] = useState(initial.managerApprovalCeilingPct?.toString() ?? "");
   const [surveyDays, setSurveyDays] = useState(String(initial.satisfactionSurveyDelayDays));
   const [validDays, setValidDays] = useState(String(initial.quotationValidDays));
+  // SCR-INS-C (C3): مهلتا المعاينة — داخل القاهرة وخارجها
+  const [slaInside, setSlaInside] = useState(String(initial.inspectionSlaInsideDays));
+  const [slaOutside, setSlaOutside] = useState(String(initial.inspectionSlaOutsideDays));
   const [vat, setVat] = useState(String(initial.vatPct));
   // ── الكاش باك ──
   const [cbActive, setCbActive] = useState(initial.cashbackActive);
@@ -162,6 +168,18 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
             <Input id="vat" dir="ltr" value={vat} onChange={(e) => setVat(e.target.value)} className="w-40" />
             <Hint text={t("settings.vatPctHint")} />
           </div>
+          {/* SCR-INS-C (C3): مهلة تنفيذ المعاينة — كانت رقمين صلبين في
+              `services/inspections.ts` (خرق L-15)، فتعديلها كان يستلزم كودًا ونشرًا. */}
+          <div className="space-y-1">
+            <Label htmlFor="slaInside">{t("settings.inspectionSlaInsideDays")}</Label>
+            <Input id="slaInside" dir="ltr" value={slaInside} onChange={(e) => setSlaInside(e.target.value)} className="w-40" />
+            <Hint text={t("settings.inspectionSlaDaysHint")} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="slaOutside">{t("settings.inspectionSlaOutsideDays")}</Label>
+            <Input id="slaOutside" dir="ltr" value={slaOutside} onChange={(e) => setSlaOutside(e.target.value)} className="w-40" />
+            <Hint text={t("settings.inspectionSlaDaysHint")} />
+          </div>
         </div>
         <Button
           type="button"
@@ -172,6 +190,8 @@ export function SystemSettingsPanel({ initial }: { initial: SystemConfig }) {
                 managerApprovalCeilingPct: mgrCeil.trim() === "" ? null : Number(mgrCeil),
                 satisfactionSurveyDelayDays: Number(surveyDays),
                 quotationValidDays: Number(validDays),
+                inspectionSlaInsideDays: Number(slaInside),
+                inspectionSlaOutsideDays: Number(slaOutside),
                 vatPct: Number(vat),
               })
             )
