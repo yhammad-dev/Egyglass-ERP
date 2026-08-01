@@ -664,8 +664,16 @@ export function InspectionDetailClient({
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold">{inspection.customer.name}</h1>
-          <p className="text-sm text-muted-foreground" dir="ltr">
-            {inspection.customer.phone}
+          {/* ── محاذاة (C2-fix-2b) ──
+              `dir="ltr"` كانت على الـ**بلوك**، وقيمة `text-align` الابتدائية `start`
+              تُحسم **باتجاه العنصر نفسه** ⇒ البلوك يُحاذي **يسارًا** داخل صفحة RTL،
+              بينما عنوانه فوقه يمينًا: القيمة تبدو مقطوعة عن عنوانها.
+              🔴 و`text-start` **لا تُصلحها** — ستُحسم يسارًا للسبب نفسه.
+              الحل: `dir` تنتقل للـ**span الداخلي** — الترتيب محفوظ (وهو كل ما يلزم
+              للأرقام)، والبلوك يعود يرث RTL فيُحاذي يمينًا بلا فئة محاذاة ولا CSS
+              فيزيائي. **يعمل في الاتجاهين** (المشروع ثنائي اللغة ar/en). */}
+          <p className="text-sm text-muted-foreground">
+            <span dir="ltr">{inspection.customer.phone}</span>
           </p>
           <p className="text-sm">{inspection.address}</p>
         </div>
@@ -690,15 +698,23 @@ export function InspectionDetailClient({
         <div>
           <p className="text-muted-foreground">{t("inspections.dueDate")}</p>
           {/* SCR-INS-B2: `null` = لم تُجدوَل ⇒ نصّ صريح لا تاريخ 1970 ولا فراغ صامت */}
-          <p dir={inspection.dueDate ? "ltr" : undefined}>
-            {formatBusinessDate(inspection.dueDate) ??
-              t("inspections.notScheduledYet")}
+          {/* محاذاة: `dir` على الـspan لا البلوك. والشرط سقط — لم يعد لازمًا لأن
+              نصّ «لم تُجدوَل بعد» عربي خارج الـspan أصلًا. */}
+          <p>
+            {inspection.dueDate ? (
+              <span dir="ltr">{formatBusinessDate(inspection.dueDate)}</span>
+            ) : (
+              t("inspections.notScheduledYet")
+            )}
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.scheduledAt")}</p>
-          <p dir="ltr">
-            {formatBusinessDate(inspection.scheduledAt) ?? t("inspections.dash")}
+          {/* محاذاة: `dir` على الـspan لا البلوك (الشرح الكامل عند هاتف العميل أعلاه) */}
+          <p>
+            <span dir="ltr">
+              {formatBusinessDate(inspection.scheduledAt) ?? t("inspections.dash")}
+            </span>
           </p>
         </div>
         <div>
@@ -710,28 +726,34 @@ export function InspectionDetailClient({
             الهجرة — الفراغ الصامت الواحد كان يُقرأ كعطل عرض (BL-81 يمنع الملء). */}
         <div>
           <p className="text-muted-foreground">{t("inspections.assignedAt")}</p>
-          <p dir="ltr">
-            {renderTimestamp(inspection.assignedAt, inspection.assignee !== null)}
+          <p>
+            <span dir="ltr">
+              {renderTimestamp(inspection.assignedAt, inspection.assignee !== null)}
+            </span>
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.submittedAt")}</p>
-          <p dir="ltr">
+          <p>
+            <span dir="ltr">
             {renderTimestamp(
               inspection.submittedAt,
               // التقديم وقع فعلًا إن غادرت المعاينة `DRAFT` في بُعد الاعتماد
               inspection.approvalStatus !== "DRAFT"
             )}
+            </span>
           </p>
         </div>
         <div>
           <p className="text-muted-foreground">{t("inspections.completedAt")}</p>
-          <p dir="ltr">
+          <p>
+            <span dir="ltr">
             {renderTimestamp(
               inspection.completedAt,
               // القاعدة النافذة: `completedAt` مليان ⟺ `DONE` ⇒ فارغ مع DONE = صفّ قديم
               inspection.status === "DONE"
             )}
+            </span>
           </p>
         </div>
       </div>
@@ -855,7 +877,7 @@ export function InspectionDetailClient({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <div>
               <p className="text-muted-foreground">{t("inspections.detail.requestCode")}</p>
-              <p dir="ltr">{inspection.request.code}</p>
+              <p><span dir="ltr">{inspection.request.code}</span></p>
             </div>
             {/* المفاتيح قائمة سلفًا: route_* يستعملها ملف العميل وحوار طلب المعاينة،
                 و salesType_* يستعملها داشبورد المبيعات — صفر مفتاح enum جديد */}
@@ -1261,10 +1283,13 @@ export function InspectionDetailClient({
                 inspection.measurements.map((m) => (
                   <tr key={m.id} className="border-t">
                     <td className="p-2">{m.description}</td>
-                    <td className="p-2" dir="ltr">{m.width}</td>
-                    <td className="p-2" dir="ltr">{m.height}</td>
+                    {/* محاذاة: الرؤوس `text-start` (⇒ يمين في RTL) وكانت الخلايا
+                        `dir="ltr"` بلا محاذاة ⇒ يسار. `dir` انتقلت للـspan فعادت
+                        الخلية ترث RTL وتطابق رأسها — بلا لمس رؤوس ولا فئات جديدة. */}
+                    <td className="p-2"><span dir="ltr">{m.width}</span></td>
+                    <td className="p-2"><span dir="ltr">{m.height}</span></td>
                     <td className="p-2">{t(`inspections.detail.unit_${m.unit}`)}</td>
-                    <td className="p-2" dir="ltr">{m.quantity}</td>
+                    <td className="p-2"><span dir="ltr">{m.quantity}</span></td>
                     <td className="p-2 text-muted-foreground">{m.notes ?? "—"}</td>
                     {canWrite && (
                       <td className="p-2">

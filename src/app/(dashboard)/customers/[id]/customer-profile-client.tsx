@@ -90,10 +90,25 @@ export function CustomerProfileClient({
     currentRole === "ADMIN" ||
     currentRole === "SALES_MANAGER" ||
     currentRole === "SALES_REP";
-  // دفعة هـ · Phase 4: المرحلة تُشتق من الأحداث آليًا — لا زر يدوي للتقدّم العادي.
-  // يبقى الزر لـ ADMIN فقط كاستثناء override + قرار الرفض (REJECTED) البشري
-  // الذي لا يُشتق من حدث. باقي الأدوار لم تعد تحرّك المرحلة يدويًا.
-  const canChangeStage = currentRole === "ADMIN";
+  /**
+   * دفعة هـ · Phase 4: المرحلة تُشتق من الأحداث آليًا — لا زر يدوي للتقدّم العادي.
+   * يبقى الزر استثناءً لـ**override** (ADMIN) و**قرار الرفض البشري** الذي لا يُشتق.
+   *
+   * 🔴 **D-IN-21 (C2-fix-2): السلسلة كانت مقطوعة عند آخر خطوة.**
+   * الخادم يسمح لـ`SALES_MANAGER`/`SALES_REP` بانتقال `REJECTED` **حصرًا** منذ SF-03
+   * (`lib/actions/customers.ts` — الحارس هناك)، والواجهة كانت تُظهر الزر لـ`ADMIN`
+   * وحده ⇒ **صلاحية مبنية بلا طريق**. وأثرها لم يكن نظريًا: `D-IN-20` جعل قفل
+   * المعاينة تتاليًا من هذا الإجراء بالذات، فبقي التتالي (C2-fix) **مبنيًا ومعطَّلًا**
+   * لأن ما يُشغّله بلا مدخل — بدليل صفوف تحمل `CUSTOMER_REJECTED` وما زالت مفتوحة.
+   *
+   * **نمط IN-16 بالمقلوب:** هناك الواجهة تعرض والخادم يرفض (زر ميت) — وهنا الخادم
+   * يسمح والواجهة لا تعرض (طريق مقطوع). العلاج في الاتجاهين واحد: **مصدر واحد
+   * للشرط**، والواجهة تعكس الخادم لا تخالفه. **صفر تغيير على حرّاس الخادم.**
+   */
+  const canChangeStage =
+    currentRole === "ADMIN" ||
+    currentRole === "SALES_MANAGER" ||
+    currentRole === "SALES_REP";
   const isAdminOrManager = currentRole === "ADMIN" || currentRole === "SALES_MANAGER";
   // D-31 (BL-91) + D-37: طلب المعاينة = المبيعات وحدها (+ ADMIN).
   // IN-16: كان الشرط يضم INSPECTION_MANAGER فيظهر له زر **ميت**: يفتح الحوار
@@ -171,6 +186,9 @@ export function CustomerProfileClient({
               customerId={customer.id}
               currentStage={customer.stage}
               onStageChanged={refresh}
+              /* D-IN-21: غير-ADMIN يرى **الرفض وحده** — مرآة حارس SF-03 الخادمي.
+                 بدونها يختار المندوب مرحلة أخرى فيُرفض ⇒ زر نصف ميت بدل واحد ميت. */
+              canOverrideStage={currentRole === "ADMIN"}
             />
           )}
           {canCreateInspection && (
