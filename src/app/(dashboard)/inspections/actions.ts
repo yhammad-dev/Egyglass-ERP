@@ -936,7 +936,13 @@ export async function submitInspectionForApproval(input: unknown) {
 
     const inspection = await prisma.inspectionRequest.findUnique({
       where: { id: parsed.data.id },
-      select: { id: true, assigneeId: true, approvalStatus: true },
+      select: {
+        id: true,
+        assigneeId: true,
+        approvalStatus: true,
+        // BL-185: اسم العميل لجسم إشعار المدير — نفس نمط approveInspection أدناه
+        customer: { select: { name: true } },
+      },
     });
     if (!inspection) return { error: "errors.notFound" as const };
 
@@ -980,6 +986,26 @@ export async function submitInspectionForApproval(input: unknown) {
         entityId: parsed.data.id,
         details: "قُدّمت المعاينة لاعتماد المدير",
       },
+    });
+
+    // ── BL-185: البوابة كانت صامتة في اتجاه واحد ──────────────────────────────
+    // كل الأطراف الأخرى في هذه البوابة تُخطَر: المدير يُرجع ⇒ `inspectionReturnedTitle`
+    // للمندوب، والمدير يعتمد ⇒ `measurementsReadyTitle` للمكتب الفني. أما **التقديم
+    // نفسه** — اللحظة الوحيدة التي تُنشئ عملًا على المدير — فكان بلا إشعار: الصف يدخل
+    // `PENDING_APPROVAL` وينتظر أن يمرّ المدير على القائمة بالمصادفة.
+    // 🔴 الوجهة `InspectionRequest` مقصودة ومُتحقَّقة على درس D-IN-13 (IN-47): الجرس
+    // يشتق `/inspections/{id}` من `entityType` وحده، والمدير **داخل حارس تلك الصفحة**
+    // (`inspections/[id]/page.tsx:18`) و**بلا قيد نطاق** في `getInspectionDetail`
+    // (الشروط هناك تخص REP والمبيعات والمكتب الفني فقط) ⇒ الضغطة تفتح فعلًا ولا
+    // تُحرق الإشعار بـredirect صامت.
+    // `notifyRole` لا يرمي (D-39: بالع + تسجيل) فلا يلزم لفّه بـtry/catch — نفس
+    // نمط استدعاء `approveInspection` أدناه.
+    await notifyRole("INSPECTION_MANAGER", {
+      title: "notifications.inspectionSubmittedTitle",
+      body: `معاينة العميل ${inspection.customer.name} قُدّمت لاعتمادك`,
+      type: "INSPECTION_SUBMITTED_FOR_APPROVAL",
+      entityId: parsed.data.id,
+      entityType: "InspectionRequest",
     });
 
     return { success: true as const };
