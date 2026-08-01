@@ -14,6 +14,8 @@ import {
 } from "@/lib/services/inspection-status";
 // SCR-INS-C (C3): نقطة القراءة الموحدة لإعدادات النظام — لا `findUnique` محلي (bdc873a)
 import { getSystemSettings } from "@/lib/config";
+// D-IN-24: تقويم العمل بتوقيت القاهرة — المصدر الوحيد للمنطقة الزمنية في النظام
+import { cairoWeekday, cairoDateKey, endOfCairoDay } from "@/lib/format/dates";
 
 // D-31 (BL-91): خطأ مُوجَّه حين لا يكون الطلب المختار مؤهَّلًا للربط
 export class InspectionError extends Error {
@@ -65,6 +67,12 @@ export interface InspectionRow {
   siteReadiness: SiteReadinessValue | null;
   /** SCR-INS-A: حكم المطابقة في عمود القائمة. `null` = لم يُعلَن بعد. */
   matchResult: string | null;
+  /**
+   * D-IN-24: تعارض جدول المندوب — **تحذير لا حجب**، فيُعاد **مع الصفّ الناجح**
+   * لا كخطأ. الجدولة تمّت، والمدير يقرأ التنبيه ويقرّر.
+   * فارغة = لا تعارض. تُملأ من `scheduleInspection` وحدها.
+   */
+  scheduleConflicts?: { customerName: string; scheduledAt: Date }[];
 }
 
 export interface UserOption {
@@ -196,26 +204,43 @@ async function computeDueDate(location: string, scheduledAt: Date): Promise<Date
       ? settings?.inspectionSlaOutsideDays ?? OUTSIDE_CAIRO_DAYS_FALLBACK
       : settings?.inspectionSlaInsideDays ?? INSIDE_CAIRO_DAYS_FALLBACK;
   const cursor = new Date(scheduledAt);
-  // 🔴 UTC حصرًا (تصحيح مراجعة): `scheduledAt` يأتي من <input type="date"> كنص
-  // تاريخ مجرَّد، و`new Date("2026-07-31")` يُفسَّر **منتصف ليل UTC**. استخدام
-  // getDay/setDate المحليَّين كان يعمل صحيحًا بـ**مصادفة إعداد** (الحاوية UTC)
-  // لا ببناء: أي نشر بمنطقة زمنية **خلف** UTC يُقرأ التاريخ يومًا أسبق فتُقفز
-  // الجمعة الخطأ ويُخزَّن استحقاق متأخر يومًا كاملًا، بلا خطأ ولا سجل.
-  // بتوحيد القراءة والكتابة على UTC يصير الحساب مستقلًا عن منطقة النشر.
+  /**
+   * 🔴 **D-IN-24 — يوم الأسبوع يُقرأ بتوقيت القاهرة لا UTC.**
+   *
+   * تعليق IN-09 الأصلي (المحذوف هنا) كان صحيحًا **لعالمه**: `scheduledAt` كان
+   * يأتي من `<input type="date">` كتاريخ مجرَّد بمنتصف ليل UTC، فقراءة اليوم بـUTC
+   * كانت الخيار المستقر ضد منطقة النشر. **وقد سقط ذلك الافتراض:** الموعد صار يحمل
+   * وقتًا حقيقيًا، فـ`getUTCDay()` يقرأ يومًا غير الذي يعيشه المستخدم.
+   *
+   * ⚠️ **مُثبَت لا مفترض:** `2026-08-06T22:00Z` = **الخميس** بـUTC و**الجمعة**
+   * بالقاهرة. فموعد الخميس مساءً كان سيُقفَز كأنه عطلة، ويُمنح المندوب يومًا زائدًا
+   * بلا سبب — عكس عيب «يوم السماح الضائع» الذي عالجه IN-09 وبنفس فئته.
+   *
+   * **الخطو يبقى بـUTC** (`setUTCDate(+1)` = 24 ساعة بالضبط، فيحافظ على ساعة
+   * الحائط القاهرية)، **والقراءة وحدها** انتقلت — أقل تغيير يُصلح العيب.
+   * ومصدر المنطقة الزمنية واحد (`lib/format/dates.ts`) لا نسخة هنا (علّة IN-12).
+   */
   cursor.setUTCDate(cursor.getUTCDate() + 1); // اليوم التالي ليوم الجدولة
   let counted = 0;
   for (;;) {
-    if (cursor.getUTCDay() !== 5) counted++; // الجمعة وحدها ليست يوم عمل
+    if (cairoWeekday(cursor) !== 5) counted++; // الجمعة وحدها ليست يوم عمل
     if (counted >= days) break;
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-  // 🔴 آخر اللحظة لا أولها (تصحيح مراجعة): بلا هذا يبقى الاستحقاق منتصف ليل يوم
-  // الاستحقاق، فيشتقّ `effectiveStatus` حالة OVERDUE **مع بداية آخر يوم مسموح**
-  // (`dueDate < now`) ⇒ المندوب يخسر اليوم الذي منحته له القاعدة. وهو **انحدار**
-  // عن ما قبل الموجة (حيث كانت القيمة محسوبة من `new Date()` فتحمل وقتًا حقيقيًا)،
-  // ومن نفس فئة عيب «يوم السماح الضائع» التي أُنشئ IN-09 لعلاجها.
-  cursor.setUTCHours(23, 59, 59, 999);
-  return cursor;
+  /**
+   * 🔴 **آخر اللحظة لا أولها** (IN-09): بلا ختم اليوم يبقى الاستحقاق منتصف ليله،
+   * فيشتقّ `effectiveStatus` حالة `OVERDUE` **مع بداية آخر يوم مسموح** ⇒ المندوب
+   * يخسر اليوم الذي منحته له القاعدة.
+   *
+   * ✅ **D-IN-25 (قرار يوسف): الختم بتوقيت القاهرة لا UTC.**
+   * كان `setUTCHours(23,59,59,999)` — و`23:59:59 UTC` = **02:59:59 بالقاهرة من
+   * اليوم التالي** ⇒ ثلاث ساعات إضافية صامتة لا يقصدها أحد. الختم الآن في وحدة
+   * التواريخ (مصدر واحد للمنطقة الزمنية) لا مكرَّرًا هنا.
+   *
+   * ⚠️ **أثر رجعي معلَن (BL-181):** الصفوف القائمة تحتفظ بختمها القديم — الحساب
+   * الجديد يسري على الجدولات الجديدة وحدها. لا تعديل بيانات لم يُطلب.
+   */
+  return endOfCairoDay(cursor);
 }
 
 /**
@@ -644,6 +669,34 @@ export async function scheduleInspection(
   }
 
   // IN-09: مهلة التنفيذ تُحسب **الآن** من الموعد المُلتزَم به، لا من لحظة الطلب.
+  /**
+   * ── D-IN-24: فحص تعارض جدول المندوب — **تحذير لا حجب** ──────────────────────
+   *
+   * 🔴 **التعريف المُنفَّذ: نفس المندوب في نفس اليوم (بتوقيت القاهرة).**
+   * التداخل الزمني الحقيقي يستلزم **مدة الزيارة** وهي غير مخزَّنة في أي عمود —
+   * فاختراع نافذة (ساعتان؟ أربع؟) كان تخمينًا يُقيَّد به المدير بلا سند. مسجَّل
+   * في BACKLOG حتى تُحسم المدة مع حسن.
+   *
+   * 🔴 **ولماذا تحذير لا حجب:** المدير قد يعرف ما لا يعرفه النظام (موقعان متجاوران ·
+   * زيارتان قصيرتان · تنسيق هاتفي). الحجب كان سيمنع جدولةً مشروعة، والصمت كان
+   * يترك المندوب في موعدين. التحذير يُعلِم ويترك القرار لصاحبه.
+   */
+  const dayKey = cairoDateKey(scheduledAt);
+  const sameDayOthers = await prisma.inspectionRequest.findMany({
+    where: {
+      id: { not: id },
+      assigneeId,
+      deletedAt: null,
+      // الحالات النهائية لا تشغل جدول المندوب — نفس المصدر الوحيد (SCR-INS-I)
+      status: { notIn: [...TERMINAL_INSPECTION_STATUSES] },
+      scheduledAt: { not: null },
+    },
+    select: { id: true, scheduledAt: true, customer: { select: { name: true } } },
+  });
+  const conflicts = sameDayOthers.filter(
+    (o) => o.scheduledAt !== null && cairoDateKey(o.scheduledAt) === dayKey
+  );
+
   // SCR-INS-C: `await` — المهلة تُقرأ من الإعدادات عند كل حساب
   const dueDate = await computeDueDate(current.location, scheduledAt);
 
@@ -741,5 +794,10 @@ export async function scheduleInspection(
     approvalStatus: inspection.approvalStatus,
     siteReadiness: inspection.siteReadiness,
     matchResult: inspection.matchResult,
+    // D-IN-24: التعارض يُعاد **مع الصفّ الناجح** — الجدولة تمّت والتنبيه يرافقها
+    scheduleConflicts: conflicts.map((c) => ({
+      customerName: c.customer.name,
+      scheduledAt: c.scheduledAt as Date,
+    })),
   };
 }

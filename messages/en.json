@@ -805,6 +805,7 @@
     "submittedAt": "Submitted at",
     "completedAt": "Completed at",
     "notScheduledYet": "Not scheduled yet",
+    "scheduleConflict": "⚠️ This rep has {count} other inspection(s) the same day: {customers} — scheduling succeeded, review their schedule",
     "notRecordedLegacy": "Not recorded — predates the system update",
     "activity": {
       "title": "Activity log",

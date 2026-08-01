@@ -804,6 +804,7 @@
     "submittedAt": "تاريخ التقديم",
     "completedAt": "تاريخ الإنهاء",
     "notScheduledYet": "لم تُجدوَل بعد",
+    "scheduleConflict": "⚠️ هذا المندوب له {count} معاينة أخرى في نفس اليوم: {customers} — الجدولة تمّت، راجع جدوله",
     "notRecordedLegacy": "غير مسجَّل — قبل تحديث النظام",
     "activity": {
       "title": "سجل الأحداث",

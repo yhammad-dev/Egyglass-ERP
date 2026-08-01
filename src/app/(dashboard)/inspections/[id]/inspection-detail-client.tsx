@@ -713,7 +713,8 @@ export function InspectionDetailClient({
           {/* محاذاة: `dir` على الـspan لا البلوك (الشرح الكامل عند هاتف العميل أعلاه) */}
           <p>
             <span dir="ltr">
-              {formatBusinessDate(inspection.scheduledAt) ?? t("inspections.dash")}
+              {/* D-IN-24: لحظة حقيقية بتوقيت القاهرة — لا يوم عمل بـUTC */}
+              {formatInstantDateTime(inspection.scheduledAt) ?? t("inspections.dash")}
             </span>
           </p>
         </div>
