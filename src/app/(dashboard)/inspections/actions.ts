@@ -15,6 +15,8 @@ import {
   deriveEffectiveStatus,
   InspectionError,
 } from "@/lib/services/inspections";
+// D-IN-22 (C2-fix-2): النهائيتان لا تُمسّان عند رفع التأجيل — نفس المصدر الوحيد
+import { isTerminalInspectionStatus } from "@/lib/services/inspection-status";
 import {
   addMeasurement,
   deleteMeasurement,
@@ -1345,6 +1347,8 @@ export async function recordDeviation(input: unknown) {
         status: true,
         approvalStatus: true,
         customerId: true,
+        // D-IN-22: لازم لاستعادة الحالة الأصلية عند رفع التأجيل
+        scheduledAt: true,
         customer: { select: { name: true, ownerId: true } },
       },
     });
@@ -1356,6 +1360,41 @@ export async function recordDeviation(input: unknown) {
       return { error: "errors.inspectionApprovedNoChange" as const };
 
     const becomesPostponed = POSTPONING_REASONS.includes(reason);
+
+    /**
+     * 🔴 **D-IN-22 (C2-fix-2) — رفع التأجيل عند انحراف لا يستوجبه.**
+     *
+     * العيب (مُتحقَّق بالبيانات الحيّة، الصفّ `cmrh79ya9…`): كان الشرط
+     * `...(becomesPostponed ? { status: "POSTPONED" } : {})` — فالسبب الجديد الذي لا
+     * يستوجب تأجيلًا **لا يمسّ الحالة إطلاقًا**. معاينة كانت `POSTPONED` بسبب
+     * `NO_STAFF_AVAILABLE` ثم سُجّل عليها `CUSTOMER_CANCELLED` بقيت **«مؤجَّلة»**:
+     * حالة تقول «ستُستأنف» وسبب يقول «لن تُستأنف»، وتظهر للمدير قابلةً لإعادة الجدولة.
+     * و`ActivityLog` كان يسجّل `statusChangedTo: null` — فالتناقض غير مرئي حتى في الأثر.
+     *
+     * القرار (الخيار أ): تعود الحالة إلى **أصلها** — `SCHEDULED` إن كان لها موعد
+     * مُلتزَم به، وإلا `REQUESTED`. لا تُخترع حالة ولا تُترك على أثر انحراف سابق.
+     *
+     * 🔴 **النهائيتان لا تُمسّان** (`DONE`/`CANCELLED`): مصدر واحد
+     * (`isTerminalInspectionStatus`) لا شرط رابع. ولولا هذا الحارس لأعاد تسجيلُ
+     * انحرافٍ على معاينة ملغاة **بعثَها** إلى `REQUESTED` — نفس ثغرة BL-172 من باب آخر.
+     */
+    let nextStatus: "POSTPONED" | "SCHEDULED" | "REQUESTED" | null = null;
+    if (isTerminalInspectionStatus(inspection.status)) {
+      /**
+       * 🔴 **قيد 1 — النهائيتان لا تُمسّان، وهذا يسدّ ثقبًا قائمًا لا يمنع جديدًا:**
+       * الشرط القديم `becomesPostponed ? { status: "POSTPONED" }` كان **بلا أي فحص
+       * للحالة الحالية**، فتسجيل `CUSTOMER_POSTPONED` على معاينة `CANCELLED` كان
+       * **يبعثها** إلى «مؤجَّلة» — نفس فئة BL-172 من باب آخر.
+       * السبب يُسجَّل (توثيق مشروع)، والحالة النهائية تبقى.
+       */
+      nextStatus = null;
+    } else if (becomesPostponed) {
+      nextStatus = "POSTPONED";
+    } else if (inspection.status === "POSTPONED") {
+      // رفع التأجيل: العودة للأصل — الموعد المُلتزَم به إن وُجد، وإلا «مطلوبة»
+      nextStatus = inspection.scheduledAt ? "SCHEDULED" : "REQUESTED";
+    }
+    const statusChanged = nextStatus !== null && nextStatus !== inspection.status;
 
     await prisma.inspectionRequest.update({
       where: { id },
@@ -1372,7 +1411,8 @@ export async function recordDeviation(input: unknown) {
          * عمودًا منسيًّا. `undefined` ⇒ Prisma تتركه `null` = «لم يُقرَّر».
          */
         qualityFollowUp: parsed.data.qualityFollowUp,
-        ...(becomesPostponed ? { status: "POSTPONED" as const } : {}),
+        // D-IN-22: تُكتب الحالة عند التأجيل **وعند رفعه** — لا عند الأول وحده
+        ...(nextStatus !== null ? { status: nextStatus } : {}),
       },
     });
 
@@ -1386,7 +1426,10 @@ export async function recordDeviation(input: unknown) {
           reason,
           source: isCustomerSourced(reason) ? "CUSTOMER" : "INTERNAL",
           note,
-          statusChangedTo: becomesPostponed ? "POSTPONED" : null,
+          // D-IN-22 (قيد 2): الانتقال **الحقيقي** من←إلى لا `—` دائمًا. الأثر القديم
+          // كان يكتب `null` عند رفع التأجيل، فلم يكن التناقض مرئيًا حتى في السجل.
+          statusChangedTo: statusChanged ? nextStatus : null,
+          statusChangedFrom: statusChanged ? inspection.status : null,
         }),
       },
     });
@@ -1422,7 +1465,9 @@ export async function recordDeviation(input: unknown) {
 
     // الحالة تغيّرت ⇒ يُعاد اشتقاق حالة الطلب ومرحلة العميل (درس IN-37: الكتابة
     // بلا إعادة اشتقاق تترك المرحلة معلّقة للأبد). محوَّطة: فشلها لا يُبطل انحرافًا وقع.
-    if (becomesPostponed) {
+    // D-IN-22: الشرط صار `statusChanged` لا `becomesPostponed` — **رفع** التأجيل
+    // تغييرُ حالةٍ أيضًا، وإغفاله كان سيترك الاشتقاق على واقع قديم.
+    if (statusChanged) {
       try {
         await recomputeAfterInspection(id, inspection.customerId, auth.userId);
       } catch (error) {

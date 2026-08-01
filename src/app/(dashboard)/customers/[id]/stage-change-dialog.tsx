@@ -33,6 +33,12 @@ const STAGES = [
   "REJECTED",
 ] as const;
 
+/**
+ * D-IN-21: المراحل المتاحة لغير-ADMIN. **الرفض وحده** — تقييد لا توسيع، ومطابق
+ * حرفيًا لما يقبله الخادم (SF-03). أي توسيع هنا يجب أن يسبقه توسيع الحارس هناك.
+ */
+const REJECT_ONLY_STAGES = ["REJECTED"] as const;
+
 const REJECT_REASONS = [
   "PRICE_HIGH",
   "LONG_DURATION",
@@ -48,15 +54,31 @@ export function StageChangeDialog({
   customerId,
   currentStage,
   onStageChanged,
+  canOverrideStage,
 }: {
   customerId: string;
   currentStage: string;
   onStageChanged: () => void;
+  /**
+   * D-IN-21 (C2-fix-2): `true` = ADMIN (كل المراحل — override) ·
+   * `false` = مبيعات (**الرفض وحده**).
+   *
+   * 🔴 مرآة حارس SF-03 الخادمي (`lib/actions/customers.ts`) الذي يرفض من غير-ADMIN
+   * أيَّ انتقال ليس `REJECTED`. عرض القائمة كاملة للمندوب كان سيُنتج **زرًّا نصف
+   * ميت**: يختار «معاينة» فيُرفض بـ`errors.notAuthorized` — أي نُبدِل عيب الطريق
+   * المقطوع بعيب الوعد الكاذب (STD-15). **القرار النافذ خادمي؛ هذا عرضٌ يعكسه.**
+   */
+  canOverrideStage: boolean;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
+  // المراحل المعروضة تتبع الصلاحية: ADMIN يرى الكل، والمبيعات ترى `REJECTED` وحدها.
+  const availableStages = canOverrideStage ? STAGES : REJECT_ONLY_STAGES;
   const [newStage, setNewStage] = useState<(typeof STAGES)[number] | null>(
-    currentStage as (typeof STAGES)[number]
+    // 🔴 غير-ADMIN يبدأ على `REJECTED` مباشرةً لا على المرحلة الحالية: القائمة لا
+    // تحوي المرحلة الحالية أصلًا، فبدء الحالة عليها كان يُظهر قيمة خارج الخيارات
+    // ويُبقي حارس `newStage === currentStage` مانعًا للإرسال بلا تفسير.
+    canOverrideStage ? (currentStage as (typeof STAGES)[number]) : "REJECTED"
   );
   const [selectedReason, setSelectedReason] = useState<RejectReason | "">("");
   const [freeText, setFreeText] = useState("");
@@ -149,7 +171,7 @@ export function StageChangeDialog({
                 <SelectValue>{t(`pipeline.${newStage ?? currentStage}`)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {STAGES.map((s) => (
+                {availableStages.map((s) => (
                   <SelectItem key={s} value={s}>
                     {t(`pipeline.${s}`)}
                   </SelectItem>

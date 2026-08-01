@@ -70,6 +70,12 @@ export async function changeCustomerStage(
     where: { id: customerId },
     data: {
       stage: newStage,
+      /**
+       * ⚠️ **C2-fix-2 — البند 2 لم يُنفَّذ: `Customer.updatedById` غير موجود.**
+       * لا في الschema ولا في القاعدة (`information_schema` أعاد `updatedAt` وحده).
+       * المرجع `schema.prisma:540` في التكليف يخصّ `SystemSettings` لا `Customer`.
+       * إضافته = عمود جديد ⇒ SCR بيد المشغّل البشري (L-02). مسجَّل: BL-174.
+       */
       ...(newStage === "REJECTED" ? { rejectReason: rejectReason!.trim() } : {}),
     },
   });
