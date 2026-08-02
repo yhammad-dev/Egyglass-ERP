@@ -19,6 +19,9 @@ import {
 import { isTerminalInspectionStatus } from "@/lib/services/inspection-status";
 // D-IN-24: قراءة ساعة الحائط القاهرية من `datetime-local` — لا `new Date()` الخام
 import { parseCairoWallTime } from "@/lib/format/dates";
+import { collectIdCandidates } from "@/lib/format/activity-details";
+// BL-196: المصدر الوحيد لبصمة البايتات — كانت دالة محلية هنا، والمستندات بلا فحص.
+import { sniffImageMime } from "@/lib/storage/sniff";
 import {
   addMeasurement,
   deleteMeasurement,
@@ -397,6 +400,36 @@ export async function getInspectionDetail(id: string) {
       }),
     ]);
 
+    /**
+     * ── BL-192: حلّ المعرّفات المذكورة داخل حمولات `details` إلى أسماء ──────────
+     *
+     * الحمولة كانت تُسلَّم خامًا فتُعرض `assigneeId: cmsagpz5l000jmm2ziztlr2g3` —
+     * سجل تدقيقي غير مقروء لمن يحتاجه أصلًا.
+     *
+     * **استعلام واحد لكل الصفحة** (`in` على مجموعة مُزالة التكرار) لا استعلام لكل
+     * سطر: السجل قد يحمل عشرات الأحداث وأغلبها يذكر **نفس** المندوب.
+     *
+     * 🔴 **لا توسيع تصريح:** الأسماء المُعادة تخصّ معرّفات **مذكورة أصلًا في أحداث
+     * مرّت كل فحوص النطاق أعلاه**، والشاشة تعرض أسماء مستخدمين بالفعل (`actorName`
+     * · `assignee.name`). لا حقل جديد يُسرَّب — لا بريد ولا دور ولا حالة تفعيل.
+     * ومعرّف لا يقابله مستخدم (`customerId`/`measurementId`) لا يُحلّ فيبقى خامًا.
+     *
+     * قاعدة «ما هو معرّف؟» تأتي من `lib/format/activity-details.ts` — نفس الوحدة
+     * التي ترسم السطور في الواجهة، فلا تنحرف الجهتان (درس IN-12).
+     */
+    const idCandidates = [
+      ...new Set(activity.flatMap((a) => collectIdCandidates(a.details))),
+    ];
+    const mentionedUsers = idCandidates.length
+      ? await prisma.user.findMany({
+          where: { id: { in: idCandidates } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const activityUserNames: Record<string, string> = Object.fromEntries(
+      mentionedUsers.map((u) => [u.id, u.name])
+    );
+
     return {
       id: inspection.id,
       // الملكية لا تُسلَّم للعميل: النطاق فُرض أعلاه سيرفر-سايد، والواجهة لا تحتاجها
@@ -505,6 +538,8 @@ export async function getInspectionDetail(id: string) {
       returnReason: inspection.returnReason,
       // IN-45: الأثر الزمني — أحدث أولًا. `details` يُسلَّم **خامًا** كما كُتب
       // (JSON أحيانًا ونصًّا عربيًا حرًّا أحيانًا) والواجهة تعرضه بلا افتراض شكل.
+      // BL-192: الخام يبقى خامًا هنا عمدًا — التشكيل عند العرض، والخريطة أدناه
+      // هي كل ما يحتاجه العميل ليحلّ المعرّفات. لا تُعاد كتابة الأثر نفسه.
       activity: activity.map((a) => ({
         id: a.id,
         action: a.action,
@@ -512,6 +547,8 @@ export async function getInspectionDetail(id: string) {
         actorName: a.user.name,
         createdAt: a.createdAt.toISOString(),
       })),
+      /** BL-192: `معرّف → اسم` للمستخدمين المذكورين داخل حمولات `details` أعلاه. */
+      activityUserNames,
     };
   } catch (error) {
     console.error("[getInspectionDetail]", error);
@@ -609,40 +646,12 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB
 // (الرفع يقبل webp/gif والتقديم يجهلهما). الاسم المحلي يبقى كما هو لتقليل الضجيج.
 const IMAGE_EXT = UPLOAD_IMAGE_EXT;
 
-// اشتقاق النوع من البصمة السحرية للبايتات (magic bytes) — لا ثقة بـ mimeType العميل
-function sniffImageMime(buf: Buffer): string | null {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
-    return "image/jpeg";
-  if (
-    buf.length >= 8 &&
-    buf[0] === 0x89 &&
-    buf[1] === 0x50 &&
-    buf[2] === 0x4e &&
-    buf[3] === 0x47 &&
-    buf[4] === 0x0d &&
-    buf[5] === 0x0a &&
-    buf[6] === 0x1a &&
-    buf[7] === 0x0a
-  )
-    return "image/png";
-  if (
-    buf.length >= 6 &&
-    buf[0] === 0x47 &&
-    buf[1] === 0x49 &&
-    buf[2] === 0x46 &&
-    buf[3] === 0x38 &&
-    (buf[4] === 0x37 || buf[4] === 0x39) &&
-    buf[5] === 0x61
-  )
-    return "image/gif";
-  if (
-    buf.length >= 12 &&
-    buf.toString("ascii", 0, 4) === "RIFF" &&
-    buf.toString("ascii", 8, 12) === "WEBP"
-  )
-    return "image/webp";
-  return null;
-}
+// اشتقاق النوع من البصمة السحرية للبايتات (magic bytes) — لا ثقة بـ mimeType العميل.
+//
+// BL-196: المنطق انتقل إلى `lib/storage/sniff.ts` **بلا تغيير بايت واحد** — كان دالة
+// محلية غير مُصدَّرة هنا، ووحدة المستندات بلا أي فحص إطلاقًا. النسخ لها كان سيُنتج
+// مصدرين ينحرفان (درس IN-12)، فاستُخرج المصدر الواحد ويستورده الكاتبان.
+// السلوك هنا لم يتغيّر: نفس الدالة بنفس القيم، من مكان آخر.
 
 const attachmentSchema = z.object({
   id: z.string().min(1, "errors.invalidInput"),

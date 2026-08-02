@@ -31,11 +31,13 @@ import {
 } from "../actions";
 // تعريف واحد للنوع — مصدره الخدمة (import type يُمحى عند البناء، لا استيراد خادم للعميل)
 import type { MeasurementRow } from "@/lib/services/inspection-measurements";
-// C1-fix: المصدر الوحيد لتنسيق التواريخ — يوم عمل (UTC) ولحظة حقيقية (القاهرة)
+// C1-fix + D-IN-26: المصدر الوحيد لتنسيق التواريخ — كله لحظات بتوقيت القاهرة
 import {
   formatInstantDate,
   formatInstantDateTime,
 } from "@/lib/format/dates";
+// BL-192: تشكيل حمولة السجل — نفس الوحدة التي يجمع بها الخادم المعرّفات
+import { formatActivityDetails } from "@/lib/format/activity-details";
 
 // OVERDUE تبقى في نوع **العرض**: صفوف قديمة كُتبت يدويًا قبل IN-07 يجب أن تُعرَض
 // مترجمةً لا كقيمة خام.
@@ -168,37 +170,6 @@ const numberInputGuards = {
   },
 };
 
-/**
- * IN-45: عرض `details` **بلا افتراض شكل**. العمود يحمل أحيانًا JSON مهيكلًا
- * (`{assigneeId:{from,to}, …}` من الجدولة) وأحيانًا نصًّا عربيًا حرًّا
- * (`"الموقع جاهز"`)، وأحيانًا `null`.
- *
- * 🔴 القاعدة الحاكمة: **لا يُسقَط الصف مهما كان المحتوى.** فشل التحليل يعني عرض
- * النص كما هو، لا اختفاء حدث من سجل تدقيقي — سجل ينقص صفًّا أسوأ من سجل قبيح.
- */
-function formatActivityDetails(raw: string | null): string[] {
-  if (!raw) return [];
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-  // نصّ حر: لا يبدأ بقوس JSON ⇒ يُعرض حرفيًا بلا محاولة تحليل
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return [trimmed];
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (parsed === null || typeof parsed !== "object") return [trimmed];
-    return Object.entries(parsed as Record<string, unknown>).map(([key, value]) => {
-      // شكل الانتقال `{from, to}` هو الأشيع (جدولة/إعادة جدولة) — يُقرأ كسهم
-      if (value !== null && typeof value === "object" && "to" in value) {
-        const pair = value as { from?: unknown; to?: unknown };
-        return `${key}: ${String(pair.from ?? "—")} ← ${String(pair.to ?? "—")}`;
-      }
-      return `${key}: ${value === null ? "—" : String(value)}`;
-    });
-  } catch {
-    // JSON مكسور أو نصّ يبدأ بقوس مصادفةً — يُعرض خامًا ولا يختفي
-    return [trimmed];
-  }
-}
-
 type InspectionDetail = {
   id: string;
   customer: { id: string; name: string; phone: string };
@@ -259,6 +230,12 @@ type InspectionDetail = {
     actorName: string;
     createdAt: string;
   }[];
+  /**
+   * BL-192: `معرّف → اسم` للمستخدمين المذكورين داخل حمولات `details`. يُحلّ على
+   * الخادم باستعلام واحد — الواجهة تقرأ خريطة جاهزة ولا تستعلم لكل سطر.
+   * معرّف غير موجود فيها (عميل/مقاس) يبقى خامًا ولا يختفي.
+   */
+  activityUserNames: Record<string, string>;
   /**
    * IN-49: صلاحية الكتابة **من الخادم** (مشتقّة من ALLOWED_ROLES نفسها التي تحرس
    * الأكشنات) لا من `currentRole` في العميل. المبيعات والمكتب الفني يقرأان فقط،
@@ -1532,7 +1509,10 @@ export function InspectionDetailClient({
         ) : (
           <ol className="space-y-3">
             {inspection.activity.map((event) => {
-              const lines = formatActivityDetails(event.details);
+              const lines = formatActivityDetails(
+                event.details,
+                inspection.activityUserNames
+              );
               return (
                 <li
                   key={event.id}
