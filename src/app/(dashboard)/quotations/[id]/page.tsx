@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getSystemSettings } from "@/lib/config";
+// P0 (4.1): نفس نطاق `getQuotations` — مصدر واحد للقائمة والتفصيل والطباعة.
+import { buildQuotationRoleScope } from "@/lib/services/quotation-scope";
 import { QuotationDetail } from "./_components/quotation-detail";
 // TO-34: نوع مدخلات التسعير المحفوظة (TO-33) — يُقرأ للعرض فقط.
 import type { ItemPricingInput } from "../new/_components/product-recipe-form";
@@ -25,19 +27,37 @@ export default async function QuotationDetailPage(props: {
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
-  // نطاق المورد للدورين الجديدين فقط. نفس قاعدة `getQuotations` حرفيًا، مطبَّقة على
-  // عرض واحد. ⚠️ أدوار المبيعات **لم تُمس** (نطاقها القائم خارج نطاق TO-23).
-  const scope: Record<string, unknown> = { id };
-  if (roleCheck.role === "TECHNICAL_OFFICE") {
-    scope.createdById = roleCheck.userId;
-  } else if (roleCheck.role === "TEC_LEAD") {
-    const lead = await prisma.user.findUnique({
-      where: { id: roleCheck.userId },
-      select: { leadRoute: true },
-    });
-    if (!lead?.leadRoute) notFound();
-    scope.quotationRequest = { technicalRoute: lead.leadRoute };
-  }
+  /**
+   * ── P0 (بند 4.2): نطاق المورد **لكل الأدوار** — لا للمكتب الفني وحده ────────
+   *
+   * 🔴 ما كان مكسورًا: التضييق بُني لدورين اثنين فقط (`TECHNICAL_OFFICE`/`TEC_LEAD`)،
+   * والتعليق هنا كان يقرّ بالاستثناء حرفيًا: «أدوار المبيعات لم تُمس». فكان
+   * `SALES_REP` بلا أي فرع ⇒ `where` يصير `{ id }` وحده ⇒ **أي مندوب يفتح أي عرض
+   * في الشركة بالرابط المباشر**. مُثبَت بالتصفّح: `HTTP 200` مع اسم العميل وهاتفه
+   * وإجماليه، بينما ملف العميل نفسه يعطيه `404`. الحارس كان يقول «الدور مسموح»
+   * ولا أحد يقول «هذا العرض بالذات مسموح».
+   *
+   * القاعدة **مُعادة الاستخدام لا مخترعة**: نفس شرط `getQuotations` من المصدر
+   * الواحد `lib/services/quotation-scope.ts` ⇒ القائمة والتفصيل لا يفترقان أبدًا.
+   *
+   * ⚠️ **خارج النطاق ⇒ `notFound()` لا صفحة منع** (النمط القائم في المشروع):
+   * رسالة «ممنوع» تؤكّد وجود العرض، فتصير مِفصَح وجود يُحصى به. و`null` من الدالة
+   * = «صفر وصول» (TEC_LEAD بلا مسار) ⇒ نفس `notFound()`، لا «بلا قيد».
+   */
+  const roleScope = await buildQuotationRoleScope(roleCheck.userId, roleCheck.role);
+  if (roleScope === null) notFound();
+  /**
+   * ── BL-197 (قرار يوسف، 2026-08-03): **المحذوف منطقيًا يُحجب** ─────────────────
+   *
+   * قرار مستقل عن P0 ونُفِّذ في مروره لأن الملف مفتوح، لا لأنه جزء منه.
+   * `getQuotations` تبدأ بـ`{ deletedAt: null }` منذ نشأتها، وهذه الصفحة كانت تبني
+   * `{ id }` وحده ⇒ **تناقض داخلي**: العرض يختفي من القائمة ويبقى مقروءًا بالرابط
+   * المباشر. ومَن حذف يتوقّع أن الحذف نافذ — لا أن يبقى المستند حيًّا لمن يحفظ عنوانه.
+   *
+   * ⚠️ الترتيب مقصود: الشرط يُدمج **بعد** `roleScope` كي لا يستطيع أي نطاق دورٍ
+   * أن يدهسه — فالحجب خاصية للصفّ لا للدور، ولا استثناء منه لأحد.
+   */
+  const scope: Record<string, unknown> = { id, ...roleScope, deletedAt: null };
 
   const [quotation, discountRequest, settings] = await Promise.all([
     prisma.quotation.findFirst({

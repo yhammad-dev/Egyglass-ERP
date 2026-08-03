@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { QuotationStatus, CustomerSource } from "@prisma/client";
+// P0 (4.1): المصدر الواحد لنطاق الرؤية بالدور — تستهلكه القائمة والتفصيل والطباعة.
+import { buildQuotationRoleScope } from "@/lib/services/quotation-scope";
 
 // ── Status Bucket ────────────────────────────────────
 
@@ -78,25 +80,24 @@ export async function getQuotations(
   userId: string,
   role: string,
 ): Promise<QuotationRow[]> {
-  const where: Record<string, unknown> = { deletedAt: null };
-
-  if (role === "SALES_REP") {
-    where.OR = [
-      { createdById: userId },
-      { customer: { ownerId: userId } },
-    ];
-  } else if (role === "TECHNICAL_OFFICE") {
-    where.createdById = userId;
-  } else if (role === "TEC_LEAD") {
-    // `leadRoute` ليس في الجلسة (rbac.ts:28-32 يُرجع userId/role فقط) — يُقرأ هنا.
-    const lead = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { leadRoute: true },
-    });
-    // بلا مسار مُسنَد ⇒ صفر عرض. الرجوع بلا فلتر هنا كان يعني «يرى الكل» — عكس المقصود.
-    if (!lead?.leadRoute) return [];
-    where.quotationRequest = { technicalRoute: lead.leadRoute };
-  }
+  /**
+   * ── P0 (بند 4.1): القاعدة **انتقلت** إلى `lib/services/quotation-scope.ts` ──
+   *
+   * لم تُكتب هناك من جديد: `BL-196` استخرجها من هنا حرفيًا (شرطًا بشرط) لأن حارس
+   * المستندات احتاجها، وملفات P0 كانت محظورة وقتها. فبقيت القاعدة في موضعين مؤقتًا.
+   * هذا السطر يُنهي الازدواج: **القائمة والتفصيل والطباعة تقرأ الآن من مصدر واحد.**
+   *
+   * 🔴 **صفر تغيير سلوك (قيد P0 الأول).** الفروع الثلاثة بقيمها كما كانت، و`null`
+   * هو تمثيل حالة «TEC_LEAD بلا مسار» التي كانت `return []` هنا — تُترجم أدناه
+   * إلى نفس `[]` بالضبط.
+   *
+   * ⚠️ `deletedAt: null` يبقى **خارج** الدالة المشتركة عمدًا: هو بُعد ثانٍ (ماذا
+   * يبقى مقروءًا) لا يخصّ النطاق (مَن يرى). بعد قرار `BL-197` صار المستدعون
+   * الثلاثة يضمّونه كلٌّ في موضعه — والفصل هو ما يسمح لأحد البُعدين أن يتغيّر وحده.
+   */
+  const scope = await buildQuotationRoleScope(userId, role);
+  if (scope === null) return [];
+  const where: Record<string, unknown> = { deletedAt: null, ...scope };
 
   const quotations = await prisma.quotation.findMany({
     where,

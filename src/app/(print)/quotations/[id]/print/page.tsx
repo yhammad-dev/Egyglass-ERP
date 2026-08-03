@@ -6,6 +6,8 @@ import { getSystemSettings } from "@/lib/config";
 import { t } from "@/lib/server-translations";
 // TO-39-B: شرط عرض الخصم واشتقاق الصافي — مصدر واحد مع شاشة العرض.
 import { quotationDisplayTotals } from "@/lib/quotation-totals";
+// P0 (4.1): نفس نطاق `getQuotations` — مصدر واحد للقائمة والتفصيل والطباعة.
+import { buildQuotationRoleScope } from "@/lib/services/quotation-scope";
 import { PrintButton } from "./_components/print-button";
 
 const SOCIAL_NOTE_KEYS = Array.from(
@@ -38,9 +40,39 @@ export default async function QuotationPrintPage(props: {
   ]);
   if (!roleCheck.authorized) redirect("/dashboard");
 
+  /**
+   * ── P0 (بند 4.3): نطاق المورد على الطباعة — وهو الباب الأخطر ────────────────
+   *
+   * 🔴 ما كان مكسورًا: `findUnique({ where: { id } })` — **بالمعرّف وحده، صفر تضييق
+   * لأي دور**. أي أن التسريب لم يكن مقصورًا على المبيعات: كل دور في الحارس أعلاه
+   * كان يقرأ أي عرض في الشركة بالرابط المباشر. وهذه الصفحة أخطر من شاشة التفاصيل
+   * لأنها **المستند التجاري نفسه**: اسم العميل وهاتفه وعنوانه والبنود والإجمالي
+   * في ورقة واحدة جاهزة للطباعة والإرسال.
+   *
+   * `findUnique` **لا يقبل شروطًا غير المفاتيح الفريدة**، فالتحويل إلى `findFirst`
+   * ليس تفضيلًا أسلوبيًا بل **الشرط البنيوي** لإمكان تضييق النطاق أصلًا.
+   *
+   * جرد الأدوار السبعة في الحارس أعلاه: لكلٍّ منها قاعدة نطاق **قائمة وموثَّقة** في
+   * `getQuotations` — `SALES_REP` (عروضه وعملاؤه) · `TECHNICAL_OFFICE` (عروضه) ·
+   * `TEC_LEAD` (مساره، وبلا مسار ⇒ صفر) · و`ADMIN`/`SALES_MANAGER`/`TEC_APPROVER`/
+   * `VIEWER` بلا فلتر. **لا دور بلا قاعدة، فلم يُخترع لأحدها شيء.**
+   * ⚠️ سعة `VIEWER` (يرى كل العروض) قرار قائم سابق لهذا الإصلاح — نُقل كما هو،
+   * ومراجعته بند منفصل لا يُحسم هنا.
+   */
+  const roleScope = await buildQuotationRoleScope(roleCheck.userId, roleCheck.role);
+  if (roleScope === null) notFound();
+
   const [q, settings] = await Promise.all([
-    prisma.quotation.findUnique({
-      where: { id },
+    prisma.quotation.findFirst({
+      /**
+       * BL-197 (قرار يوسف، 2026-08-03): **المحذوف منطقيًا يُحجب** — قرار مستقل عن
+       * P0، نُفِّذ في مروره لأن الملف مفتوح. القائمة تحترم `deletedAt` منذ نشأتها
+       * وهذه الصفحة كانت تتجاهله ⇒ تناقض داخلي، ومَن حذف يتوقّع أن الحذف نافذ.
+       * 🔴 وهنا أثره أشدّ: **مستند تجاري بكامل بياناته** يبقى قابلًا للطباعة
+       * والإرسال بعد حذفه — والورقة المطبوعة لا تُسحب بعد خروجها.
+       * الشرط **بعد** `roleScope` عمدًا: لا نطاق دورٍ يدهسه، فلا استثناء لأحد.
+       */
+      where: { id, ...roleScope, deletedAt: null },
       include: {
         customer: { select: { name: true, phone: true, address: true } },
         createdBy: { select: { name: true } },
