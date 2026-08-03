@@ -3,16 +3,23 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createContract } from "../../../../../../../lib/contracts/actions";
-import { DocumentUpload } from "@/components/document-upload";
+import { DocumentUpload, type DocumentUploadProps } from "@/components/document-upload";
 
 export function ContractForm({
   quotationId,
   customerId,
   existingContract,
+  initialDocs = [],
 }: {
   quotationId: string;
   customerId: string;
   existingContract: { signedAt: string | null; notes: string } | null;
+  /**
+   * BL-199: مستندات العقد المجلوبة **من الخادم** عبر `getDocuments` المحروسة.
+   * النوع من المكوّن نفسه — مصدر واحد للشكل، فلا ينحرف الطرفان.
+   * ⚠️ المفتاح `quotationId` لا `contractId` (قرار BL-198) — نفس مفتاح الكتابة.
+   */
+  initialDocs?: DocumentUploadProps["initialDocs"];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -40,7 +47,7 @@ export function ContractForm({
 
         <div className="space-y-3 border rounded-md p-4">
           <h2 className="text-sm font-semibold">مستندات العقد</h2>
-          <DocumentUpload entityType="contract" entityId={quotationId} />
+          <DocumentUpload entityType="contract" entityId={quotationId} initialDocs={initialDocs} />
         </div>
       </div>
     );
@@ -70,7 +77,7 @@ export function ContractForm({
 
         <div className="space-y-3 border rounded-md p-4">
           <h2 className="text-sm font-semibold">رفع مستندات العقد</h2>
-          <DocumentUpload entityType="contract" entityId={quotationId} />
+          <DocumentUpload entityType="contract" entityId={quotationId} initialDocs={initialDocs} />
         </div>
 
         <button

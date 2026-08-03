@@ -2,8 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir, unlink } from "fs/promises";
+import { join, resolve, sep } from "path";
 import { randomUUID } from "crypto";
 import { uploadDirFor, uploadUrl } from "@/lib/storage/paths";
 // BL-196: بصمة البايتات — المصدر الواحد المشترك مع مرفقات المعاينات، لا نسخة ثانية.
@@ -225,6 +225,42 @@ export async function deleteDocument(id: string) {
     if (!guard.ok) return { error: guard.error };
 
     await prisma.document.delete({ where: { id } });
+
+    /**
+     * ── BL-200: الحذف كان وهميًّا — الصفّ يزول والملف يبقى ────────────────────
+     *
+     * مُثبَت عدديًّا: بعد حذف واحد ناجح كان `documents = 3` مقابل **4 ملفات** على
+     * القرص. الملف اليتيم لا يُعرض ولا يُنظَّف، و**يبقى قابلًا للتنزيل بمساره
+     * المباشر لأي مستخدم مسجَّل** — فمستند حُذف عمدًا (عقد · هوية) يحيا بعد حذفه.
+     *
+     * 🔴 **الترتيب: الصفّ أولًا ثم الملف.** العكس كان يترك صفًّا يشير إلى ملف غير
+     * موجود — وهو أسوأ من ملف يتيم: القائمة تعرض مستندًا وتنزيله يفشل.
+     * 🔴 **الفشل هنا لا يُبطل الحذف** (نمط D-39): الصفّ زال فعلًا، ورمي استثناء
+     * الآن كان سيُرجع «فشل الحذف» عن عملية **نجحت** — كذبٌ على المستخدم. يُسجَّل
+     * ولا يُبتلع.
+     */
+    try {
+      /**
+       * 🔴 **دفاع في العمق: لا حذف خارج مجلد المستندات.** `filename` يأتي من
+       * القاعدة، وهو اليوم مُولَّد خادميًّا (`randomUUID` + امتداد من قائمة مغلقة)
+       * فلا مدخل عميل يصله. لكن الحذف عملية لا رجعة فيها، والقيمة قد تتلوّث يومًا
+       * عبر ثغرة أخرى — فيُحلَّل المسار ويُتحقَّق أنه **تحت** المجلد المتوقَّع قبل
+       * أي `unlink`. الفحص على المسار المُحلَّل لا على النصّ الخام كي لا يفلت
+       * `..` منه بعد التطبيع.
+       */
+      const target = resolve(UPLOAD_DIR, doc.filename);
+      const root = resolve(UPLOAD_DIR);
+      if (target === root || !target.startsWith(root + sep)) {
+        console.error(
+          `[deleteDocument] BL-200: مسار خارج مجلد المستندات — رُفض الحذف. doc=${doc.id} filename=${doc.filename}`
+        );
+      } else {
+        await unlink(target);
+      }
+    } catch (fileErr) {
+      // ملف مفقود سلفًا (ENOENT) أو خطأ نظام ملفات — يُسجَّل ولا يُوقف شيئًا.
+      console.error(`[deleteDocument] BL-200: تعذّر حذف الملف doc=${doc.id}`, fileErr);
+    }
 
     // ⚠️ الأثر يُكتب **بعد** الحذف عمدًا وبقيم مُلتقطة قبله: الصف زال، فلولا هذه
     // اللقطة لضاع اسم الملف وهدفه نهائيًا. `entityId` هنا معرّف المستند المحذوف

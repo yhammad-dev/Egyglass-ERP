@@ -6,6 +6,8 @@ import { getSystemSettings } from "@/lib/config";
 // P0 (4.1): نفس نطاق `getQuotations` — مصدر واحد للقائمة والتفصيل والطباعة.
 import { buildQuotationRoleScope } from "@/lib/services/quotation-scope";
 import { QuotationDetail } from "./_components/quotation-detail";
+// BL-199: القراءة عبر الأكشن المحروس نفسه — لا استعلام موازٍ على `prisma.document`.
+import { getDocuments } from "../../../../../lib/documents/actions";
 // TO-34: نوع مدخلات التسعير المحفوظة (TO-33) — يُقرأ للعرض فقط.
 import type { ItemPricingInput } from "../new/_components/product-recipe-form";
 
@@ -121,6 +123,14 @@ export default async function QuotationDetailPage(props: {
   const factorLabels = Object.fromEntries(factors.map((f) => [f.id, f.label]));
   const typeNames = Object.fromEntries(productTypes.map((p) => [p.code, p.nameAr]));
 
+  /**
+   * BL-199: مستندات العرض — تُجلب بعد أن مرّ الصفّ بنطاق الدور أعلاه.
+   * 🔴 عبر `getDocuments` المحروسة لا باستعلام مباشر: الأكشن يفرض نفس نطاق
+   * الملكية الذي يفرضه على الكتابة (`assertEntityInScope`, BL-196)، فلا يُفتح
+   * مسار قراءة موازٍ بلا حارس. وهو أيضًا يعيد `[]` عند أي فشل — فلا تسقط الصفحة.
+   */
+  const quotationDocs = await getDocuments("quotation", id);
+
   const lastUpdater = quotation.updatedById
     ? await prisma.user.findUnique({
         where: { id: quotation.updatedById },
@@ -187,6 +197,7 @@ export default async function QuotationDetailPage(props: {
         }),
       }}
       currentRole={roleCheck.role}
+      initialDocs={quotationDocs}
       discountRequest={
         discountRequest
           ? {
