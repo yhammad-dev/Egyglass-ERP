@@ -11,7 +11,8 @@ backup_*.dump
 *.diff
 ~$*.docx
 ~$*.xlsx
-
+.env.prod
+.env.production
 # stray shell artifact
 e exec app npx prisma validate
 
