@@ -5,6 +5,8 @@ import { DiscountApprovalPanel } from "./discount-approval-panel";
 const DocumentUpload = lazy(() =>
   import("@/components/document-upload").then((m) => ({ default: m.DocumentUpload }))
 );
+// BL-199: النوع فقط — `import type` يُمحى عند البناء فلا يكسر التحميل الكسول أعلاه.
+import type { DocumentUploadProps } from "@/components/document-upload";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -121,11 +123,17 @@ export function QuotationDetail({
   currentRole,
   discountRequest,
   discountMaxReqPct,
+  initialDocs = [],
 }: {
   quotation: QuotationDetailData;
   currentRole: string;
   discountRequest?: DiscountRequestData | null;
   discountMaxReqPct?: number;
+  /**
+   * BL-199: مستندات العرض المجلوبة **من الخادم** عبر `getDocuments` المحروسة —
+   * تُمرَّر عبورًا إلى `DocumentUpload`. النوع من المكوّن نفسه (مصدر واحد للشكل).
+   */
+  initialDocs?: DocumentUploadProps["initialDocs"];
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -685,7 +693,11 @@ export function QuotationDetail({
       <div className="space-y-3 border rounded-md p-4">
         <h2 className="text-sm font-semibold">المستندات المرفقة</h2>
         <Suspense fallback={<p className="text-xs text-gray-400">جاري التحميل...</p>}>
-          <DocumentUpload entityType="quotation" entityId={quotation.id} />
+          <DocumentUpload
+            entityType="quotation"
+            entityId={quotation.id}
+            initialDocs={initialDocs}
+          />
         </Suspense>
       </div>
 

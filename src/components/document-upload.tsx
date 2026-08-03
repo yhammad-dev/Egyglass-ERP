@@ -14,15 +14,21 @@ type Doc = {
   uploadedBy: { name: string };
 };
 
+/**
+ * BL-199: يُصدَّر ليستعمله المضيفون في تمرير `initialDocs` — **مصدر واحد لشكل
+ * الصفّ** بدل إعادة تعريفه في كل صفحة، فلا ينحرف الطرفان يوم يتغيّر الحقل.
+ */
+export type DocumentUploadProps = {
+  entityType: string;
+  entityId: string;
+  initialDocs?: Doc[];
+};
+
 export function DocumentUpload({
   entityType,
   entityId,
   initialDocs = [],
-}: {
-  entityType: string;
-  entityId: string;
-  initialDocs?: Doc[];
-}) {
+}: DocumentUploadProps) {
   const [docs, setDocs] = useState<Doc[]>(initialDocs);
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);

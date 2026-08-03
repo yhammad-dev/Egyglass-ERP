@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { ContractForm } from "./_components/contract-form";
+// BL-199: القراءة عبر الأكشن المحروس نفسه — لا استعلام موازٍ على `prisma.document`.
+import { getDocuments } from "../../../../../../lib/documents/actions";
 
 export default async function ContractPage(props: {
   params: Promise<{ id: string }>;
@@ -24,6 +26,24 @@ export default async function ContractPage(props: {
 
   if (quotation.reviewStatus !== "APPROVED") redirect(`/quotations/${id}`);
 
+  /**
+   * ── BL-199: السلسلة كانت مقطوعة من طرفين ────────────────────────────────────
+   *
+   * `getDocuments` كانت **بلا مستدعٍ واحد** في المستودع، و`initialDocs` **بلا
+   * ممرِّر** — فالقائمة تبدأ فارغة دائمًا وتمتلئ بما تضيفه الجلسة وحدها، ثم تفرغ
+   * مع أول إعادة تحميل. النتيجة: المستند يُرفع ويُخزَّن ويُكتب أثره… ولا يُرى.
+   *
+   * 🔴 **القراءة تمرّ بالحارس لا حوله:** `getDocuments` تفرض نفس نطاق الملكية
+   * الذي فرضه `BL-196` على الكتابة (`assertEntityInScope`). استعلام مباشر على
+   * `prisma.document` هنا كان سيفتح مسار قراءة موازيًا بلا حارس — أي إعادة فتح
+   * الثغرة التي أُغلقت للتوّ، من باب العرض هذه المرة.
+   *
+   * 🔴 **المفتاح `id` (معرّف العرض) لا معرّف العقد — عمدًا (BL-198):** `ContractForm`
+   * يمرّر `entityId={quotationId}` عند الكتابة، فالقراءة بنفس المفتاح حرفيًا. أي
+   * قيمة أخرى هنا كانت ستقرأ بمفتاح غير الذي كُتب به ⇒ قائمة فارغة أبدًا.
+   */
+  const contractDocs = await getDocuments("contract", id);
+
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <div>
@@ -35,6 +55,7 @@ export default async function ContractPage(props: {
       <ContractForm
         quotationId={id}
         customerId={quotation.customer.id}
+        initialDocs={contractDocs}
         existingContract={
           quotation.contract
             ? {
