@@ -5,7 +5,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: egyglass
-      POSTGRES_PASSWORD: EgyGlass2026Prod
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: egyglass
     volumes:
       - egyglass_db_data:/var/lib/postgresql/data
