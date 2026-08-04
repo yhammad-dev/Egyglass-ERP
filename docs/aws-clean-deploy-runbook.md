@@ -136,6 +136,35 @@ aws ec2 authorize-security-group-ingress --region $REGION --group-id "$SG" \
 ✅ `aws ec2 describe-security-groups --region $REGION --group-ids $SG --query 'SecurityGroups[0].IpPermissions'`
 يُظهر **قاعدتين فقط**. **لا وجود لـ3100 — ولا يجب أن يوجد.**
 
+#### 🔁 عند تبدّل عنوانك (بند تشغيلي دائم — س-3)
+
+> ℹ️ **اقرأه الآن، ونفّذه لاحقًا.** لا علاقة له بإتمام م-1 — موضعه هنا كي تجده يوم
+> ينقطع اتصالك، لا كي توقفك اليوم.
+
+العرض: `ssh` يعلّق ثم ينتهي بـ`Connection timed out`، بينما `https://$EIP` يعمل عاديًّا.
+هذا التمييز وحده يكفي للتشخيص: 443 مفتوح للجميع و22 مقيَّد بك.
+
+```bash
+OLDIP=$(aws ec2 describe-security-groups --region $REGION --group-ids "$SG" \
+  --query "SecurityGroups[0].IpPermissions[?FromPort==\`22\`].IpRanges[0].CidrIp" --output text)
+NEWIP=$(curl -s https://checkip.amazonaws.com | tr -d '\n')
+echo "OLD=$OLDIP  NEW=$NEWIP/32"
+
+aws ec2 authorize-security-group-ingress --region $REGION --group-id "$SG" \
+  --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$NEWIP/32,Description=youssef}]"
+
+# 🔴 والقديمة تُسحب — لا تُترك «احتياطًا»
+aws ec2 revoke-security-group-ingress --region $REGION --group-id "$SG" \
+  --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$OLDIP}]"
+```
+
+> 🔴 **السحب ليس ترتيبًا.** عنوانك من تجميعة ديناميكية لمزوّد مصري — العنوان الذي
+> تركتَه سيُسنَد لمشترك آخر خلال أيام، وتبقى قاعدتك تمنحه **المنفذ 22**. وتراكم
+> القواعد يجعل «مَن يصل إلى الخادم؟» سؤالًا بلا إجابة.
+>
+> ✅ التحقّق بعد التحديث: نفس أمر `describe-security-groups` أعلاه ⇒ **قاعدتان فقط**،
+> وقاعدة الـ22 تحمل عنوانك الحالي وحده.
+
 **١·٣ النسخة** (☁️)
 
 ```bash
@@ -939,7 +968,7 @@ aws ec2 describe-addresses --region $REGION --query "length(Addresses[?Associati
 |---|---|---|---|
 | ~~س-1~~ | ✅ **محسوم (2026-08-05): `@egyglass.net` للأربعة عشر · الأدمن بالافتراضي ثم يُعدَّل من الشاشة.** صفر كود. م-7 محدَّث | — | — |
 | ~~س-2~~ | ✅ **محسوم (2026-08-05): `TZ=Africa/Cairo` معتمَد.** مطبَّق في `Dockerfile` (مع `tzdata`) و`docker-compose.prod.yml`. القاعدة تبقى `PGTZ=UTC` | — | — |
-| **س-3** | **المنفذ 22: عنوانك وحده أم `0.0.0.0/0`؟** | مزوّد الإنترنت المصري قد يبدّل عنوانك | **عنوانك/32** + هذا الأمر للتحديث عند التبدّل: `aws ec2 authorize-security-group-ingress --group-id $SG --ip-permissions 'IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=<NEW>/32}]'` |
+| ~~س-3~~ | ✅ **محسوم (2026-08-05): المنفذ 22 مقيَّد على `$MYIP/32`.** إجراء التحديث عند تبدّل العنوان صار **بندًا تشغيليًّا دائمًا داخل م-1** (إضافة القاعدة الجديدة **وسحب القديمة**) — لا يعيش في جدول أسئلة مغلقة | — | — |
 | **س-4** | **تشغيل غير جذر (`USER node`) — أوافق؟** | يضيف شرط ملكية على قرص EBS | **نعم** — الحاوية خلف إنترنت. الشرط الوحيد `chown 1000` في م-2، والتراجع سطر واحد في compose (`user: root`) |
 | **س-5** | **اسم دلو S3** (فريد عالميًّا) | يلزم قبل م-9 | `egyglass-erp-backups-<أربعة أرقام>` |
 | **س-6** | **إيقاف النسخة خارج الدوام؟** | ~$13/شهر | **لا للنشر الأول** — أضف متغيّرًا واحدًا وقت التشخيص. أعد النظر بعد استقرار UAT |
