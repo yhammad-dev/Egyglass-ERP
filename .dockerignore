@@ -1,7 +1,43 @@
+# ⚠️ الأنماط بلا `/` تُطابَق في أي مستوى. الأنماط المبدوءة بـ`/` مثبَّتة على جذر
+#    سياق البناء — وهذا مقصود في كل سطر أدناه يخص ملفًّا في الجذر.
+# 🔴 **ممنوع `*.sql` مطلقًا** — سيبتلع `prisma/migrations/**/migration.sql`
+#    فتُبنى صورة بلا هجرات و`prisma migrate deploy` يفشل على الخادم.
+
 node_modules
 .next
 .git
-.env
 *.log
+
+# ── أسرار: لا يدخل أي ملف بيئة سياق البناء ────────────────────────────────────
+# 🔴 السطر القديم كان `.env` وحده — فكان `.env.prod` (بكلمة مرور الإنتاج) يُنسخ
+#    داخل مرحلة البناء. `.env*` يغلق العائلة كلها، والاستثناء للأمثلة فقط.
+.env*
+!.env.example
+!.env.production.example
+
+# ── مخرجات وقت التشغيل ───────────────────────────────────────────────────────
+var/uploads
+public/uploads
+
+# ── نسخ احتياطية وبذور مؤقتة في الجذر (مئات الكيلوبايتات بلا فائدة للصورة) ────
+/backup_*.dump
+/backup_*.sql
+/seed_data.sql
+/seed_utf8.sql
+/pricing_seed.sql
+/pricing_seed_utf8.sql
+/*.diff
+/tsconfig.tsbuildinfo
+
+# ── وثائق ومحفوظات لا يحتاجها البناء ─────────────────────────────────────────
 docs
+archive
+knowledge
+change-requests
+tests
+.claude
+.agents
 *.md
+*.docx
+*.xlsx
+~$*

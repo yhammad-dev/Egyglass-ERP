@@ -1,0 +1,15 @@
+# 🔴 ملفات النشر تبقى بنهايات أسطر LF مهما كان إعداد الجهاز.
+#
+# السبب ملموس لا نظري: `core.autocrlf=true` على جهاز التطوير (ويندوز) يحوّل
+# الملفات إلى CRLF **عند كل checkout**. سكربت shell بـCRLF يُنسخ إلى الخادم
+# فيموت بـ:
+#     /usr/bin/env bash^M: bad interpreter: No such file or directory
+# ونفس العلّة تُسقط `docker-compose` و`nginx.conf` بأخطاء تحليل غامضة.
+#
+# النطاق مضيَّق عمدًا على ملفات النشر وحدها — لا إعادة تطبيع شاملة للمستودع.
+
+*.sh                    text eol=lf
+deploy/**               text eol=lf
+Dockerfile              text eol=lf
+docker-compose*.yml     text eol=lf
+.dockerignore           text eol=lf

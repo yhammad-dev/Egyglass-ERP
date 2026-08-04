@@ -1,37 +1,121 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EgyGlass ERP — بيئة الإنتاج/القياس على AWS
+#  الاستعمال:  docker compose -f docker-compose.prod.yml --env-file /etc/egyglass/env up -d
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# 🔴 **لا بناء هنا إطلاقًا.** الصورة تُبنى مسبقًا وتُحمَّل بوسمها (`APP_IMAGE`).
+#    النسخة السابقة كانت `npm ci && npm run build && npm start` وقت الإقلاع على
+#    نسخة بـ908 ميجا ذاكرة ⇒ كل إعادة تشغيل مقامرة على OOM، وكل عطل يستدعي بناءً
+#    كاملًا. الآن: الإقلاع ثوانٍ، والمُشغَّل هو **بالضبط** ما اختُبر محليًّا.
+#
+# 🔴 **التطبيق لا يُنشر على أي منفذ من المضيف.** لا `ports:` على `app` — فقط
+#    `expose`. المنفذ 3100 الذي كان مفتوحًا على `0.0.0.0` لم يعد له وجود بنيويًّا:
+#    حتى لو أخطأتَ في مجموعة الأمان، لا يوجد مستمِع على الواجهة العامة. الباب
+#    الوحيد هو nginx على 443.
+#
+# 🔴 **قاعدة البيانات بلا `ports:` أيضًا** — تُرى من شبكة compose فقط.
+#
+# ── الأحجام: بلا named volumes للبيانات ──
+# البيانات كلها على **قرص EBS منفصل** مركَّب على `/mnt/egyglass-data`:
+#   /mnt/egyglass-data/pgdata   → قاعدة البيانات
+#   /mnt/egyglass-data/uploads  → الملفات المرفوعة
+# السبب: named volume يعيش على قرص الجذر — إعادة إنشاء النسخة تمحوه. القرص
+# المنفصل يُفصَل ويُركَّب على نسخة أخرى كما هو. **وشرطه أن يكون في `/etc/fstab`**
+# (م-2)، وإلا سقط التركيب مع أول `reboot` وكتبت الحاويات على قرص الجذر بصمت.
+# ═══════════════════════════════════════════════════════════════════════════════
+
 name: egyglass-erp
+
+# تدوير السجلات إلزامي: قرص 30 جيجا وسجلّ json-file بلا سقف يملؤه في أسابيع.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: always
+    stop_grace_period: 30s
+    # 64 ميجا الافتراضية تُنتج "could not resize shared memory segment" على
+    # الاستعلامات المتوازية. 256 كافية لهذا الحجم.
+    shm_size: 256mb
     environment:
       POSTGRES_USER: egyglass
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD مفقود في ملف البيئة}
       POSTGRES_DB: egyglass
+      # 🔴 القاعدة تبقى **UTC**. كل الطوابع في النظام لحظات حقيقية تُخزَّن UTC
+      #    وتُعرض بالقاهرة عبر lib/format/dates.ts. تغيير PGTZ يزيح كل قراءة.
+      PGTZ: UTC
+      TZ: UTC
     volumes:
-      - egyglass_db_data:/var/lib/postgresql/data
+      - /mnt/egyglass-data/pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U egyglass -d egyglass"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  # ── تطبيق Next.js ────────────────────────────────────────────────────────────
   app:
-    image: node:20-alpine
-    working_dir: /app
-    command: sh -c "npm ci --ignore-scripts && node scripts/patch-next-html-context.js && ./node_modules/.bin/prisma generate && npm run build && npm run start"
+    # مثال: egyglass-app:21e35e9  — الوسم = الـSHA. لا `latest` أبدًا:
+    # `latest` هو بالضبط ما يجعل «الحاوية تخدم بناءً قديمًا» غير قابل للكشف.
+    image: ${APP_IMAGE:?APP_IMAGE مفقود — ضع وسم الصورة الكامل}
+    restart: always
+    init: true
+    stop_grace_period: 20s
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      AUTH_SECRET: ${AUTH_SECRET}
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL مفقود}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET مفقود}
+      # Auth.js v5 يشتقّ الأصل من ترويسات nginx (trustHost:true في auth.config.ts)،
+      # والمتغيّران هنا تثبيت صريح للمسارات التي تبني رابطًا مطلقًا.
+      AUTH_URL: ${APP_PUBLIC_URL:?APP_PUBLIC_URL مفقود — https://...}
+      NEXTAUTH_URL: ${APP_PUBLIC_URL}
+      AUTH_TRUST_HOST: "true"
       NODE_ENV: production
-    ports:
-      - "3100:3000"
+      TZ: Africa/Cairo
+      # صريح لا اتّكال على cwd (src/lib/storage/paths.ts:21).
+      UPLOADS_DIR: /app/var/uploads
+    expose:
+      - "3000"
+    volumes:
+      # 🔴 نقطة التركيب يجب أن تكون مملوكة لـuid 1000 (المستخدم node داخل الصورة)
+      #    وإلا فشل أول رفع بـEACCES. م-2 يفرضها ويختبرها.
+      - /mnt/egyglass-data/uploads:/app/var/uploads
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # /login عام بلا جلسة ⇒ 200. أي مسار محروس كان سيعيد 307 فيبدو "سليمًا" كذبًا.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging: *default-logging
+
+  # ── nginx: TLS + Basic Auth + الباب الوحيد ───────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports:
+      # 443 وحده. لا 80: مجموعة الأمان تفتح 22 و443 فقط، ونشر 80 هنا يخلق
+      # تناقضًا بين ما تراه في compose وما تسمح به الشبكة.
+      - "443:443"
     volumes:
-      # TO-11: نفس الـvolume، نقطة تركيب جديدة خارج public/ ⇒ المحتوى يظهر كما هو
-      # (لا نقل ملفات). القديم كان /app/public/uploads فكان Next يخدمه ساكنًا.
-      - egyglass_uploads:/app/var/uploads
-volumes:
-  egyglass_db_data:
-  egyglass_uploads:
+      - ./deploy/nginx/egyglass.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/egyglass/tls:/etc/nginx/tls:ro
+      - /etc/egyglass/htpasswd:/etc/nginx/htpasswd:ro
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging: *default-logging
