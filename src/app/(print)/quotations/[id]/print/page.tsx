@@ -83,6 +83,41 @@ export default async function QuotationPrintPage(props: {
             code: true,
             technicalRoute: true,
             engineer: { select: { name: true } },
+            /**
+             * TO-48: الرسمة التنفيذية المعتمدة — تُجلب عبر العلاقة القائمة
+             * `quotationRequest` نفسها، فلا استعلام إضافي ولا تغيير schema
+             * (العلاقة العكسية `QuotationRequest.drawings` موجودة سلفًا).
+             *
+             * قاعدة الاختيار مفروضة **في الاستعلام** لا في العرض، فلا يصل
+             * القالبَ ما لا يُطبع أصلًا:
+             *  · `EXECUTION_DRAWINGS` = تبويب «رسوم تنفيذية» (وليس `DRAWINGS`
+             *    وهو تبويب «رسوم») — القيمة متحقَّقة من `tec.cat_*` لا مفترضة.
+             *  · `TEC_APPROVED` وحدها: المستند يصل العميل، فلا تُطبع مسوّدة
+             *    (`DRAFT`) ولا رسمة أُلغيت بأحدث (`SUPERSEDED`).
+             *  · الأحدث فقط (`createdAt desc` + `take: 1`): لا قيد فريد يمنع
+             *    تعدّد الرسومات على الطلب، فالاختيار صريح لا ضمني.
+             *  · `JPG` وحدها: `<img>` لا يعرض PDF ولا DWG. وبلا هذا القيد كان
+             *    أول PDF معتمد يُرفع تحت «رسوم تنفيذية» يُنتج **أيقونة صورة
+             *    مكسورة في المستند الذي يوقّعه العميل** — والمكتب يرفع PDF
+             *    معتمدًا فعلًا اليوم (٣ رسومات سوشيال). الغياب يسقط على
+             *    المربع المحجوز، وهو تدهور آمن لا عطب ظاهر.
+             */
+            drawings: {
+              where: {
+                category: "EXECUTION_DRAWINGS",
+                status: "TEC_APPROVED",
+                fileType: "JPG",
+              },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                url: true,
+                status: true,
+                category: true,
+                createdAt: true,
+              },
+            },
           },
         },
       },
@@ -136,6 +171,8 @@ export default async function QuotationPrintPage(props: {
 
   const isSocial = q.quotationRequest?.technicalRoute === "SOCIAL_MEDIA";
   const isProjects = q.quotationRequest?.technicalRoute === "PROJECTS";
+  // TO-48: الاستعلام يعيد صفرًا أو واحدًا (take: 1) — فالغياب حالة عادية لا خطأ.
+  const printedDrawing = q.quotationRequest?.drawings[0] ?? null;
   const issuerName = q.quotationRequest?.engineer?.name ?? q.createdBy.name;
 
   const companyName = settings?.companyName || "EgyGlass";
@@ -342,12 +379,30 @@ export default async function QuotationPrintPage(props: {
           </tbody>
         </table>
 
-        {/* ── مكان محجوز للرسمة الهندسية (سوشيال فقط — كالعينة C3_7306؛ الرفع feature لاحق) ── */}
+        {/* ── الرسمة التنفيذية المعتمدة (سوشيال فقط — كالعينة C3_7306) ──
+            TO-48: العميل يوافق على العرض ومعه الرسمة في نفس الورقة.
+            بلا رسمة مطابقة ⇒ المربع المحجوز كما كان تمامًا (لا حجب ولا خطأ).
+            🔴 `<img>` خام إلزامي: `next/image` يجلب الملف من الخادم بلا كوكي
+            المستخدم فيرتدّ 401 على `/uploads` المحروس (TO-48-DIAG) — أي أن
+            استعماله هنا يكسر الصورة صامتًا في مستند يصل العميل. */}
         {isSocial && (
-          <section className="border border-dashed border-gray-500 mb-4 h-56 flex items-center justify-center">
-            <p className="text-xs text-gray-400">
-              {t("quotations.print.drawingPlaceholder")}
-            </p>
+          <section className="no-split border border-dashed border-gray-500 mb-4 min-h-56 flex items-center justify-center p-2">
+            {printedDrawing ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={printedDrawing.url}
+                alt={t("quotations.print.drawingPlaceholder")}
+                className="max-w-full h-auto object-contain"
+                /* سقف الارتفاع بالمليمتر لا بالبكسل: القياس المرجعي هنا هو
+                   ورقة A4 (297mm ناقص هامش 15mm)، فيبقى للجدول والإجماليات
+                   والشروط مكانها ولا تُزاح لصفحة تالية. */
+                style={{ maxHeight: "150mm" }}
+              />
+            ) : (
+              <p className="text-xs text-gray-400">
+                {t("quotations.print.drawingPlaceholder")}
+              </p>
+            )}
           </section>
         )}
 
